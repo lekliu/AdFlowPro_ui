@@ -4,57 +4,42 @@
       <el-input :value="deviceId" disabled />
     </el-form-item>
 
-    <el-form-item label="Command Type" prop="type">
+    <el-form-item label="Action Type" prop="actionPayload.action">
       <el-select
-        v-model="commandForm.type"
-        placeholder="Select command type"
-        @change="onCommandTypeChange"
+        v-model="commandForm.actionPayload.action"
+        placeholder="Select action"
       >
-        <el-option label="Capture Screen" value="capture_screen" />
-        <el-option label="Get UI Structure" value="ui_structure" />
-        <el-option label="Perform Action" value="perform_action" />
+        <el-option label="Tap (by Coordinate)" value="tap" />
+        <el-option label="Click (by Selector)" value="click" />
+        <el-option label="Swipe" value="swipe" />
+        <el-option label="Input Text" value="input_text" />
+        <el-option label="Press Hotkey" value="press_key" />
       </el-select>
     </el-form-item>
 
-    <!-- Fields for Capture Screen -->
-    <template v-if="commandForm.type === 'capture_screen'">
-      <el-form-item label="Format" prop="captureParams.format">
-        <el-select v-model="commandForm.captureParams.format">
-          <el-option label="JPEG" value="jpeg" />
-          <el-option label="PNG" value="png" />
+    <!-- 当 Action Type 为 press_key 时，显示热键选择器 -->
+    <template v-if="commandForm.actionPayload.action === 'press_key'">
+      <el-form-item label="Hotkey" prop="actionPayload.parameters.keyCode">
+        <el-select
+          v-model="commandForm.actionPayload.parameters.keyCode"
+          placeholder="Select a hotkey"
+        >
+          <el-option label="Home" value="home" />
+          <el-option label="Back" value="back" />
+          <el-option label="Recents (App Switcher)" value="recents" />
         </el-select>
-      </el-form-item>
-      <el-form-item label="Quality (1-100)" prop="captureParams.quality">
-        <el-input-number
-          v-model="commandForm.captureParams.quality"
-          :min="1"
-          :max="100"
-        />
-      </el-form-item>
-      <el-form-item label="Max Width" prop="captureParams.maxWidth">
-        <el-input-number
-          v-model="commandForm.captureParams.maxWidth"
-          :min="100"
-          clearable
-        />
       </el-form-item>
     </template>
 
-    <!-- Fields for Perform Action -->
-    <template v-if="commandForm.type === 'perform_action'">
-      <el-form-item label="Action Type" prop="actionPayload.action">
-        <el-select
-          v-model="commandForm.actionPayload.action"
-          placeholder="Select action"
-        >
-          <el-option label="Click" value="click" />
-          <el-option label="Swipe" value="swipe" />
-          <el-option label="Input Text" value="input_text" />
-          <!-- Add more actions -->
-        </el-select>
-      </el-form-item>
-
-      <!-- Selector Fields (common for many actions) -->
+    <template
+      v-if="
+        commandForm.actionPayload.action &&
+        !['tap', 'swipe', 'press_key'].includes(
+          commandForm.actionPayload.action
+        )
+      "
+    >
+      <!-- Selector Fields -->
       <el-form-item label="Selector Type">
         <el-radio-group v-model="commandForm.selectorType">
           <el-radio-button label="resourceId">Resource ID</el-radio-button>
@@ -72,69 +57,89 @@
           :placeholder="`Enter ${commandForm.selectorType}`"
         />
       </el-form-item>
+    </template>
 
-      <!-- Input Text Specific -->
-      <template v-if="commandForm.actionPayload.action === 'input_text'">
-        <el-form-item
-          label="Text to Input"
-          prop="actionPayload.parameters.text"
-        >
-          <el-input
-            v-model="commandForm.actionPayload.parameters.text"
-            type="textarea"
-          />
-        </el-form-item>
-      </template>
+    <!-- 输入文本逻辑 -->
+    <template v-if="commandForm.actionPayload.action === 'input_text'">
+      <el-form-item label="Text to Input" prop="actionPayload.parameters.text">
+        <el-input
+          v-model="commandForm.actionPayload.parameters.text"
+          type="textarea"
+        />
+      </el-form-item>
+    </template>
 
-      <!-- Swipe Specific -->
+    <!-- Unified Coordinate Inputs for Tap & Swipe -->
+    <template
+      v-if="
+        commandForm.actionPayload.action === 'swipe' ||
+        commandForm.actionPayload.action === 'tap'
+      "
+    >
+      <el-row :gutter="10">
+        <el-col :span="12">
+          <el-form-item
+            :label="
+              commandForm.actionPayload.action === 'tap'
+                ? 'Tap X (px)'
+                : 'Start X (px)'
+            "
+            prop="actionPayload.parameters.startX"
+          >
+            <el-input-number
+              v-model="commandForm.actionPayload.parameters.startX"
+              :precision="0"
+              :step="10"
+              :min="0"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item
+            :label="
+              commandForm.actionPayload.action === 'tap'
+                ? 'Tap Y (px)'
+                : 'Start Y (px)'
+            "
+            prop="actionPayload.parameters.startY"
+          >
+            <el-input-number
+              v-model="commandForm.actionPayload.parameters.startY"
+              :precision="0"
+              :step="10"
+              :min="0"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
       <template v-if="commandForm.actionPayload.action === 'swipe'">
         <el-row :gutter="10">
-          <el-col :span="12"
-            ><el-form-item
-              label="Start X (0-1)"
-              prop="actionPayload.parameters.startX"
-              ><el-input-number
-                v-model="commandForm.actionPayload.parameters.startX"
-                :precision="2"
-                :step="0.01"
-                :min="0"
-                :max="1" /></el-form-item
-          ></el-col>
-          <el-col :span="12"
-            ><el-form-item
-              label="Start Y (0-1)"
-              prop="actionPayload.parameters.startY"
-              ><el-input-number
-                v-model="commandForm.actionPayload.parameters.startY"
-                :precision="2"
-                :step="0.01"
-                :min="0"
-                :max="1" /></el-form-item
-          ></el-col>
-        </el-row>
-        <el-row :gutter="10">
-          <el-col :span="12"
-            ><el-form-item
-              label="End X (0-1)"
+          <el-col :span="12">
+            <el-form-item
+              label="End X (px)"
               prop="actionPayload.parameters.endX"
-              ><el-input-number
+            >
+              <el-input-number
                 v-model="commandForm.actionPayload.parameters.endX"
-                :precision="2"
-                :step="0.01"
+                :precision="0"
+                :step="10"
                 :min="0"
-                :max="1" /></el-form-item
-          ></el-col>
-          <el-col :span="12"
-            ><el-form-item
-              label="End Y (0-1)"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item
+              label="End Y (px)"
               prop="actionPayload.parameters.endY"
-              ><el-input-number
+            >
+              <el-input-number
                 v-model="commandForm.actionPayload.parameters.endY"
-                :precision="2"
-                :step="0.01"
+                :precision="0"
+                :step="10"
                 :min="0"
-                :max="1" /></el-form-item
-          ></el-col>
+              />
+            </el-form-item>
+          </el-col>
         </el-row>
         <el-form-item
           label="Duration (ms)"
@@ -150,7 +155,7 @@
 
     <el-form-item>
       <el-button type="primary" @click="submitCommand" :loading="isSubmitting"
-        >Send Command</el-button
+        >Send Action</el-button
       >
       <el-button @click="resetForm">Reset</el-button>
     </el-form-item>
@@ -158,16 +163,12 @@
 </template>
 
 <script setup lang="ts">
+// Script part remains the same as the first version in this response.
 import { ref, reactive, watch, defineProps, defineEmits } from "vue";
 import type { FormInstance } from "element-plus";
-import { ElMessage } from "element-plus"; // For notifications
-import { commandService } from "@/api/commandService"; // You need to create this
-import type {
-  RequestScreenCapturePayload,
-  PerformActionPayload,
-  SelectorModel,
-  PerformActionParameters,
-} from "@/types/api"; // Your API types
+import { ElMessage } from "element-plus";
+import { commandService } from "@/api/commandService";
+import type { PerformActionPayload } from "@/types/api";
 
 const props = defineProps<{ deviceId: string }>();
 const emit = defineEmits(["commandSent"]);
@@ -175,11 +176,6 @@ const emit = defineEmits(["commandSent"]);
 const commandFormRef = ref<FormInstance>();
 const isSubmitting = ref(false);
 
-const initialCaptureParams: Partial<RequestScreenCapturePayload> = {
-  format: "jpeg",
-  quality: 80,
-  maxWidth: undefined,
-};
 const initialActionPayload: Partial<PerformActionPayload> = {
   action: undefined,
   selector: {},
@@ -187,22 +183,23 @@ const initialActionPayload: Partial<PerformActionPayload> = {
 };
 
 const commandForm = reactive({
-  type: "" as "capture_screen" | "ui_structure" | "perform_action" | "",
-  captureParams: { ...initialCaptureParams },
-  actionPayload: { ...initialActionPayload } as PerformActionPayload, // Cast for type safety
+  actionPayload: { ...initialActionPayload } as PerformActionPayload,
   selectorType: "" as "resourceId" | "text" | "contentDesc" | "xpath" | "",
   selectorValue: "",
 });
 
-const onCommandTypeChange = () => {
-  // Reset specific params when type changes
-  commandForm.captureParams = { ...initialCaptureParams };
-  commandForm.actionPayload = {
-    ...initialActionPayload,
-  } as PerformActionPayload;
+const onActionTypeChange = () => {
   commandForm.selectorType = "";
   commandForm.selectorValue = "";
+  commandForm.actionPayload.parameters = {}; // Reset parameters on action change
 };
+
+watch(
+  () => commandForm.actionPayload.action,
+  () => {
+    onActionTypeChange();
+  }
+);
 
 watch(
   () => [commandForm.selectorType, commandForm.selectorValue],
@@ -210,14 +207,13 @@ watch(
     if (!commandForm.actionPayload.selector) {
       commandForm.actionPayload.selector = {};
     }
-    // Clear other selector fields
     commandForm.actionPayload.selector.resourceId = undefined;
     commandForm.actionPayload.selector.text = undefined;
     commandForm.actionPayload.selector.contentDesc = undefined;
     commandForm.actionPayload.selector.xpath = undefined;
 
     if (commandForm.selectorType && commandForm.selectorValue) {
-      commandForm.actionPayload.selector[commandForm.selectorType] =
+      (commandForm.actionPayload.selector as any)[commandForm.selectorType] =
         commandForm.selectorValue;
     }
   }
@@ -229,54 +225,41 @@ const submitCommand = async () => {
     if (valid) {
       isSubmitting.value = true;
       try {
-        let response;
-        switch (commandForm.type) {
-          case "capture_screen":
-            response = await commandService.sendCaptureScreenCommand(
-              props.deviceId,
-              commandForm.captureParams as RequestScreenCapturePayload
-            );
-            break;
-          case "ui_structure":
-            response = await commandService.sendUiStructureCommand(
-              props.deviceId
-            );
-            break;
-          case "perform_action":
-            if (!commandForm.actionPayload.action) {
-              ElMessage.error(
-                "Please select an action type for Perform Action."
-              );
-              isSubmitting.value = false;
-              return;
-            }
-            // Ensure parameters are correctly structured or nulled if not applicable
-            if (
-              commandForm.actionPayload.action !== "input_text" &&
-              commandForm.actionPayload.action !== "swipe"
-            ) {
-              commandForm.actionPayload.parameters = undefined; // Or an empty object if API expects it
-            } else if (
-              commandForm.actionPayload.action === "input_text" &&
-              !commandForm.actionPayload.parameters?.text
-            ) {
-              commandForm.actionPayload.parameters = {
-                text: commandForm.actionPayload.parameters?.text || "",
-              };
-            } // Similar checks for swipe
-
-            response = await commandService.sendPerformActionCommand(
-              props.deviceId,
-              commandForm.actionPayload
-            );
-            break;
-          default:
-            ElMessage.error("Invalid command type selected.");
-            isSubmitting.value = false;
-            return;
+        // Validate action type
+        if (!commandForm.actionPayload.action) {
+          ElMessage.error("Please select an action type.");
+          isSubmitting.value = false;
+          return;
         }
+
+        // 3. 在发送前清理 payload
+        const payloadToSend = JSON.parse(
+          JSON.stringify(commandForm.actionPayload)
+        ) as PerformActionPayload;
+
+        // 根据 action 类型清理不需要的字段
+        if (["tap", "swipe", "press_key"].includes(payloadToSend.action)) {
+          // 这些动作不需要 selector
+          delete payloadToSend.selector;
+        } else {
+          if (payloadToSend.action !== "input_text") {
+            delete payloadToSend.parameters;
+          }
+        }
+
+        // 确保 `press_key` 发送时 `parameters` 里只有 `keyCode`
+        if (payloadToSend.action === "press_key" && payloadToSend.parameters) {
+          const keyCode = payloadToSend.parameters.keyCode;
+          payloadToSend.parameters = { keyCode }; // 只保留 keyCode
+        }
+
+        const response = await commandService.sendPerformActionCommand(
+          props.deviceId,
+          payloadToSend
+        );
+
         ElMessage.success(
-          `Command '${commandForm.type}' sent! CorrID: ${
+          `Action '${payloadToSend.action}' sent! CorrID: ${
             response?.correlation_id || "N/A"
           }`
         );
@@ -298,6 +281,10 @@ const submitCommand = async () => {
 const resetForm = () => {
   if (!commandFormRef.value) return;
   commandFormRef.value.resetFields();
-  onCommandTypeChange(); // Also reset specific params
+  commandForm.actionPayload = {
+    ...initialActionPayload,
+  } as PerformActionPayload;
+  commandForm.selectorType = "";
+  commandForm.selectorValue = "";
 };
 </script>

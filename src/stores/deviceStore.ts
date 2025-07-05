@@ -61,10 +61,15 @@ export const useDeviceStore = defineStore("device", {
         (d) => d.device_id === updatedDevice.device_id
       );
       if (index !== -1) {
+        // 使用 Object.assign 或扩展运算符来确保响应性
         this.devices[index] = { ...this.devices[index], ...updatedDevice };
       } else {
-        // Optionally add if not found, or handle as an error
-        this.devices.unshift(updatedDevice); // Add to start if new
+        // 如果在列表中找不到，可以选择添加到列表开头
+        this.devices.unshift(updatedDevice);
+      }
+      // 如果更新的设备是当前选中的设备，也更新它
+      if (this.selectedDevice?.device_id === updatedDevice.device_id) {
+        this.selectedDevice = { ...this.selectedDevice, ...updatedDevice };
       }
     },
   },

@@ -20,6 +20,7 @@ export interface PerformActionParameters {
   duration?: number; // ms
   direction?: "forward" | "backward" | "left" | "right";
   timeout_ms?: number;
+  keyCode?: "home" | "back" | "recents";
 }
 
 export interface PerformActionPayload {
@@ -33,7 +34,10 @@ export interface PerformActionPayload {
     | "exists"
     | "scroll_to_view"
     | "scroll_view"
-    | "wait_for_element";
+    | "wait_for_element"
+    | "press_key"
+    | "wake_up"
+    | "sleep";
   selector?: Selector;
   parameters?: PerformActionParameters;
 }
@@ -55,15 +59,16 @@ export interface CommandResponse {
 
 // Device information from GET /api/v1/devices/{device_id}
 export interface DevicePublic {
-  device_id: string;
-  device_name?: string;
-  os_version?: string;
-  app_version?: string;
-  status?: string; // 'online', 'offline', 'busy' (from DB)
-  ip_address?: string;
-  registered_at: string; // ISO Date string
-  last_seen_at: string; // ISO Date string
-  is_connected_ws?: boolean; // Live WebSocket status
+  deviceId: string;
+  deviceName?: string;
+  deviceModel?: string; // 您后端模型里有，这里可以加上
+  osVersion?: string;
+  appVersion?: string;
+  status?: string;
+  ipAddress?: string;
+  registeredAt: string;
+  lastSeenAt: string;
+  isConnectedWs?: boolean;
 }
 
 // For GET /api/v1/devices
@@ -74,23 +79,24 @@ export interface FetchDeviceParams {
   // Add other filter params your API supports
 }
 
-// For GET /api/v1/devices/active_ws
-export interface SimpleDeviceStatus {
-  device_id: string;
-  is_connected_ws: boolean;
+// 添加设备更新的Payload类型 <<
+export interface DeviceUpdatePayload {
+  deviceName?: string;
 }
 
-// Add other request/response types as needed
-// Example:
-// export interface UiNode {
-//   resource_id?: string;
-//   text?: string;
-//   // ... other fields from your UiNodeModel in FastAPI
-//   children: UiNode[];
-// }
+// For GET /api/v1/devices/active_ws
+export interface SimpleDeviceStatus {
+  deviceId: string;
+  isConnectedWs: boolean;
+}
 
-// export interface UiStructureResponse {
-//   correlationId: string;
-//   structure: UiNode;
-//   timestamp: number;
-// }
+export interface OcrPayload {
+  full_text: string;
+  elements: {
+    text: string;
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  }[];
+}

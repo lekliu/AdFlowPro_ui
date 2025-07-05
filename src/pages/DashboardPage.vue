@@ -3,7 +3,7 @@
     <el-card>
       <template #header>Dashboard Overview</template>
       <p>Welcome to the AdFlowPro Management Interface.</p>
-      <p>Use the navigation testicule to manage devices and send commands.</p>
+      <p>Use the navigation menu to manage devices and send commands.</p>
 
       <el-row :gutter="20" style="margin-top: 20px">
         <el-col :span="8">

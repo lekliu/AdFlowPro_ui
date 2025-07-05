@@ -3,38 +3,39 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span>Connected Devices Management</span>
+          <span>设备连接管理</span>
           <el-button type="primary" :icon="Plus" @click="handleAddDevice"
-            >Add Device (Manual)</el-button
+            >手动添加设备</el-button
           >
         </div>
       </template>
 
       <!-- Filters -->
       <el-form :inline="true" :model="filterParams" class="filter-form">
-        <el-form-item label="Device ID">
+        <el-form-item label="设备ID">
           <el-input
             v-model="filterParams.deviceId"
-            placeholder="Search by ID"
+            placeholder="按ID搜索"
             clearable
           />
         </el-form-item>
-        <el-form-item label="Status">
+        <el-form-item label="状态">
           <el-select
             v-model="filterParams.status"
-            placeholder="All Statuses"
+            placeholder="所有状态"
             clearable
+            style="width: 150px"
           >
-            <el-option label="Online (DB)" value="online" />
-            <el-option label="Offline (DB)" value="offline" />
+            <el-option label="在线 (DB)" value="online" />
+            <el-option label="离线 (DB)" value="offline" />
             <!-- Add more statuses if your backend supports them -->
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch"
-            >Search</el-button
+            >搜索</el-button
           >
-          <el-button :icon="Refresh" @click="resetFilters">Reset</el-button>
+          <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -45,78 +46,84 @@
         border
         stripe
       >
-        <el-table-column type="index" width="50" />
+        <el-table-column type="index" width="50" label="序号" />
         <el-table-column
-          prop="device_id"
-          label="Device ID"
+          prop="deviceId"
+          label="设备ID"
           min-width="200"
           sortable
           show-overflow-tooltip
         />
         <el-table-column
-          prop="device_name"
-          label="Name"
+          prop="deviceName"
+          label="设备名称"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="os_version" label="OS" width="100" />
-        <el-table-column prop="app_version" label="App Ver." width="100" />
-        <el-table-column prop="status" label="DB Status" width="120">
+        <el-table-column prop="osVersion" label="系统版本" width="60" />
+        <el-table-column prop="appVersion" label="App版本" width="60" />
+        <el-table-column prop="status" label="数据库状态" width="80">
           <template #default="scope">
             <el-tag
               :type="
                 scope.row.status === 'online'
                   ? 'success'
                   : scope.row.status === 'offline'
-                  ? 'info'
-                  : 'warning'
+                    ? 'info'
+                    : 'warning'
               "
             >
               {{ scope.row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="WebSocket" width="120">
+        <el-table-column label="WebSocket" width="100">
           <template #default="scope">
-            <el-tag :type="scope.row.is_connected_ws ? 'success' : 'danger'">
+            <el-tag :type="scope.row.isConnectedWs ? 'success' : 'danger'">
               <el-icon style="vertical-align: middle" :size="16">
                 <component
                   :is="
-                    scope.row.is_connected_ws
-                      ? SuccessFilled
-                      : CircleCloseFilled
+                    scope.row.isConnectedWs ? SuccessFilled : CircleCloseFilled
                   "
                 />
               </el-icon>
-              {{ scope.row.is_connected_ws ? " Live" : " Down" }}
+              {{ scope.row.isConnectedWs ? " 已连接" : " 已断开" }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="last_seen_at"
-          label="Last Seen"
-          width="180"
+          prop="lastSeenAt"
+          label="最后在线时间"
+          width="155"
           sortable
         >
           <template #default="scope">
-            {{ formatDate(scope.row.last_seen_at) }}
+            {{ formatDate(scope.row.lastSeenAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="Actions" width="220" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
             <el-button
               size="small"
               :icon="View"
-              @click="viewDetails(scope.row.device_id)"
-              >Details</el-button
+              @click="viewDetails(scope.row.deviceId)"
+              >详情</el-button
             >
+            <el-button
+              size="small"
+              type="primary"
+              :icon="Edit"
+              @click="openEditModal(scope.row)"
+            >
+              编辑
+            </el-button>
             <el-button
               size="small"
               type="primary"
               :icon="Promotion"
               @click="openCommandModal(scope.row)"
-              :disabled="!scope.row.is_connected_ws"
-              >Commands</el-button
+              :disabled="!scope.row.isConnectedWs"
+              >指令</el-button
             >
           </template>
         </el-table-column>
@@ -138,17 +145,46 @@
     <!-- Command Modal -->
     <el-dialog
       v-model="commandModalVisible"
-      :title="'Send Command to ' + selectedDeviceForCommand?.device_id"
+      :title="'向 ' + selectedDeviceForCommand?.deviceId + ' 发送指令'"
       width="60%"
       destroy-on-close
     >
       <CommandForm
         v-if="selectedDeviceForCommand"
-        :device-id="selectedDeviceForCommand.device_id"
+        :device-id="selectedDeviceForCommand.deviceId"
         @command-sent="handleCommandSent"
       />
       <template #footer>
-        <el-button @click="commandModalVisible = false">Close</el-button>
+        <el-button @click="commandModalVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- >>>>>>>>>> 新增: 编辑设备名称的弹窗 <<<<<<<<<< -->
+    <el-dialog
+      v-model="editModalVisible"
+      title="编辑设备名称"
+      width="30%"
+      @close="editingDeviceName = ''"
+    >
+      <el-form v-if="editingDevice" label-position="top">
+        <el-form-item label="设备ID">
+          <el-input :value="editingDevice.deviceId" disabled />
+        </el-form-item>
+        <el-form-item label="新设备名称">
+          <el-input
+            v-model="editingDeviceName"
+            placeholder="请输入新的设备名称"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editModalVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleUpdateDeviceName"
+          :loading="isUpdating"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -158,7 +194,8 @@
 import { ref, onMounted, reactive, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
-import { DevicePublic } from "@/types/api"; // Assuming you have this type
+import { deviceService } from "@/api/deviceService"; // >>>>>>>>>> 添加这一行导入 <<<<<<<<<<
+import { DevicePublic, DeviceUpdatePayload } from "@/types/api"; // Assuming you have this type
 import CommandForm from "@/components/CommandForm.vue"; // You'll create this component
 import {
   Plus,
@@ -168,7 +205,14 @@ import {
   Promotion,
   SuccessFilled,
   CircleCloseFilled,
+  Edit, // >>>>>>>>>> 引入Edit图标 <<<<<<<<<<
 } from "@element-plus/icons-vue";
+// >>>>>>>>>> 1. 导入 dayjs 和 utc 插件 <<<<<<<<<<
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+// >>>>>>>>>> 2. 启用 utc 插件 <<<<<<<<<<
+dayjs.extend(utc);
 
 const deviceStore = useDeviceStore();
 const router = useRouter();
@@ -183,6 +227,12 @@ const pageSize = ref(10); // Default page size
 
 const commandModalVisible = ref(false);
 const selectedDeviceForCommand = ref<DevicePublic | null>(null);
+
+// >>>>>>>>>> 新增: 编辑功能所需的状态 <<<<<<<<<<
+const editModalVisible = ref(false);
+const editingDevice = ref<DevicePublic | null>(null);
+const editingDeviceName = ref("");
+const isUpdating = ref(false);
 
 const fetchData = () => {
   const params = {
@@ -235,24 +285,57 @@ const openCommandModal = (device: DevicePublic) => {
   commandModalVisible.value = true;
 };
 
+// >>>>>>>>>> 新增: 打开编辑弹窗的函数 <<<<<<<<<<
+const openEditModal = (device: DevicePublic) => {
+  editingDevice.value = device;
+  editingDeviceName.value = device.deviceName || "";
+  editModalVisible.value = true;
+};
+
+// >>>>>>>>>> 新增: 处理设备名称更新的函数 <<<<<<<<<<
+const handleUpdateDeviceName = async () => {
+  if (!editingDevice.value) return;
+  isUpdating.value = true;
+  try {
+    const payload: DeviceUpdatePayload = {
+      deviceName: editingDeviceName.value,
+    };
+    const updatedDevice = await deviceService.updateDevice(
+      editingDevice.value.deviceId,
+      payload
+    );
+    // 更新 Pinia store 中的数据
+    deviceStore.updateDeviceInList(updatedDevice);
+    ElMessage.success("设备名称更新成功！");
+    editModalVisible.value = false;
+  } catch (error) {
+    console.error("Failed to update device name:", error);
+    ElMessage.error("更新失败，请重试。");
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
 const handleAddDevice = () => {
   // For manually adding a device if your backend supports it (not in current FastAPI design)
   // Or this could open a modal for some other purpose.
-  alert("Add Device functionality not implemented in this example.");
+  alert("手动添加设备功能尚未实现。");
 };
 
 const handleCommandSent = (success: boolean) => {
   if (success) {
     // Optionally refresh device data or show success message
-    ElMessage.success("Command sent successfully!");
+    ElMessage.success("指令已发送。");
   }
   commandModalVisible.value = false; // Close modal regardless
 };
 
 const formatDate = (dateString: string | Date): string => {
   if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  return date.toLocaleString(); // Or use a library like date-fns for better formatting
+  // dayjs.utc(dateString) - 强制将输入字符串按UTC时间解析
+  // .local() - 将其转换为浏览器本地时区
+  // .format(...) - 按指定格式输出
+  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
 };
 </script>
 
