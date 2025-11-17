@@ -1,10 +1,6 @@
 // src/services/commandService.ts
 import apiClient from "./apiClient";
-import type {
-  CommandResponse,
-  RequestScreenCapturePayload,
-  PerformActionPayload,
-} from "@/types/api";
+import type { CommandResponse, RequestScreenCapturePayload, PerformActionPayload, ActionResultPayload } from "@/types/api";
 import { v4 as uuidv4 } from "uuid";
 
 export const commandService = {
@@ -19,10 +15,7 @@ export const commandService = {
       quality: params?.quality || 80,
       maxWidth: params?.maxWidth,
     };
-    return apiClient.post(
-      `/devices/${deviceId}/command/capture_screen`,
-      payload
-    );
+    return apiClient.post(`/devices/${deviceId}/command/capture_screen`, payload);
   },
 
   async sendUiStructureCommand(deviceId: string): Promise<CommandResponse> {
@@ -35,17 +28,33 @@ export const commandService = {
     });
   },
 
-  async sendPerformActionCommand(
-    deviceId: string,
-    payload: PerformActionPayload
-  ): Promise<CommandResponse> {
+  async sendPerformActionCommand(deviceId: string, payload: PerformActionPayload): Promise<CommandResponse> {
     // 确保这个 payload 也有 ID
     if (!payload.correlationId) {
       payload.correlationId = uuidv4();
     }
-    return apiClient.post(
-      `/devices/${deviceId}/command/perform_action`,
-      payload
-    );
+    return apiClient.post(`/devices/${deviceId}/command/perform_action`, payload);
+  },
+
+  /**
+   * 轮询单个动作的结果
+   * @param correlationId 动作的关联ID
+   * @returns 返回动作结果或 null (如果还在进行中)
+   */
+  async getActionResult(correlationId: string): Promise<ActionResultPayload | null> {
+    try {
+      // --- 我们需要从中提取 .data 属性 ---
+      const response = await apiClient.get<ActionResultPayload>(`/devices/action-result/${correlationId}`);
+      // response 的类型是 AxiosResponse<ActionResultPayload>
+      // 我们在拦截器中处理了错误，所以这里可以直接返回 response.data
+      // 尽管拦截器在运行时返回了 data，但TypeScript静态分析仍然认为 get 返回 AxiosResponse
+      // 所以在这里显式返回 response.data 是最清晰和类型安全的做法
+      return response as any; // The interceptor already returns response.data, so we cast to bypass static check
+    } catch (error: any) {
+      if (error.response && error.response.status === 202) {
+        return null;
+      }
+      throw error;
+    }
   },
 };

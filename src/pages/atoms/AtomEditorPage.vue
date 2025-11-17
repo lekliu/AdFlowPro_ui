@@ -1,0 +1,573 @@
+<template>
+  <div class="atom-editor-page">
+    <el-page-header @back="goBack" :content="isEditMode ? '编辑原子操作' : '新建原子操作'" class="sticky-header">
+      <template #extra>
+        <div class="header-actions">
+          <el-button @click="goBack">取消</el-button>
+          <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
+        </div>
+      </template>
+    </el-page-header>
+
+    <div v-loading="isLoading" class="editor-content-wrapper">
+      <el-card class="box-card">
+        <template #header>
+          <div class="card-header">
+            <span>基础信息</span>
+            <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试此原子操作 </el-button>
+          </div>
+        </template>
+        <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
+          <el-row :gutter="20">
+            <el-col :span="10">
+              <el-form-item label="名称" prop="name">
+                <el-input v-model="form.name" placeholder="为这个原子操作起一个明确的名称"></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="所属分类" prop="categoryId">
+                <el-select
+                    v-model="form.categoryId"
+                    placeholder="选择或创建一个分类"
+                    clearable
+                    filterable
+                    allow-create
+                    default-first-option
+                    @change="handleCategoryChange"
+                    style="width: 100%"
+                >
+                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item prop="priority">
+                <template #label>
+                  <span>优先级</span>
+                  <el-tooltip content="数值越小, 优先级越高。默认50。" placement="top">
+                    <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <el-input-number v-model="form.priority" :min="0" :max="100" controls-position="right" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="10">
+              <el-form-item prop="executionCountLimit">
+                <template #label>
+                  <span>最大执行次数</span>
+                  <el-tooltip content="在一个用例中, 此原子操作最多被触发的次数。" placement="top">
+                    <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <el-input-number v-model="form.executionCountLimit" :min="1" controls-position="right" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="14">
+              <el-form-item prop="continueAfterMatch">
+                <template #label>
+                  <span>匹配后继续扫描</span>
+                  <el-tooltip content="开启后, 执行成功后会立即扫描后续低优先级原子操作。" placement="top">
+                    <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <el-switch v-model="form.continueAfterMatch" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="描述" prop="description">
+            <el-input v-model="form.description" type="textarea" placeholder="描述此操作的用途和上下文"></el-input>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <el-row :gutter="6" style="margin-top: 6px">
+        <el-col :span="12">
+          <el-card>
+            <template #header>
+              <div class="card-header">
+                <span>触发条件 (场景快照)</span>
+                <el-button type="success" :icon="MagicStick" plain @click="openValidationDialog"> 测试此条件 </el-button>
+              </div>
+            </template>
+            <div class="matchers-list">
+              <el-card shadow="never" class="matcher-card">
+                <template #header>
+                  <div class="card-header">
+                    <span>主匹配器 (Primary)</span>
+                    <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="large" class="matcher-type-switch">
+                      <el-radio-button value="text">文本</el-radio-button>
+                      <el-radio-button value="image">图元</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                </template>
+                <el-form label-position="top">
+                  <component :is="primaryMatcherComponent" v-model="form.sceneSnapshotJson.primaryMatcher" />
+
+                  <!-- Common Filters -->
+                  <el-form-item label="屏幕区域 (可选)">
+                    <div class="region-selector-container">
+                      <ScreenRegionSelector v-model="form.sceneSnapshotJson.primaryMatcher.screenRegion" />
+                      <el-tooltip content="约束匹配到的元素的中心点必须位于屏幕的指定区域内。" placement="top">
+                        <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                      </el-tooltip>
+                    </div>
+                  </el-form-item>
+
+                  <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
+                    <el-button
+                        v-if="!form.sceneSnapshotJson.primaryMatcher.spatialRelation"
+                        type="primary"
+                        link
+                        :icon="Plus"
+                        @click="addSpatialRelation"
+                    >
+                      添加空间约束
+                    </el-button>
+                    <div v-else class="spatial-relation-box">
+                      <div class="spatial-header">
+                        <span>空间约束</span>
+                        <el-button type="danger" link :icon="Delete" @click="removeSpatialRelation">移除</el-button>
+                      </div>
+                      <el-form-item label="关系">
+                        <el-select v-model="form.sceneSnapshotJson.primaryMatcher.spatialRelation.operator" style="width: 100%">
+                          <el-option label="在...的右侧" value="RIGHT_OF" />
+                          <el-option label="在...的左侧" value="LEFT_OF" />
+                          <el-option label="在...的上方" value="ABOVE" />
+                          <el-option label="在...的下方" value="BELOW" />
+                          <el-option label="在...的附近" value="NEAR" />
+                        </el-select>
+                      </el-form-item>
+                      <el-form-item label="锚点匹配文本">
+                        <MultiTextInput v-model="anchorMatcherText" placeholder="输入备选锚点文本后按回车" />
+                      </el-form-item>
+                    </div>
+                  </template>
+                </el-form>
+              </el-card>
+
+              <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
+                <div v-for="(matcher, index) in form.sceneSnapshotJson.secondaryMatchers" :key="index" class="matcher-item">
+                  <el-card shadow="never" class="matcher-card">
+                    <template #header>
+                      <div class="card-header">
+                        <span>次级匹配器 {{ index + 1 }}</span>
+                        <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeSecondaryMatcher(index)" />
+                      </div>
+                    </template>
+                    <el-form label-position="top">
+                      <el-form-item label="匹配类型">
+                        <el-switch v-model="matcher.isExclusion" active-text="排除 (NOT)" inactive-text="包含 (AND)" />
+                      </el-form-item>
+                      <el-form-item label="匹配文本">
+                        <MultiTextInput
+                            :model-value="getSecondaryMatcherText(index)"
+                            @update:model-value="setSecondaryMatcherText(index, $event)"
+                            placeholder="输入备选文本后按回车"
+                        />
+                      </el-form-item>
+                    </el-form>
+                  </el-card>
+                </div>
+                <el-button @click="addSecondaryMatcher" :icon="Plus" type="primary" plain>添加次级匹配条件</el-button>
+              </template>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <ActionSequenceEditor mode="editor" v-model="form.actionsJson" />
+        </el-col>
+      </el-row>
+    </div>
+    <el-dialog v-model="liveTestDialog.visible" :title="dialogTitle" width="400px">
+      <el-form label-position="top">
+        <el-form-item label="选择一个在线设备进行验证">
+          <el-select v-model="liveTestDialog.targetDeviceId" placeholder="请选择设备" style="width: 100%" :loading="deviceStore.isLoading">
+            <el-option
+                v-for="device in onlineDevices"
+                :key="device.deviceId"
+                :label="`${device.deviceName} (${device.deviceId})`"
+                :value="device.deviceId"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="liveTestDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="handleLiveTest" :disabled="!liveTestDialog.targetDeviceId"> 开始 </el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+defineOptions({ name: "AtomEditor" });
+import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
+import { ElMessage, type FormInstance, type FormRules } from "element-plus";
+import { v4 as uuidv4 } from "uuid";
+import { Delete, Plus, QuestionFilled, MagicStick } from "@element-plus/icons-vue";
+import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
+import MultiTextInput from "@/components/MultiTextInput.vue";
+import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
+import { cleanupActionSequence, cleanupSceneSnapshot } from "@/utils/payloadCleaner";
+import { useAtomStore } from "@/stores/atomStore";
+import { useTabStore } from "@/stores/tabStore";
+import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, PerformActionPayload } from "@/types/api";
+import TextMatcherEditor from "@/components/editors/TextMatcherEditor.vue";
+import ImageMatcherEditor from "@/components/editors/ImageMatcherEditor.vue";
+import { useDeviceStore } from "@/stores/deviceStore";
+import { wsService } from "@/services/wsService";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
+import { useWebSocketStore } from "@/stores/webSocketStore";
+import { imageTemplateService } from "@/api/imageTemplateService";
+
+const props = defineProps<{ atomId?: string | number }>();
+const route = useRoute();
+const atomStore = useAtomStore();
+const tabStore = useTabStore();
+const deviceStore = useDeviceStore();
+const wsStore = useWebSocketStore();
+const categoryStore = useAtomCategoryStore();
+const formRef = ref<FormInstance>();
+
+const atomIdNum = computed(() => (props.atomId ? Number(props.atomId) : null));
+const isEditMode = computed(() => !!atomIdNum.value);
+
+const isLoading = ref(false);
+const isSaving = ref(false);
+const liveTestDialog = reactive({ visible: false, targetDeviceId: "", testType: "matcher" as "matcher" | "full_atom" });
+const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
+
+const createNewPrimaryMatcher = (): Matcher => ({
+  matchTargetType: "text",
+  sceneType: "ui",
+  text: [],
+  matchMode: "fuzzy",
+  screenRegion: "",
+  spatialRelation: null,
+  coordinates: undefined,
+  templateId: null,
+  publicUrl: "",
+  matchThreshold: 0.8,
+  imageMatchStrategy: "best",
+});
+const createNewSecondaryMatcher = (): SecondaryMatcher => ({ text: [], isExclusion: false });
+const createNewFormState = () => ({
+  name: "",
+  description: "",
+  categoryId: null as number | null,
+  priority: 50,
+  executionCountLimit: 100,
+  continueAfterMatch: false,
+  sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[] },
+  actionsJson: [] as (PerformActionPayload & { id: string })[],
+});
+
+const form = reactive(createNewFormState());
+const rules = reactive<FormRules>({ name: [{ required: true, message: "请输入原子操作名称", trigger: "blur" }] });
+const dialogTitle = computed(() => (liveTestDialog.testType === "matcher" ? "实时匹配验证" : "测试完整原子操作"));
+
+const primaryMatcherComponent = computed(() => {
+  return form.sceneSnapshotJson.primaryMatcher.matchTargetType === "text" ? TextMatcherEditor : ImageMatcherEditor;
+});
+
+watch(
+  () => form.sceneSnapshotJson.primaryMatcher.matchTargetType,
+  (newType, oldType) => {
+    if (newType === oldType) return;
+    const pm = form.sceneSnapshotJson.primaryMatcher;
+    if (newType === "image") {
+      pm.text = [];
+      pm.matchMode = "fuzzy";
+      delete pm.coordinates;
+      pm.spatialRelation = null;
+      form.sceneSnapshotJson.secondaryMatchers = [];
+    } else if (newType === "text") {
+      pm.templateId = null;
+      pm.publicUrl = "";
+      pm.matchThreshold = 0.8;
+      pm.imageMatchStrategy = "best";
+      pm.sceneType = pm.sceneType || "ui";
+    }
+  }
+);
+
+const anchorMatcherText = computed({
+  get: () => {
+    const r = form.sceneSnapshotJson.primaryMatcher.spatialRelation;
+    if (!r) return [];
+    const t = r.anchorMatcher.text;
+    return Array.isArray(t) ? (t as string[]) : t ? [t] : [];
+  },
+  set: (v) => {
+    const r = form.sceneSnapshotJson.primaryMatcher.spatialRelation;
+    if (r) r.anchorMatcher.text = v;
+  },
+});
+
+const getSecondaryMatcherText = (i: number): string[] => {
+  const m = form.sceneSnapshotJson.secondaryMatchers[i];
+  if (!m) return [];
+  const t = m.text;
+  return Array.isArray(t) ? (t as string[]) : t ? [t] : [];
+};
+
+const setSecondaryMatcherText = (i: number, v: string[]) => {
+  const m = form.sceneSnapshotJson.secondaryMatchers[i];
+  if (m) m.text = v;
+};
+
+const loadAtomData = async (id: number) => {
+  isLoading.value = true;
+  try {
+    const atom = await atomStore.fetchAtomById(id);
+    if (atom) {
+      form.name = atom.name;
+      form.description = atom.description || "";
+      form.categoryId = atom.categoryId || null;
+      form.priority = atom.priority;
+      form.executionCountLimit = atom.executionCountLimit;
+      form.continueAfterMatch = atom.continueAfterMatch;
+      form.actionsJson = atom.actionsJson.map((a) => ({ ...a, id: uuidv4() }));
+
+      if (atom.sceneSnapshotJson) {
+        const snapshot = atom.sceneSnapshotJson as any;
+        const normalizeTextOnLoad = (matcher: { text?: string | string[] }) => {
+          if (typeof matcher.text === "string") {
+            matcher.text = [matcher.text];
+          }
+        };
+        if (snapshot.primaryMatcher) {
+          normalizeTextOnLoad(snapshot.primaryMatcher);
+          if (snapshot.primaryMatcher.spatialRelation?.anchorMatcher) {
+            normalizeTextOnLoad(snapshot.primaryMatcher.spatialRelation.anchorMatcher);
+          }
+        }
+        if (snapshot.secondaryMatchers) {
+          snapshot.secondaryMatchers.forEach(normalizeTextOnLoad);
+        }
+        if (!snapshot.primaryMatcher.matchTargetType) snapshot.primaryMatcher.matchTargetType = "text";
+        if (snapshot.type && !snapshot.primaryMatcher.sceneType) snapshot.primaryMatcher.sceneType = snapshot.type;
+        delete snapshot.type;
+        form.sceneSnapshotJson = snapshot;
+      }
+
+      const pm = form.sceneSnapshotJson.primaryMatcher;
+      if (pm.matchTargetType === "image" && pm.templateId) {
+        try {
+          const templateDetails = await imageTemplateService.getTemplateById(String(pm.templateId));
+          if (templateDetails) {
+            pm.publicUrl = templateDetails.publicUrl || "";
+          }
+        } catch (e) {
+          console.error(`Failed to fetch publicUrl for templateId ${pm.templateId}`, e);
+          ElMessage.error(`加载图元预览(ID: ${pm.templateId})失败`);
+        }
+      }
+
+      tabStore.updateTabTitle(route.fullPath, `编辑 - ${atom.name}`);
+    }
+  } catch (error) {
+    console.error("Failed to load atom data:", error);
+    ElMessage.error("加载原子操作数据失败");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  if (isEditMode.value) {
+    loadAtomData(atomIdNum.value!);
+  } else {
+    isLoading.value = false;
+    tabStore.updateTabTitle(route.fullPath, "新建原子操作");
+  }
+});
+
+onMounted(() => categoryStore.fetchAllCategories());
+
+const openValidationDialog = () => {
+  deviceStore.fetchDevices({ limit: 1000 });
+  liveTestDialog.targetDeviceId = "";
+  liveTestDialog.testType = "matcher";
+  liveTestDialog.visible = true;
+};
+const openFullAtomTestDialog = () => {
+  deviceStore.fetchDevices({ limit: 1000 });
+  liveTestDialog.targetDeviceId = "";
+  liveTestDialog.testType = "full_atom";
+  liveTestDialog.visible = true;
+};
+const handleLiveTest = () => {
+  if (!liveTestDialog.targetDeviceId) {
+    ElMessage.error("请选择一个目标设备");
+    return;
+  }
+  if (!wsStore.isLogPanelVisible) {
+    wsStore.toggleLogPanel();
+  }
+  switch (liveTestDialog.testType) {
+    case "matcher": {
+      const cleanedSnapshot = cleanupSceneSnapshot(JSON.parse(JSON.stringify(form.sceneSnapshotJson)));
+      wsService.sendValidateMatcher(liveTestDialog.targetDeviceId, cleanedSnapshot);
+      ElMessage.info("匹配验证请求已发送，请在底部状态栏查看结果。");
+      break;
+    }
+    case "full_atom": {
+      const cleanedSnapshot = cleanupSceneSnapshot(JSON.parse(JSON.stringify(form.sceneSnapshotJson)));
+      const cleanedActions = cleanupActionSequence(JSON.parse(JSON.stringify(form.actionsJson)));
+      wsService.sendTestFullAtom(liveTestDialog.targetDeviceId, { sceneSnapshotJson: cleanedSnapshot, actionsJson: cleanedActions });
+      ElMessage.info("完整原子操作测试请求已发送，请在底部状态栏查看结果。");
+      break;
+    }
+  }
+  liveTestDialog.visible = false;
+};
+const addSpatialRelation = () => {
+  form.sceneSnapshotJson.primaryMatcher.spatialRelation = { operator: "RIGHT_OF", anchorMatcher: { text: [] } };
+};
+const removeSpatialRelation = () => {
+  form.sceneSnapshotJson.primaryMatcher.spatialRelation = null;
+};
+const addSecondaryMatcher = () => form.sceneSnapshotJson.secondaryMatchers.push(createNewSecondaryMatcher());
+const removeSecondaryMatcher = (index: number) => form.sceneSnapshotJson.secondaryMatchers.splice(index, 1);
+const goBack = () => tabStore.removeTab(route.fullPath);
+
+const handleCategoryChange = async (value: number | string) => {
+  if (typeof value === "string") {
+    // User is creating a new category
+    try {
+      const newCategory = await categoryStore.addCategory({ name: value });
+      form.categoryId = newCategory.categoryId; // Set the new ID
+      ElMessage.success(`新分类 "${value}" 已创建！`);
+    } catch (error) {
+      form.categoryId = null; // Revert on failure
+    }
+  }
+};
+
+const handleSave = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate();
+  const pm = form.sceneSnapshotJson.primaryMatcher;
+  if (pm.matchTargetType === "text") {
+    const t = Array.isArray(pm.text) ? pm.text : [pm.text];
+    if (!t || t.length === 0) {
+      ElMessage.error("主匹配器的“匹配文本”不能为空。");
+      return;
+    }
+  } else if (pm.matchTargetType === "image") {
+    if (!pm.templateId) {
+      ElMessage.error("主匹配器为图元模式时，必须选择一个图元模板。");
+      return;
+    }
+  }
+  if (
+    pm.spatialRelation &&
+    (!pm.spatialRelation.anchorMatcher.text ||
+      (Array.isArray(pm.spatialRelation.anchorMatcher.text) && pm.spatialRelation.anchorMatcher.text.length === 0))
+  ) {
+    ElMessage.error("空间约束中的“锚点匹配文本”不能为空。");
+    return;
+  }
+  if (form.sceneSnapshotJson.secondaryMatchers.some((m) => !m.text || (Array.isArray(m.text) && m.text.length === 0))) {
+    ElMessage.error("所有次级匹配器的“匹配文本”不能为空。");
+    return;
+  }
+  if (form.actionsJson.length === 0) {
+    ElMessage.error("必须添加至少一个执行动作。");
+    return;
+  }
+  isSaving.value = true;
+  try {
+    const payload = JSON.parse(JSON.stringify(form));
+    payload.sceneSnapshotJson = cleanupSceneSnapshot(payload.sceneSnapshotJson);
+    payload.actionsJson = cleanupActionSequence(payload.actionsJson);
+    if (isEditMode.value) {
+      await atomStore.updateAtom(atomIdNum.value!, payload as AtomicOperationUpdatePayload);
+    } else {
+      await atomStore.addAtom(payload as AtomicOperationCreatePayload);
+    }
+    atomStore.setNeedsRefresh(true);
+    ElMessage.success("保存成功！");
+    goBack();
+  } catch (error) {
+  } finally {
+    isSaving.value = false;
+  }
+};
+</script>
+
+<style scoped>
+.sticky-header {
+  position: sticky;
+  top: -10px; /* Counteract layout padding from parent */
+  background-color: var(--el-bg-color-page, #f0f2f5);
+  padding: 6px 20px;
+  z-index: 10;
+  margin: -10px -10px 0 -10px; /* Counteract padding and set bottom margin to 0 */
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+/* Adjust the font size of the page header content to be more compact */
+:deep(.sticky-header .el-page-header__content) {
+  font-size: 16px;
+}
+/* Reduce header height */
+:deep(.sticky-header .el-page-header__header) {
+  height: 32px;
+  line-height: 32px;
+}
+
+
+.atom-editor-page {
+  padding: 0; /* REMOVE PADDING FROM ROOT */
+}
+.editor-content-wrapper {
+  padding: 0px; /* ADD PADDING TO CONTENT WRAPPER */
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.matchers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.matcher-card {
+  border: 1px solid #dcdfe6;
+}
+.form-item-tooltip {
+  margin-left: 8px;
+  color: #909399;
+  cursor: help;
+}
+.spatial-relation-box {
+  border: 1px dashed #b1b3b8;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 10px;
+  background-color: #fcfcfc;
+}
+.spatial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 500;
+  color: #606266;
+}
+.region-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:deep(.matcher-type-switch .el-radio-button__inner) {
+  width: 80px;
+  text-align: center;
+}
+</style>

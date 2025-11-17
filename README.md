@@ -1,5 +1,7 @@
-# Vue 3 + TypeScript + Vite
+# git 操作帮助
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+输入： git init
+输入： git add .
+输入： git commit -m “first”
+设置远程地址，输入： git remote add origin http://gitee.com/xxx/yyy.git  
+提交代码到码云， 第一次输入: git push -u origin master 以后输入 git push

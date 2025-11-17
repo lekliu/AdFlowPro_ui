@@ -1,7 +1,7 @@
 // src/stores/deviceStore.ts
 import { defineStore } from "pinia";
-import { deviceService } from "@/api/deviceService"; // You'll create this
-import type { DevicePublic, FetchDeviceParams } from "@/types/api"; // Your API types
+import { deviceService } from "@/api/deviceService";
+import type { DevicePublic, FetchDeviceParams } from "@/types/api";
 
 interface DeviceState {
   devices: DevicePublic[];
@@ -24,15 +24,11 @@ export const useDeviceStore = defineStore("device", {
       this.isLoading = true;
       this.error = null;
       try {
-        // Assuming your deviceService.getDevices returns an object like { data: DevicePublic[], total: number }
-        // You might need to adjust this based on your actual API response structure
         const response = await deviceService.getDevices(params);
-        // If your API returns a flat list and total in headers or another way, adjust this:
-        this.devices = response; // Assuming response is directly the list of devices
-        this.totalDevices = response.length; // Placeholder, update if API provides total for pagination
-        // If API provides total:
-        // this.devices = response.items;
-        // this.totalDevices = response.totalCount;
+        this.devices = response;
+        // 注意：当前后端 /devices 接口没有返回 total，所以这里用列表长度作为 total
+        // 后续如果实现真实分页，后端需要返回 { items: [], total: number } 结构
+        this.totalDevices = response.length;
       } catch (err: any) {
         this.error = err.message || "Failed to fetch devices";
         this.devices = [];
@@ -55,22 +51,31 @@ export const useDeviceStore = defineStore("device", {
         this.isLoading = false;
       }
     },
-    // Action to update a device in the list (e.g., after a command that changes its status)
+    // ==================== 核心修复区域 开始 ====================
     updateDeviceInList(updatedDevice: DevicePublic) {
+      // FIX: 使用正确的属性名 deviceId (camelCase) 进行比较
       const index = this.devices.findIndex(
-        (d) => d.device_id === updatedDevice.device_id
+        (d) => d.deviceId === updatedDevice.deviceId
       );
+
       if (index !== -1) {
-        // 使用 Object.assign 或扩展运算符来确保响应性
+        // 如果找到了，就地更新，以保持响应性
         this.devices[index] = { ...this.devices[index], ...updatedDevice };
       } else {
-        // 如果在列表中找不到，可以选择添加到列表开头
+        // 如果在列表中找不到（理论上不应该发生），作为保险措施，添加到列表开头
+        // 这种情况可能在列表数据与实际不一致时出现
         this.devices.unshift(updatedDevice);
+        console.warn(
+          "Updated device not found in list, added to top.",
+          updatedDevice
+        );
       }
-      // 如果更新的设备是当前选中的设备，也更新它
-      if (this.selectedDevice?.device_id === updatedDevice.device_id) {
+
+      // 同样，更新当前选中的设备时也使用正确的属性名
+      if (this.selectedDevice?.deviceId === updatedDevice.deviceId) {
         this.selectedDevice = { ...this.selectedDevice, ...updatedDevice };
       }
     },
+    // ==================== 核心修复区域 结束 ====================
   },
 });

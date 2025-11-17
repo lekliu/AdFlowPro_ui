@@ -7,16 +7,10 @@
 
       <el-row :gutter="20" style="margin-top: 20px">
         <el-col :span="8">
-          <el-statistic
-            title="Connected Devices (WS)"
-            :value="connectedWsCount"
-          />
+          <el-statistic title="Connected Devices (WS)" :value="connectedWsCount" />
         </el-col>
         <el-col :span="8">
-          <el-statistic
-            title="Total Registered Devices"
-            :value="deviceStore.totalDevices"
-          />
+          <el-statistic title="Total Registered Devices" :value="deviceStore.totalDevices" />
         </el-col>
         <!-- Add more stats -->
       </el-row>
@@ -25,6 +19,9 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({
+  name: "Dashboard",
+});
 import { ref, onMounted, computed } from "vue";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { deviceService } from "@/api/deviceService"; // For live WS count
@@ -55,6 +52,6 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-page {
-  padding: 20px;
+  padding: 0px;
 }
 </style>

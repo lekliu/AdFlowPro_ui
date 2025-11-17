@@ -1,0 +1,2 @@
+// 运行WEB UI
+npm run dev

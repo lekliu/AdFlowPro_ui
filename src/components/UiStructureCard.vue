@@ -3,47 +3,43 @@
     <template #header>
       <div class="card-header">
         <span>UI 结构</span>
-        <el-button
-          type="success"
-          :icon="Search"
-          @click="$emit('fetchUiStructure')"
-          :loading="isLoading"
-          :disabled="!isConnected"
-        >
-          {{ isLoading ? "获取中..." : "获取UI结构" }}
-        </el-button>
+        <div class="header-actions">
+          <el-switch v-model="isAllExpanded" inline-prompt active-text="全部展开" inactive-text="折叠" style="margin-right: 15px" />
+          <el-button
+              type="success"
+              :icon="Search"
+              @click="$emit('fetchUiStructure')"
+              :loading="isLoading"
+              :disabled="!isConnected"
+          >
+            {{ isLoading ? "获取中..." : "获取UI结构" }}
+          </el-button>
+        </div>
       </div>
     </template>
     <!-- >>>>>>>>>> 修改这里的显示逻辑 <<<<<<<<<< -->
     <div class="ui-structure-container" v-loading="isLoading">
-      <pre v-if="flattenedText"><code>{{ flattenedText }}</code></pre>
-      <el-empty
-        v-else
-        description="暂无UI结构, 请点击按钮获取"
-        :image-size="80"
-      />
+      <UiTreeNode v-if="structure" :node="structure" :root-package-name="structure.packageName" :is-expanded-override="isAllExpanded" />
+      <el-empty v-else description="暂无UI结构, 请点击按钮获取" :image-size="80" />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { Search } from "@element-plus/icons-vue";
-import { toRefs } from "vue";
-import { useFlattenUi } from "@/composables/useFlattenUi"; // 导入我们的新函数
+import { ref } from "vue";
+import UiTreeNode from "./UiTreeNode.vue";
+import type { UiNode } from "@/types/api/device";
 
 const props = defineProps<{
-  structure: object | null;
+  structure: UiNode | null;
   isLoading: boolean;
   isConnected: boolean;
 }>();
 
 defineEmits(["fetchUiStructure"]);
 
-// 将 props.structure 转换为一个 ref，以便 useFlattenUi 可以监听它
-const { structure } = toRefs(props);
-
-// 使用 composable 函数来获取扁平化后的文本
-const { flattenedText } = useFlattenUi(structure);
+const isAllExpanded = ref<boolean | null>(null);
 </script>
 
 <style scoped>
@@ -52,21 +48,19 @@ const { flattenedText } = useFlattenUi(structure);
   justify-content: space-between;
   align-items: center;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+}
 .ui-structure-container {
   background-color: #f8f9fa;
   color: #303133;
   padding: 15px;
   border-radius: 4px;
   border: 1px solid #e4e7ed;
-  max-height: 300px;
-  overflow: auto;
+  overflow-x: auto;
   font-family: "Fira Code", "Courier New", monospace;
   font-size: 13px;
-  line-height: 1.6; /* 增加行高以提高可读性 */
-}
-.ui-structure-container pre {
-  margin: 0;
-  white-space: pre; /* 改为 pre 以保留我们生成的空格和换行 */
-  word-break: break-all;
+  position: relative; /* Fix for overflow issue in flex context */
 }
 </style>

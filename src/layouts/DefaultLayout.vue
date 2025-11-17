@@ -1,50 +1,35 @@
 <template>
   <el-container class="main-layout">
     <el-aside :width="asideWidth">
-      <div class="layout-logo">
-        <!-- <img src="@/assets/logo.svg" alt="Logo" /> Optional Logo -->
-        <h3>AdFlowPro Admin</h3>
-      </div>
-      <el-menu
-        :default-active="activeMenu"
-        class="el-menu-vertical-demo"
-        router
-        :collapse="isCollapse"
-      >
-        <el-menu-item index="/">
-          <el-icon><House /></el-icon>
-          <template #title>Dashboard</template>
-        </el-menu-item>
-        <el-menu-item index="/devices">
-          <el-icon><Platform /></el-icon>
-          <template #title>Devices</template>
-        </el-menu-item>
-        <!-- Add more menu items here -->
-        <!--
-          <el.sub-menu index="/management">
-            <template #title>
-              <el-icon><setting /></el-icon>
-              <span>Management</span>
-            </template>
-            <el-menu-item index="/management/users">Users</el-menu-item>
-            <el-menu-item index="/management/roles">Roles</el-menu-item>
-          </el.sub-menu>
-          -->
-      </el-menu>
+      <Sidebar :is-collapse="isCollapse" />
     </el-aside>
 
     <el-container>
       <el-header class="layout-header">
         <div>
-          <el-icon
-            @click="toggleCollapse"
-            style="cursor: pointer; font-size: 20px; margin-right: 15px"
-            ><Fold
-          /></el-icon>
+          <el-icon @click="toggleCollapse" class="collapse-icon">
+            <component :is="isCollapse ? Expand : Fold" />
+          </el-icon>
           <span>Welcome to AdFlowPro Management</span>
         </div>
-        <div>
-          <!-- User profile / logout -->
+
+        <div class="header-actions-right">
+          <el-tooltip :content="wsStatusTooltip" placement="bottom">
+            <el-button
+              :icon="wsStatusIcon"
+              :type="wsStatusType"
+              :loading="webSocketStore.connectionStatus === 'connecting'"
+              circle
+              @click="handleWsStatusClick"
+              :disabled="webSocketStore.connectionStatus === 'connecting'"
+              plain
+            />
+          </el-tooltip>
+          <el-tooltip content="显示/隐藏实时日志面板">
+            <div class="icon-button-wrapper" @click="webSocketStore.toggleLogPanel">
+              <IconPanelToggle :is-open="webSocketStore.isLogPanelVisible" />
+            </div>
+          </el-tooltip>
           <el-dropdown>
             <span class="el-dropdown-link">
               Admin<el-icon class="el-icon--right"><arrow-down /></el-icon>
@@ -59,79 +44,132 @@
           </el-dropdown>
         </div>
       </el-header>
-      <el-main class="layout-main-content">
+
+      <div class="tabs-view-container">
+        <el-tabs v-model="activeTab" type="card" class="page-tabs" closable @tab-click="handleTabClick" @tab-remove="handleTabRemove">
+          <el-tab-pane v-for="tab in tabStore.tabs" :key="tab.path" :label="tab.title" :name="tab.path" />
+        </el-tabs>
+      </div>
+
+      <div class="main-content-area">
         <router-view v-slot="{ Component, route }">
           <transition name="fade-transform" mode="out-in">
-            <keep-alive :include="cachedViews">
+            <keep-alive :include="tabStore.cachedViews">
               <component :is="Component" :key="route.fullPath" />
             </keep-alive>
           </transition>
         </router-view>
-      </el-main>
+      </div>
+
       <el-footer class="layout-footer">AdFlowPro Admin ©2024</el-footer>
     </el-container>
+    <StatusBar v-if="webSocketStore.isLogPanelVisible" />
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { useRoute } from "vue-router";
-import {
-  House,
-  Platform,
-  Setting, // For potential submenu
-  Fold, // For collapse icon
-  ArrowDown,
-} from "@element-plus/icons-vue"; // Import icons
+import { ref, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useTabStore } from "@/stores/tabStore";
+import Sidebar from "./components/Sidebar.vue";
+import StatusBar from "@/components/StatusBar.vue";
+import { useWebSocketStore } from "@/stores/webSocketStore";
+import type { TabPaneName, TabsPaneContext } from "element-plus";
+
+import { Fold, Expand, ArrowDown, Link, Connection, Loading } from "@element-plus/icons-vue";
+import IconPanelToggle from "@/components/icons/IconPanelToggle.vue";
 
 const route = useRoute();
+const router = useRouter();
+const tabStore = useTabStore();
+const webSocketStore = useWebSocketStore();
+
+// --- 折叠逻辑保留在布局中，因为它控制 el-aside 的宽度 ---
 const isCollapse = ref(false);
 const asideWidth = computed(() => (isCollapse.value ? "64px" : "220px"));
-const activeMenu = computed(() => route.path);
-
-// For KeepAlive (optional, more advanced)
-const cachedViews = ref<string[]>([]); // e.g., ['DevicesListPage'] if you want to cache it
-
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value;
 };
+
+const wsStatusTooltip = computed(() => {
+  switch (webSocketStore.connectionStatus) {
+    case "connected":
+      return "实时通知服务已连接";
+    case "disconnected":
+      return "实时通知服务已断开，点击重连";
+    case "connecting":
+      return "正在连接实时通知服务...";
+    default:
+      return "未知状态";
+  }
+});
+
+const wsStatusIcon = computed(() => {
+  switch (webSocketStore.connectionStatus) {
+    case "connected":
+      return Link;
+    case "disconnected":
+      return Connection;
+    case "connecting":
+      return Loading;
+    default:
+      return Connection;
+  }
+});
+
+const wsStatusType = computed(() => {
+  switch (webSocketStore.connectionStatus) {
+    case "connected":
+      return "success";
+    case "disconnected":
+      return "danger";
+    case "connecting":
+      return "default";
+    default:
+      return "info";
+  }
+});
+
+const handleWsStatusClick = () => {
+  if (webSocketStore.connectionStatus === "disconnected") {
+    webSocketStore.connect();
+  }
+};
+
+const activeTab = computed({
+  get: () => tabStore.activeTabPath,
+  set: (path) => tabStore.setActiveTab(path),
+});
+
+const handleTabClick = (pane: TabsPaneContext) => {
+  const path = pane.props.name as string;
+  if (path && path !== route.fullPath) {
+    router.push(path);
+  }
+};
+
+const handleTabRemove = (path: TabPaneName) => {
+  tabStore.removeTab(path as string);
+};
+
+watch(
+  () => route.fullPath,
+  (newPath) => {
+    tabStore.addTab(route);
+    tabStore.setActiveTab(newPath);
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
 .main-layout {
   height: 100vh;
-  overflow: hidden; /* Prevent scrollbars on the main container */
-}
-
-.layout-logo {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #001529; /* Example dark background for logo area */
-  color: white;
   overflow: hidden;
 }
-.layout-logo img {
-  height: 32px;
-  margin-right: 8px;
+.el-aside {
+  transition: width 0.28s;
 }
-.layout-logo h3 {
-  margin: 0;
-  font-size: 18px;
-  white-space: nowrap;
-}
-
-.el-menu-vertical-demo:not(.el-menu--collapse) {
-  width: 220px; /* Should match asideWidth when not collapsed */
-  min-height: 400px; /* Example */
-}
-.el-menu {
-  border-right: none; /* Remove default border if not desired */
-  height: calc(100vh - 60px); /* Full height minus logo area */
-  overflow-y: auto;
-}
-
 .layout-header {
   display: flex;
   justify-content: space-between;
@@ -139,26 +177,59 @@ const toggleCollapse = () => {
   background-color: #fff;
   border-bottom: 1px solid #e6e6e6;
   padding: 0 20px;
-  height: 60px; /* Standard header height */
+  height: 40px;
+  gap: 15px;
 }
-
-.layout-main-content {
-  padding: 20px;
-  background-color: #f0f2f5; /* Light grey background for content area */
-  overflow-y: auto; /* Allow content to scroll */
-  height: calc(100vh - 60px - 40px); /* Full height minus header and footer */
+.collapse-icon {
+  cursor: pointer;
+  font-size: 20px;
+  margin-right: 15px;
+}
+.tabs-view-container {
+  background-color: #f0f2f5;
+  padding: 5px 10px 0 10px;
+  border-bottom: 1px solid #dcdfe6;
+  flex-shrink: 0;
+}
+.page-tabs {
+  --el-tabs-card-height: 32px;
+  --el-tabs-header-margin: 0;
+}
+:deep(.el-tabs__header) {
+  border: none;
+  margin-bottom: -1px;
+}
+:deep(.el-tabs__nav) {
+  border: none !important;
+}
+:deep(.el-tabs__item) {
+  background-color: #fff;
+  border-radius: 4px 4px 0 0 !important;
+  border-color: #e4e7ed !important;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+:deep(.el-tabs__item.is-active) {
+  background-color: #fff;
+  border-bottom-color: #fff !important;
+  color: var(--el-color-primary);
+}
+.main-content-area {
+  flex-grow: 1;
+  overflow: auto; /* Allow content to scroll */
+  /* padding: 10px; Let child pages control their own padding */
+  background-color: #f0f2f5;
 }
 .layout-footer {
-  height: 40px;
-  line-height: 40px;
+  height: 20px; /* Reduced height */
+  line-height: 20px;
   text-align: center;
   font-size: 12px;
   color: #909399;
   background-color: #f0f2f5;
   border-top: 1px solid #e6e6e6;
+  flex-shrink: 0;
 }
-
-/* Transition for router-view */
 .fade-transform-leave-active,
 .fade-transform-enter-active {
   transition: all 0.3s;
@@ -175,5 +246,22 @@ const toggleCollapse = () => {
   cursor: pointer;
   display: flex;
   align-items: center;
+}
+.header-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 20px; /* Increase gap for better spacing */
+}
+.icon-button-wrapper {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px; /* Control icon size */
+  color: var(--el-text-color-regular);
+  transition: color 0.2s;
+}
+.icon-button-wrapper:hover {
+  color: var(--el-color-primary);
 }
 </style>

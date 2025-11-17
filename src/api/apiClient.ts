@@ -1,14 +1,9 @@
 // src/services/apiClient.ts
-import axios, {
-  type AxiosInstance,
-  type AxiosError,
-  type InternalAxiosRequestConfig,
-} from "axios";
+import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { ElMessage } from "element-plus"; // For global error messages
 
 // Get base URL from Vite environment variables (defined in .env)
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -34,11 +29,21 @@ apiClient.interceptors.request.use(
 
 // Response Interceptor (e.g., for global error handling)
 apiClient.interceptors.response.use(
+  // --- 明确地为成功响应的返回值添加类型 ---
   (response) => {
-    // Any status code that lie within the range of 2xx cause this function to trigger
-    return response.data; // Usually, we only care about the data property
+    // The type of `response.data` will be inferred from the request's generic type
+    // (e.g., from `apiClient.get<ActionResultPayload>`), so we can just return it.
+    return response.data;
   },
   (error: AxiosError<any>) => {
+    // 新增: 对于特定的API，404 Not Found 是预期行为（表示暂无数据），不应弹出全局错误提示。
+    // a. 定义需要静默处理404的API路径片段
+    const silent404Paths = ["/last_screenshot", "/last_ocr_result", "/last_ui_structure"];
+    // b. 检查是否是需要静默处理的404错误
+    if (error.response?.status === 404 && silent404Paths.some((path) => error.config?.url?.includes(path))) {
+      // 如果是，则直接拒绝Promise，让调用方的catch块去处理，不显示全局ElMessage
+      return Promise.reject(error);
+    }
     // Type the error if you have a common error response schema
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     let errorMessage = "An unexpected error occurred";
@@ -50,9 +55,7 @@ apiClient.interceptors.response.use(
       if (error.response.data && error.response.data.detail) {
         if (Array.isArray(error.response.data.detail)) {
           // FastAPI validation errors
-          errorMessage = error.response.data.detail
-            .map((e: any) => `${e.loc.join(".")} - ${e.msg}`)
-            .join("; ");
+          errorMessage = error.response.data.detail.map((e: any) => `${e.loc.join(".")} - ${e.msg}`).join("; ");
         } else {
           errorMessage = error.response.data.detail;
         }
@@ -62,8 +65,7 @@ apiClient.interceptors.response.use(
     } else if (error.request) {
       // The request was made but no response was received
       console.error("API No Response:", error.request);
-      errorMessage =
-        "No response from server. Please check your network connection.";
+      errorMessage = "No response from server. Please check your network connection.";
     } else {
       // Something happened in setting up the request that triggered an Error
       console.error("API Request Setup Error:", error.message);

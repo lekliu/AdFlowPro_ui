@@ -6,7 +6,19 @@
 
 <script setup lang="ts">
 // No specific script logic needed for a simple root App.vue
-// Global setup, if any, would typically be in main.ts or specific stores/plugins.
+// 在应用启动时初始化 WebSocket 连接
+import { onMounted, onUnmounted } from "vue";
+import { useWebSocketStore } from "@/stores/webSocketStore";
+
+const wsStore = useWebSocketStore();
+
+onMounted(() => {
+  wsStore.connect();
+});
+
+onUnmounted(() => {
+  wsStore.disconnect();
+});
 </script>
 
 <style>
@@ -19,9 +31,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f0f2f5; /* A common background color for admin panels */

@@ -3,33 +3,31 @@
     <template #header>
       <div class="card-header">
         <span>屏幕预览</span>
-        <el-button
-          type="primary"
-          :icon="Camera"
-          @click="$emit('capture')"
-          :loading="isCapturing"
-          :disabled="!isConnected"
-        >
-          {{ isCapturing ? "截取中..." : "手动截图" }}
-        </el-button>
+        <el-tooltip content="显示/隐藏九宫格参考线">
+          <el-switch v-model="showGrid" inline-prompt :active-icon="Grid" :inactive-icon="Grid" />
+        </el-tooltip>
+        <div class="header-actions">
+          <el-tooltip content="保存截图" v-if="screenshotUrl">
+            <el-button :icon="Download" circle @click="handleSaveImage" />
+          </el-tooltip>
+
+          <el-button type="primary" :icon="Camera" @click="$emit('capture')" :loading="isCapturing" :disabled="!isConnected">
+            {{ isCapturing ? "截取中..." : "手动截图" }}
+          </el-button>
+        </div>
       </div>
     </template>
 
-    <div
-      class="screenshot-wrapper"
-      @mousemove="handleMouseMove"
-      @mouseleave="handleMouseLeave"
-      ref="screenshotWrapperRef"
-    >
-      <div class="screenshot-container" v-loading="isCapturing">
-        <el-image
-          v-if="screenshotUrl"
-          :src="screenshotUrl"
-          fit="contain"
-          :preview-src-list="[screenshotUrl]"
-          ref="imageRef"
-          @load="onImageLoad"
-        >
+    <div class="screenshot-wrapper" ref="screenshotWrapperRef">
+      <div
+        class="screenshot-container"
+        v-loading="isCapturing"
+        @mousedown="handleMouseDown"
+        @mouseup="handleMouseUp"
+        @mousemove="handleMouseMove"
+        @mouseleave="handleMouseLeave"
+      >
+        <el-image v-if="screenshotUrl" :src="screenshotUrl" fit="contain" ref="imageRef" @load="onImageLoad">
           <template #error>
             <div class="image-slot">
               <el-icon><Picture /></el-icon><span>加载失败</span>
@@ -37,45 +35,42 @@
           </template>
         </el-image>
         <el-empty v-else description="暂无截图，请点击“手动截图”获取" />
+        <GridOverlay v-if="showGrid && screenshotUrl" />
       </div>
-      <div
-        v-if="mousePosition.visible"
-        class="coords-tooltip"
-        :style="tooltipStyle"
-      >
+      <div v-if="mousePosition.visible" class="coords-tooltip" :style="tooltipStyle">
         {{ `(x: ${mousePosition.imageX}, y: ${mousePosition.imageY})` }}
       </div>
     </div>
 
     <div class="ocr-result-container">
       <h4>OCR 识别结果 ({{ ocrElementCount }} 项)</h4>
-      <div
-        v-if="ocrResult && ocrResult.elements && ocrResult.elements.length > 0"
-        class="ocr-text-box"
-      >
-        <div
-          v-for="(element, index) in ocrResult.elements"
-          :key="index"
-          class="ocr-element-row"
-        >
+      <div v-if="ocrResult && ocrResult.fullText" class="ocr-full-text">
+        <strong>Full Text:</strong>
+        <pre><code>{{ ocrResult.fullText }}</code></pre>
+      </div>
+      <div v-if="ocrResult && ocrResult.elements && ocrResult.elements.length > 0" class="ocr-text-box">
+        <div v-for="(element, index) in ocrResult.elements" :key="index" class="ocr-element-row">
           <span class="ocr-element-text">"{{ element.text }}"</span>
-          <span class="ocr-element-coords"
-            >({{ element.left }}, {{ element.top }}) ({{ element.right }},
-            {{ element.bottom }})</span
-          >
+          <span class="ocr-element-coords">({{ element.left }}, {{ element.top }}) ({{ element.right }}, {{ element.bottom }})</span>
         </div>
       </div>
       <el-empty v-else description="无OCR识别结果" :image-size="50" />
     </div>
+    <el-image-viewer v-if="showPreview" :url-list="previewUrlList" @close="showPreview = false" />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from "vue";
 import type { OcrPayload } from "@/types/api";
-import { Camera, Picture } from "@element-plus/icons-vue";
+import { Camera, Picture, Grid, Download } from "@element-plus/icons-vue";
+import GridOverlay from "./GridOverlay.vue"; // 导入新组件
+import { wsService } from "@/services/wsService";
+import { ElMessage } from "element-plus";
+import { useWebSocketStore } from "@/stores/webSocketStore";
 
 const props = defineProps<{
+  deviceId: string;
   screenshotUrl: string | null;
   ocrResult: OcrPayload | null;
   isCapturing: boolean;
@@ -86,6 +81,19 @@ defineEmits(["capture"]);
 
 const imageRef = ref();
 const screenshotWrapperRef = ref<HTMLElement | null>(null);
+const wsStore = useWebSocketStore();
+const showGrid = ref(false);
+
+const showPreview = ref(false);
+const previewUrlList = computed(() => (props.screenshotUrl ? [props.screenshotUrl] : []));
+
+// --- Click vs. Long Press State ---
+let pressTimer: number | null = null;
+let isDragging = false;
+let startX = 0;
+let startY = 0;
+const LONG_PRESS_DURATION = 350; // ms
+const DRAG_THRESHOLD = 5; // pixels
 
 const ocrElementCount = computed(() => props.ocrResult?.elements?.length || 0);
 
@@ -134,10 +142,8 @@ const onImageLoad = () => {
   imageInfo.scale = imageInfo.naturalWidth / imageInfo.renderWidth;
 
   if (screenshotWrapperRef.value) {
-    imageInfo.offsetX =
-      (screenshotWrapperRef.value.offsetWidth - imageInfo.renderWidth) / 2;
-    imageInfo.offsetY =
-      (screenshotWrapperRef.value.offsetHeight - imageInfo.renderHeight) / 2;
+    imageInfo.offsetX = (screenshotWrapperRef.value.offsetWidth - imageInfo.renderWidth) / 2;
+    imageInfo.offsetY = (screenshotWrapperRef.value.offsetHeight - imageInfo.renderHeight) / 2;
   }
 };
 
@@ -148,18 +154,12 @@ const tooltipStyle = computed(() => {
     offset = 15;
   if (!screenshotWrapperRef.value) return {};
 
-  if (
-    mousePosition.x + tooltipWidth + offset >
-    screenshotWrapperRef.value.offsetWidth
-  ) {
+  if (mousePosition.x + tooltipWidth + offset > screenshotWrapperRef.value.offsetWidth) {
     style.left = mousePosition.x - tooltipWidth - offset + "px";
   } else {
     style.left = mousePosition.x + offset + "px";
   }
-  if (
-    mousePosition.y + tooltipHeight + offset >
-    screenshotWrapperRef.value.offsetHeight
-  ) {
+  if (mousePosition.y + tooltipHeight + offset > screenshotWrapperRef.value.offsetHeight) {
     style.top = mousePosition.y - tooltipHeight - offset + "px";
   } else {
     style.top = mousePosition.y + offset + "px";
@@ -168,10 +168,23 @@ const tooltipStyle = computed(() => {
 });
 
 const handleMouseMove = (event: MouseEvent) => {
+  if (pressTimer !== null) {
+    // Check if the mouse has moved beyond the drag threshold
+    if (Math.abs(event.clientX - startX) > DRAG_THRESHOLD || Math.abs(event.clientY - startY) > DRAG_THRESHOLD) {
+      isDragging = true;
+      // If dragging starts, it can't be a click or long press anymore
+      clearPressTimer();
+    }
+  }
+
   if (!screenshotWrapperRef.value || imageInfo.naturalWidth === 0) return;
   const rect = screenshotWrapperRef.value.getBoundingClientRect();
-  const containerX = event.clientX - rect.left;
-  const containerY = event.clientY - rect.top;
+  // We need the coordinates relative to the container div, not the image
+  const containerEl = event.currentTarget as HTMLElement;
+  const containerRect = containerEl.getBoundingClientRect();
+  const containerX = event.clientX - containerRect.left;
+  const containerY = event.clientY - containerRect.top;
+
   mousePosition.x = containerX;
   mousePosition.y = containerY;
 
@@ -183,19 +196,91 @@ const handleMouseMove = (event: MouseEvent) => {
 
   if (isInImage) {
     mousePosition.visible = true;
-    mousePosition.imageX = Math.round(
-      (containerX - imageInfo.offsetX) * imageInfo.scale
-    );
-    mousePosition.imageY = Math.round(
-      (containerY - imageInfo.offsetY) * imageInfo.scale
-    );
+    mousePosition.imageX = Math.round((containerX - imageInfo.offsetX) * imageInfo.scale);
+    mousePosition.imageY = Math.round((containerY - imageInfo.offsetY) * imageInfo.scale);
   } else {
     mousePosition.visible = false;
   }
 };
 
 const handleMouseLeave = () => {
+  clearPressTimer(); // Clear timer if mouse leaves the area
   mousePosition.visible = false;
+};
+
+// 完整的点击/长按处理逻辑 **********
+const handleMouseDown = (event: MouseEvent) => {
+  if (event.button !== 0) return; // Only handle left clicks
+  if (!props.screenshotUrl) return; // Don't do anything if there's no image
+
+  isDragging = false;
+  startX = event.clientX;
+  startY = event.clientY;
+
+  pressTimer = window.setTimeout(() => {
+    // If timer fires and we haven't started dragging, it's a long press
+    if (!isDragging) {
+      triggerPreview();
+    }
+    clearPressTimer();
+  }, LONG_PRESS_DURATION);
+};
+
+const handleMouseUp = (event: MouseEvent) => {
+  // Check if it was a valid click (timer was active, not a drag)
+  if (pressTimer !== null && !isDragging) {
+    sendTapCommand();
+  }
+  clearPressTimer();
+};
+
+const clearPressTimer = () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+};
+
+const triggerPreview = () => {
+  if (previewUrlList.value.length > 0) {
+    showPreview.value = true;
+  }
+};
+
+const sendTapCommand = () => {
+  if (!props.isConnected) {
+    ElMessage.error("设备未连接，无法发送点击指令。");
+    return;
+  }
+  if (!wsStore.isLogPanelVisible) {
+    wsStore.toggleLogPanel();
+  }
+
+  const { imageX, imageY } = mousePosition;
+  wsService.sendExecuteActionSequence(props.deviceId, [
+    {
+      action: "tap",
+      parameters: { startX: imageX, startY: imageY },
+    },
+  ]);
+
+  ElMessage.info(`Tap 指令已发送至 (${imageX}, ${imageY})`);
+};
+const handleSaveImage = () => {
+  if (!props.screenshotUrl) return;
+
+  // Create a temporary anchor element
+  const link = document.createElement("a");
+  link.href = props.screenshotUrl;
+
+  // Suggest a filename for the user
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  link.download = `screenshot-${props.deviceId}-${timestamp}.jpg`;
+
+  // Programmatically click the link to trigger the download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 </script>
 
