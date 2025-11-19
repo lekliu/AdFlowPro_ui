@@ -5,6 +5,7 @@
         <span>UI 结构</span>
         <div class="header-actions">
           <el-switch v-model="isAllExpanded" inline-prompt active-text="全部展开" inactive-text="折叠" style="margin-right: 15px" />
+          <el-button :icon="CopyDocument" @click="handleCopyStructure" :disabled="!structure" plain>复制</el-button>
           <el-button
               type="success"
               :icon="Search"
@@ -26,10 +27,11 @@
 </template>
 
 <script setup lang="ts">
-import { Search } from "@element-plus/icons-vue";
+import { Search, CopyDocument } from "@element-plus/icons-vue";
 import { ref } from "vue";
 import UiTreeNode from "./UiTreeNode.vue";
 import type { UiNode } from "@/types/api/device";
+import { ElMessage } from "element-plus";
 
 const props = defineProps<{
   structure: UiNode | null;
@@ -40,6 +42,21 @@ const props = defineProps<{
 defineEmits(["fetchUiStructure"]);
 
 const isAllExpanded = ref<boolean | null>(null);
+
+const handleCopyStructure = async () => {
+  if (!props.structure) {
+    ElMessage.warning("没有可复制的UI结构数据。");
+    return;
+  }
+  try {
+    const jsonString = JSON.stringify(props.structure, null, 2);
+    await navigator.clipboard.writeText(jsonString);
+    ElMessage.success("UI结构已成功复制到剪贴板！");
+  } catch (err) {
+    console.error("Failed to copy UI structure:", err);
+    ElMessage.error("复制失败，您的浏览器可能不支持或未授权剪贴板访问。");
+  }
+};
 </script>
 
 <style scoped>
@@ -62,5 +79,8 @@ const isAllExpanded = ref<boolean | null>(null);
   font-family: "Fira Code", "Courier New", monospace;
   font-size: 13px;
   position: relative; /* Fix for overflow issue in flex context */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 </style>

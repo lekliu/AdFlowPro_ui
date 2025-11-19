@@ -129,6 +129,9 @@ const activeMenu = computed(() => route.path);
   height: 100%;
   background-color: #001529;
   transition: width 0.28s;
+  /* --- 关键改动 1: 将容器设置为 Flex 布局 --- */
+  display: flex;
+  flex-direction: column;
 }
 
 .layout-logo {
@@ -138,6 +141,8 @@ const activeMenu = computed(() => route.path);
   justify-content: center;
   color: white;
   overflow: hidden;
+  /* --- 关键改动 2: Logo区域不收缩 --- */
+  flex-shrink: 0;
 }
 
 .layout-logo h3 {
@@ -148,7 +153,13 @@ const activeMenu = computed(() => route.path);
 
 .el-menu {
   border-right: none;
-  height: calc(100% - 40px); /* Full height minus logo area */
+  /* --- 关键改动 3: 移除固定的 height 计算，让 Flexbox 控制 --- */
+  /* height: calc(100% - 40px); */
+
+  /* --- 关键改动 4: 自动填充剩余空间并处理内部滚动 --- */
+  flex-grow: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Style adjustments for dark theme menu */
@@ -156,13 +167,11 @@ const activeMenu = computed(() => route.path);
   width: 220px;
 }
 
-/* --- START: Fix for submenu hover/active background color --- */
+/* --- 样式覆盖规则保持不变，以处理悬停等状态 --- */
 :deep(.el-menu-item:hover),
-:deep(.el-sub-menu__title:hover) {
+:deep(.el-sub-menu__title:hover),
+:deep(.el-sub-menu.is-active > .el-sub-menu__title),
+:deep(.el-menu--collapse .el-sub-menu.is-opened > .el-sub-menu__title) {
   background-color: transparent !important;
 }
-:deep(.el-sub-menu.is-active > .el-sub-menu__title) {
-  background-color: #001529 !important;
-}
-/* --- END: Fix --- */
 </style>

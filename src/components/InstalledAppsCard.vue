@@ -1,6 +1,6 @@
 <!-- AdFlowPro_ui\src\components\InstalledAppsCard.vue -->
 <template>
-  <el-card class="card-margin">
+  <el-card class="card-margin" v-loading="isLoading">
     <template #header>
       <div class="card-header">
         <span>已安装应用 ({{ apps.length }}个)</span>
@@ -15,7 +15,7 @@
       </div>
     </template>
 
-    <el-table :data="apps" v-loading="isLoading" style="width: 100%" height="400px" border stripe>
+    <el-table :data="apps" style="width: 100%" height="400px" border stripe>
       <el-table-column label="应用名称" prop="appName" min-width="160" show-overflow-tooltip>
         <template #default="scope">
           <el-tag v-if="scope.row.isInMaster" type="success" size="small" effect="dark" style="margin-right: 5px" title="在主应用目录中">白</el-tag>
@@ -24,8 +24,18 @@
       </el-table-column>
       <el-table-column label="包名" prop="packageName" min-width="200" show-overflow-tooltip />
       <el-table-column label="版本" prop="versionName" width="120" />
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="scope">
+          <el-button
+            v-if="!scope.row.isInMaster"
+            size="small"
+            type="primary"
+            :icon="Plus"
+            @click="$emit('addToMaster', scope.row)"
+            plain
+          >
+            添加
+          </el-button>
           <el-button
             size="small"
             type="danger"
@@ -43,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { Delete } from "@element-plus/icons-vue";
+import { Delete, Plus } from "@element-plus/icons-vue";
 import type { DeviceInstalledApp } from "@/types/api";
 
 defineProps<{
@@ -52,7 +62,7 @@ defineProps<{
   isConnected: boolean;
 }>();
 
-defineEmits(["refresh", "uninstall", "pullApk"]);
+defineEmits(["refresh", "uninstall", "pullApk", "addToMaster"]);
 </script>
 
 <style scoped>

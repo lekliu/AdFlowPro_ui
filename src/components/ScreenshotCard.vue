@@ -68,7 +68,7 @@ import GridOverlay from "./GridOverlay.vue"; // 导入新组件
 import { wsService } from "@/services/wsService";
 import { ElMessage } from "element-plus";
 import { useWebSocketStore } from "@/stores/webSocketStore";
-
+import { onBeforeUnmount, onMounted } from "vue";
 const props = defineProps<{
   deviceId: string;
   screenshotUrl: string | null;
@@ -115,6 +115,8 @@ const imageInfo = reactive({
   offsetY: 0,
 });
 
+let resizeObserver: ResizeObserver | null = null;
+
 watch(
   () => props.screenshotUrl,
   () => {
@@ -131,20 +133,24 @@ watch(
   }
 );
 
-const onImageLoad = () => {
+const recalculateImageDimensions = () => {
   const imgElement = imageRef.value?.$el?.querySelector("img");
-  if (!imgElement) return;
+  if (!imgElement || !screenshotWrapperRef.value) {
+    return;
+  }
 
   imageInfo.naturalWidth = imgElement.naturalWidth;
   imageInfo.naturalHeight = imgElement.naturalHeight;
   imageInfo.renderWidth = imgElement.width;
   imageInfo.renderHeight = imgElement.height;
   imageInfo.scale = imageInfo.naturalWidth / imageInfo.renderWidth;
+  imageInfo.offsetX = (screenshotWrapperRef.value.offsetWidth - imageInfo.renderWidth) / 2;
+  imageInfo.offsetY = (screenshotWrapperRef.value.offsetHeight - imageInfo.renderHeight) / 2;
+};
 
-  if (screenshotWrapperRef.value) {
-    imageInfo.offsetX = (screenshotWrapperRef.value.offsetWidth - imageInfo.renderWidth) / 2;
-    imageInfo.offsetY = (screenshotWrapperRef.value.offsetHeight - imageInfo.renderHeight) / 2;
-  }
+const onImageLoad = () => {
+  // Call the recalculation function on initial load
+  recalculateImageDimensions();
 };
 
 const tooltipStyle = computed(() => {
@@ -282,6 +288,20 @@ const handleSaveImage = () => {
   link.click();
   document.body.removeChild(link);
 };
+
+onMounted(() => {
+  if (screenshotWrapperRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      // This callback is triggered whenever the container size changes.
+      recalculateImageDimensions();
+    });
+    resizeObserver.observe(screenshotWrapperRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (resizeObserver) resizeObserver.disconnect();
+});
 </script>
 
 <style scoped>

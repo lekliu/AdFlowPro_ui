@@ -53,16 +53,9 @@
 
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="600px" @close="resetForm">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-form-item label="任务名称" prop="name">
           <el-input v-model="form.name" placeholder="例如: 每日核心功能回归" />
-        </el-form-item>
-
-        <el-form-item label="套件类型" prop="suiteType">
-          <el-radio-group v-model="form.suiteType">
-            <el-radio-button value="linear">线性套件</el-radio-button>
-            <el-radio-button value="flow">流程图套件</el-radio-button>
-          </el-radio-group>
         </el-form-item>
 
         <el-form-item label="测试套件" prop="suiteId">
@@ -71,7 +64,7 @@
             placeholder="选择一个测试套件"
             filterable
             style="width: 100%"
-            v-loading="suiteStore.isLoading || flowSuiteStore.isLoading"
+            v-loading="suiteStore.isLoading"
           >
             <el-option v-for="suite in availableSuites" :key="suite.suiteId" :label="suite.name" :value="suite.suiteId" />
           </el-select>
@@ -128,7 +121,6 @@ defineOptions({
 import { ref, onMounted, reactive } from "vue";
 import { useScheduledTaskStore } from "@/stores/scheduledTaskStore";
 import { useSuiteStore } from "@/stores/suiteStore";
-import { useFlowSuiteStore } from "@/stores/flowSuiteStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
 import type { ScheduledTaskPublic } from "@/types/api";
@@ -142,7 +134,6 @@ dayjs.extend(utc);
 // --- Store Instances ---
 const taskStore = useScheduledTaskStore();
 const suiteStore = useSuiteStore();
-const flowSuiteStore = useFlowSuiteStore();
 const deviceStore = useDeviceStore();
 const appStore = useMasterAppStore();
 
@@ -162,7 +153,7 @@ const form = reactive({
   name: "",
   description: "",
   suiteId: null as number | null,
-  suiteType: "linear" as "linear" | "flow",
+  suiteType: "linear" as "linear" | "flow", // Kept for radio button, but logic simplified
   targetAppPackageName: "",
   deviceId: "",
   cronExpression: "",
@@ -171,7 +162,6 @@ const form = reactive({
 
 const rules = reactive<FormRules>({
   name: [{ required: true, message: "请输入任务名称", trigger: "blur" }],
-  suiteType: [{ required: true, message: "请选择套件类型", trigger: "change" }],
   suiteId: [{ required: true, message: "请选择测试套件", trigger: "change" }],
   targetAppPackageName: [{ required: true, message: "请选择目标应用", trigger: "change" }],
   deviceId: [{ required: true, message: "请选择目标设备", trigger: "change" }],
@@ -193,31 +183,13 @@ const rules = reactive<FormRules>({
 
 // --- DYNAMIC SUITE LIST ---
 const availableSuites = computed(() => {
-  return form.suiteType === "linear" ? suiteStore.allSuites : flowSuiteStore.allSuites;
+  return suiteStore.allSuites;
 });
-
-// --- Data Fetching ---
-const fetchData = () => {
-  taskStore.fetchTasks({
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
-  });
-};
-
-// --- Watch for suiteType changes to clear selection ---
-watch(
-  () => form.suiteType,
-  () => {
-    form.suiteId = null;
-  }
-);
 
 onMounted(() => {
   fetchData();
   // Pre-load data for dialog dropdowns from BOTH stores
   suiteStore.fetchAllSuites();
-  flowSuiteStore.fetchAllSuites();
   deviceStore.fetchDevices({ limit: 1000 });
   appStore.fetchApps({ skip: 0, limit: 1000 });
 });
@@ -273,7 +245,7 @@ const handleOpenDialog = (task: ScheduledTaskPublic | null) => {
       name: task.name,
       description: task.description || "",
       suiteId: task.suiteId,
-      suiteType: task.suiteType,
+      suiteType: "linear", // Always linear now
       targetAppPackageName: task.targetAppPackageName,
       deviceId: task.deviceId,
       cronExpression: task.cronExpression,
@@ -290,7 +262,8 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       const isEdit = !!form.scheduleId;
-      const { scheduleId, ...payload } = form;
+      // Exclude suiteType from the payload
+      const { scheduleId, suiteType, ...payload } = form;
       try {
         if (isEdit) {
           await taskStore.updateTask(scheduleId!, payload);
@@ -323,6 +296,14 @@ const handleDelete = async (task: ScheduledTaskPublic) => {
   }
 };
 
+// --- Data Fetching ---
+const fetchData = () => {
+  taskStore.fetchTasks({
+    skip: (currentPage.value - 1) * pageSize.value,
+    limit: pageSize.value,
+    search: searchQuery.value || undefined,
+  });
+};
 // --- Formatters ---
 const formatDateTime = (dateString?: string) => (dateString ? dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss") : "N/A");
 </script>

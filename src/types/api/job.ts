@@ -8,7 +8,6 @@ import type { TestSuitePublic } from "./testAsset";
  */
 export interface JobCreatePayload {
   suiteId: number;
-  suiteType: "linear" | "flow";
   targetAppPackageName: string;
   deviceId: string;
 }

@@ -1,6 +1,14 @@
 <template>
-  <div class="device-detail-page" v-if="device">
-    <el-page-header @back="goBack" :content="`设备详情 - ${device.deviceName || device.deviceId}`" />
+  <div class="device-detail-page" v-if="device" ref="pageRef">
+    <el-page-header @back="goBack" :content="`设备详情 - ${device.deviceName || device.deviceId}`">
+      <template #extra>
+        <div class="header-actions">
+          <el-tooltip content="切换全屏" placement="bottom">
+            <el-button :icon="FullScreen" circle @click="toggleFullscreen" />
+          </el-tooltip>
+        </div>
+      </template>
+    </el-page-header>
 
     <el-row :gutter="20" class="detail-content-row">
       <!-- 左侧栏 -->
@@ -22,6 +30,7 @@
           :is-connected="device.isConnectedWs || false"
           @refresh="fetchInstalledApps"
           @uninstall="handleUninstall"
+          @add-to-master="handleAddToMaster"
         />
 
         <UiStructureCard
@@ -69,10 +78,12 @@ import { ref, onMounted, computed, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useTabStore } from "@/stores/tabStore";
+import { useMasterAppStore } from "@/stores/masterAppStore";
 import type { DevicePublic, OcrPayload, PerformActionPayload, DeviceInstalledApp } from "@/types/api";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { commandService } from "@/api/commandService";
 import { deviceService } from "@/api/deviceService";
+import { FullScreen } from "@element-plus/icons-vue";
 
 import DeviceInfoCard from "@/components/DeviceInfoCard.vue";
 import QuickActionsCard from "@/components/QuickActionsCard.vue";
@@ -89,6 +100,9 @@ const route = useRoute();
 const router = useRouter();
 const deviceStore = useDeviceStore();
 const tabStore = useTabStore();
+const masterAppStore = useMasterAppStore();
+const pageRef = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
 
 const deviceId = computed(() => route.params.deviceId as string);
 const device = ref<DevicePublic | null>(null);
@@ -296,6 +310,28 @@ const handleUninstall = async (packageName: string) => {
   }
 };
 
+const handleAddToMaster = async (app: DeviceInstalledApp) => {
+  try {
+    await ElMessageBox.confirm(`确定要将应用 "${app.appName}" 添加到主应用目录吗？`, "添加到主应用", {
+      type: "info",
+    });
+
+    // 调用 store action 来执行 API 请求
+    await masterAppStore.addApp({
+      appName: app.appName,
+      packageName: app.packageName,
+    });
+
+    // Optimistic UI Update: Update the local list for instant feedback
+    const appInList = installedApps.value.find((a) => a.packageName === app.packageName);
+    if (appInList) {
+      appInList.isInMaster = true;
+    }
+  } catch (error) {
+    if (error !== "cancel") ElMessage.info("已取消操作");
+  }
+};
+
 // --- 2. 新增事件处理器和生命周期钩子 ---
 const handleScreenDataReady = (event: Event) => {
   const detail = (event as CustomEvent).detail;
@@ -339,6 +375,21 @@ onMounted(() => {
   window.addEventListener("app_list_ready", handleAppListReady);
 });
 
+const toggleFullscreen = () => {
+  if (!pageRef.value) return;
+  if (!document.fullscreenElement) {
+    pageRef.value.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+};
+
+const handleFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement;
+};
+
+onMounted(() => document.addEventListener("fullscreenchange", handleFullscreenChange));
+
 onBeforeUnmount(() => {
   if (screenshotUrl.value) URL.revokeObjectURL(screenshotUrl.value);
   window.removeEventListener("screen_data_ready", handleScreenDataReady);
@@ -351,6 +402,12 @@ onBeforeUnmount(() => {
 .device-detail-page {
   padding: 0px;
 }
+/* --- 新增全屏样式 --- */
+.device-detail-page:fullscreen {
+  background-color: #fff;
+  overflow-y: auto;
+  padding: 20px;
+}
 .detail-content-row {
   margin-top: 20px;
 }
@@ -360,6 +417,10 @@ onBeforeUnmount(() => {
 .card-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+.header-actions {
+  display: flex;
   align-items: center;
 }
 </style>

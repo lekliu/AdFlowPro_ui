@@ -9,7 +9,6 @@ export interface ScheduledTaskBasePayload {
   name: string;
   description?: string;
   suiteId: number;
-  suiteType: "linear" | "flow";
   targetAppPackageName: string;
   deviceId: string;
   cronExpression: string;
@@ -25,7 +24,6 @@ export interface ScheduledTaskCreatePayload extends ScheduledTaskBasePayload {}
  * 更新定时任务的负载
  */
 export interface ScheduledTaskUpdatePayload extends Partial<ScheduledTaskBasePayload> {
-  suiteType?: "linear" | "flow";
 }
 
 /**

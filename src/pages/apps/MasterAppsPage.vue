@@ -72,14 +72,18 @@
         <el-form-item label="应用包名" prop="packageName">
           <el-input v-model="form.packageName" placeholder="例如：com.tencent.mm" :disabled="!!form.appId" />
         </el-form-item>
-
-        <!-- SUITE TYPE SELECTOR -->
-        <el-form-item label="默认套件类型" prop="defaultSuiteType">
-          <el-radio-group v-model="form.defaultSuiteType">
-            <el-radio-button value="linear">线性套件</el-radio-button>
-            <el-radio-button value="flow">流程图套件</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="版本名称" prop="versionName">
+              <el-input v-model="form.versionName" placeholder="例如: 8.0.48" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="版本号" prop="versionCode">
+              <el-input-number v-model="form.versionCode" :min="0" controls-position="right" style="width: 100%" placeholder="例如: 2460" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-form-item label="默认测试套件" prop="defaultSuiteId">
           <el-select
@@ -88,7 +92,7 @@
             clearable
             filterable
             style="width: 100%"
-            v-loading="suiteStore.isLoading || flowSuiteStore.isLoading"
+            v-loading="suiteStore.isLoading"
           >
             <el-option v-for="suite in availableSuites" :key="suite.suiteId" :label="suite.name" :value="suite.suiteId" />
           </el-select>
@@ -179,12 +183,10 @@ import { masterAppService } from "@/api/masterAppService"; // 引入 masterAppSe
 import type { MasterAppPublic, DevicePublic, MasterAppCreatePayload, MasterAppUpdatePayload } from "@/types/api"; // 引入 DevicePublic
 import { ElMessage, ElMessageBox, ElCheckbox, type FormInstance, type FormRules } from "element-plus";
 import { Plus, Edit, Delete, Search, Download, Upload, Refresh } from "@element-plus/icons-vue";
-import { useSuiteStore } from "@/stores/suiteStore";
-import { useFlowSuiteStore } from "@/stores/flowSuiteStore";
+import { useSuiteStore } from "@/stores/suiteStore"; 
 
 const appStore = useMasterAppStore();
 const suiteStore = useSuiteStore();
-const flowSuiteStore = useFlowSuiteStore();
 
 // --- 分页和搜索状态 ---
 const currentPage = ref(1);
@@ -199,9 +201,11 @@ const form = reactive({
   appName: "",
   packageName: "",
   description: "",
+  versionName: "",
+  versionCode: undefined as number | undefined,
   apkUrl: "",
   defaultSuiteId: undefined as number | undefined,
-  defaultSuiteType: "linear" as "linear" | "flow" | null,
+  defaultSuiteType: "linear" as "linear" | "flow" | null, // Kept for radio button, but logic simplified
 });
 const dialogTitle = computed(() => (form.appId ? "编辑应用" : "新增应用"));
 const rules = reactive<FormRules>({
@@ -211,22 +215,8 @@ const rules = reactive<FormRules>({
 
 // --- DYNAMIC SUITE LIST ---
 const availableSuites = computed(() => {
-  if (form.defaultSuiteType === "linear") {
-    return suiteStore.allSuites;
-  }
-  if (form.defaultSuiteType === "flow") {
-    return flowSuiteStore.allSuites;
-  }
-  return [];
+  return suiteStore.allSuites;
 });
-
-// --- Watch for suiteType changes to clear selection ---
-watch(
-  () => form.defaultSuiteType,
-  () => {
-    form.defaultSuiteId = undefined;
-  }
-);
 
 // --- 拉取APK对话框相关状态 ---
 const pullDialog = reactive({
@@ -263,9 +253,7 @@ const handleRefresh = () => {
 
 onMounted(() => {
   fetchData();
-  // Pre-load data for dialog dropdowns from BOTH stores
   suiteStore.fetchAllSuites();
-  flowSuiteStore.fetchAllSuites();
   window.addEventListener("apk_pull_complete", handleApkPullComplete);
 });
 
@@ -295,6 +283,8 @@ const resetForm = () => {
   form.appName = "";
   form.packageName = "";
   form.description = "";
+  form.versionName = "";
+  form.versionCode = undefined;
   form.apkUrl = "";
   form.defaultSuiteId = undefined;
   form.defaultSuiteType = "linear";
@@ -308,9 +298,11 @@ const handleOpenDialog = (app: MasterAppPublic | null) => {
     form.appName = app.appName;
     form.packageName = app.packageName;
     form.description = app.description || "";
+    form.versionName = app.versionName || "";
+    form.versionCode = app.versionCode;
     form.apkUrl = app.apkUrl || "";
     form.defaultSuiteId = app.defaultSuiteId || undefined;
-    form.defaultSuiteType = app.defaultSuiteType || "linear";
+    form.defaultSuiteType = "linear"; // Always linear now
   }
   dialogVisible.value = true;
 };
@@ -323,9 +315,10 @@ const handleSubmit = async () => {
       const payload: MasterAppUpdatePayload = {
         appName: form.appName,
         description: form.description,
+        versionName: form.versionName,
+        versionCode: form.versionCode,
         apkUrl: form.apkUrl,
         defaultSuiteId: form.defaultSuiteId || null,
-        defaultSuiteType: form.defaultSuiteId ? form.defaultSuiteType : null,
       };
 
       // For create, we also need packageName

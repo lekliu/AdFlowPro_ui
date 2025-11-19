@@ -12,7 +12,6 @@ export interface MasterAppPublic {
   versionName?: string;
   versionCode?: number;
   defaultSuiteId?: number | null;
-  defaultSuiteType?: "linear" | "flow" | null;
   defaultSuiteName?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -27,7 +26,6 @@ export interface MasterAppCreatePayload {
   description?: string;
   apkUrl?: string;
   defaultSuiteId?: number | null;
-  defaultSuiteType?: "linear" | "flow" | null;
 }
 
 /**
@@ -38,5 +36,4 @@ export interface MasterAppUpdatePayload {
   description?: string;
   apkUrl?: string;
   defaultSuiteId?: number | null;
-  defaultSuiteType?: "linear" | "flow" | null;
 }
