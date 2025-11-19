@@ -43,4 +43,11 @@ export const jobService = {
       responseType: "blob", // 关键：期望接收二进制文件数据
     });
   },
+
+  /**
+   * 删除一个测试任务及其所有关联的产物
+   */
+  async deleteJob(jobId: number): Promise<void> {
+    return apiClient.delete(`/jobs/${jobId}`);
+  },
 };

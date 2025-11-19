@@ -112,12 +112,14 @@ export interface TestPackagePublic {
   name: string;
   description?: string;
   isCommon: boolean;
+  categoryId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface TestPackagePublicWithAtoms extends TestPackagePublic {
   atoms: AtomicOperationPublic[];
+  category?: AtomCategoryPublic | null;
 }
 
 export interface TestPackageCreatePayload {
@@ -125,6 +127,7 @@ export interface TestPackageCreatePayload {
   description?: string;
   isCommon: boolean;
   atomIds: number[];
+  categoryId?: number | null;
 }
 
 export interface TestPackageUpdatePayload {
@@ -132,6 +135,7 @@ export interface TestPackageUpdatePayload {
   description?: string;
   isCommon?: boolean;
   atomIds?: number[];
+  categoryId?: number | null;
 }
 
 // --- L3: Test Case ---

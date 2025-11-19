@@ -66,7 +66,7 @@
           <template #default="scope">{{ calculateDuration(scope.row.startedAt, scope.row.completedAt) }}</template>
         </el-table-column>
 
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary" :icon="View" @click="handleViewDetails(scope.row.jobId)">查看详情</el-button>
             <el-button
@@ -90,6 +90,13 @@
             >
               报告
             </el-button>
+            <el-button
+                v-if="['completed', 'failed', 'cancelled'].includes(scope.row.status)"
+                size="small"
+                type="danger"
+                :icon="Delete"
+                @click="handleDeleteJob(scope.row)"
+            >删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -117,7 +124,7 @@ import { ref, onMounted, watch, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useJobStore } from "@/stores/jobStore";
 import { useDeviceStore } from "@/stores/deviceStore";
-import { Search, View, Refresh, VideoPause, Download } from "@element-plus/icons-vue";
+import { Search, View, Refresh, VideoPause, Download, Delete } from "@element-plus/icons-vue";
 import type { JobListPublic } from "@/types/api";
 import { ElMessageBox } from "element-plus";
 import dayjs from "dayjs";
@@ -227,6 +234,31 @@ const handleExportReport = async (jobId: number) => {
   await jobStore.exportReport(jobId);
 };
 
+const handleDeleteJob = async (job: JobListPublic) => {
+  console.log(`[DEBUG] handleDeleteJob called for job #${job.jobId}`); // <-- 诊断日志 1
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除任务 #${job.jobId} 吗？<br/><strong>此操作将同时删除所有关联的截图文件，且不可恢复。</strong>`,
+      "危险操作确认",
+      {
+      type: "warning",
+      dangerouslyUseHTMLString: true, // 允许在消息中使用 HTML
+      confirmButtonText: "确认删除",
+      cancelButtonText: "取消",
+    }
+    );
+
+    console.log(`[DEBUG] User confirmed deletion for job #${job.jobId}. Calling store action...`); // <-- 诊断日志 2
+    await jobStore.deleteJob(job.jobId);
+    // After successful deletion, refresh the current page data
+    fetchData();
+  } catch (error) {
+    console.log(`[DEBUG] Caught error in handleDeleteJob:`, error); // <-- 诊断日志 3
+    if (error !== "cancel") {
+      // API error handled by interceptor
+    }
+  }
+};
 const statusTagType = (status: string) => {
   switch (status) {
     case "completed":
@@ -259,7 +291,7 @@ const calculateDuration = (start?: string, end?: string) => {
 
 <style scoped>
 .jobs-list-page {
-  padding: 20px;
+  padding: 0px;
 }
 .card-header {
   display: flex;

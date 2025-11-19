@@ -11,6 +11,7 @@ interface JobState {
   isDetailsLoading: boolean;
   isCancelling: boolean;
   isExporting: boolean;
+  isDeleting: boolean;
   error: string | null;
 }
 
@@ -23,6 +24,7 @@ export const useJobStore = defineStore("job", {
     isDetailsLoading: false,
     isCancelling: false,
     isExporting: false,
+    isDeleting: false,
     error: null,
   }),
   actions: {
@@ -111,6 +113,24 @@ export const useJobStore = defineStore("job", {
         this.isExporting = false;
       }
     },
-    //增加新功能
+    async deleteJob(jobId: number) {
+      this.isDeleting = true;
+      try {
+        await jobService.deleteJob(jobId);
+
+        // Optimistically update the job list
+        const index = this.jobs.findIndex((job) => job.jobId === jobId);
+        if (index !== -1) {
+          this.jobs.splice(index, 1);
+          this.totalJobs = Math.max(0, this.totalJobs - 1);
+        }
+        ElMessage.success(`任务 #${jobId} 已成功删除。`);
+      } catch (err: any) {
+        // Error message is handled by apiClient interceptor
+        this.error = err.message || `Failed to delete job #${jobId}`;
+      } finally {
+        this.isDeleting = false;
+      }
+    },
   },
 });

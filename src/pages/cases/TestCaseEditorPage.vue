@@ -1,5 +1,5 @@
 <template>
-  <div class="case-editor-page">
+  <div class="case-editor-page" style="padding: 0px">
     <el-page-header @back="goBack" :content="isEditMode ? '编辑测试用例' : '新建测试用例'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
@@ -37,7 +37,7 @@
               </el-form-item>
             </el-col>
           </el-row>
-          <el-form-item label="描述" prop="description">
+          <el-form-item label="描述" prop="description" style="margin-top: 10px">
             <el-input v-model="form.description" type="textarea" placeholder="描述此用例验证的端到端业务流程"></el-input>
           </el-form-item>
         </el-form>
@@ -45,10 +45,18 @@
 
       <div class="editor-content">
         <!-- Linear Case Editor -->
-        <el-row v-if="form.caseType === 'linear'" :gutter="6" style="margin-top: 20px">
+        <el-row v-if="form.caseType === 'linear'" :gutter="6" style="margin-top: 6px">
           <el-col :span="10">
             <el-card class="pool-card" body-style="padding: 0;">
-              <template #header><span>测试包池</span></template>
+              <template #header>
+                <div class="pool-header">
+                  <span>测试包池</span>
+                  <!-- 新增分类筛选 -->
+                  <el-select v-model="packageCategoryFilter" placeholder="按分类筛选" clearable size="small" style="width: 150px">
+                    <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                  </el-select>
+                </div>
+              </template>
               <div class="pool-content">
                 <el-input v-model="packageSearch" placeholder="搜索测试包" clearable class="pool-search" />
                 <draggable
@@ -64,6 +72,7 @@
                     <div class="draggable-item" :class="{ 'is-disabled': element.disabled }">
                       <el-icon><TakeawayBox /></el-icon>
                       <span class="item-text">{{ element.name }}</span>
+                      <el-tag v-if="element.category" type="info" size="small">{{ element.category.name }}</el-tag>
                       <el-tag v-if="element.isCommon" size="small">公共</el-tag>
                     </div>
                   </template>
@@ -80,6 +89,7 @@
                     <div class="draggable-item-selected">
                       <el-icon class="drag-handle"><Rank /></el-icon>
                       <span class="item-text">{{ element.name }}</span>
+                      <el-tag v-if="element.category" type="info" size="small">{{ element.category.name }}</el-tag>
                       <div>
                         <el-button type="primary" :icon="Edit" circle plain size="small" @click="handleEditPackage(element.packageId)" />
                         <el-button type="danger" :icon="Delete" circle plain size="small" @click="removePackage(index)" />
@@ -117,6 +127,7 @@ import { Delete, Rank, TakeawayBox, QuestionFilled, Edit } from "@element-plus/i
 
 import FlowchartEditor from "@/components/editors/FlowchartEditor.vue";
 import { usePackageStore } from "@/stores/packageStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useAtomStore } from "@/stores/atomStore";
 import { useCaseStore } from "@/stores/caseStore";
 import { useTabStore } from "@/stores/tabStore";
@@ -126,6 +137,7 @@ import type  GraphData  from "@logicflow/core";
 const route = useRoute();
 const router = useRouter();
 const packageStore = usePackageStore();
+const categoryStore = useAtomCategoryStore();
 const atomStore = useAtomStore();
 const caseStore = useCaseStore();
 const tabStore = useTabStore();
@@ -160,14 +172,16 @@ const rules = reactive<FormRules>({
 });
 
 const packageSearch = ref("");
+const packageCategoryFilter = ref<number | "">("");
 
 const selectedPackageIds = computed(() => new Set(form.packages.map((p) => p.packageId)));
 
 const availablePackages = computed(() => {
   const searched = packageStore.packages.filter(
       (pkg) =>
-          pkg.name.toLowerCase().includes(packageSearch.value.toLowerCase()) ||
-          (pkg.description && pkg.description.toLowerCase().includes(packageSearch.value.toLowerCase()))
+          (!packageCategoryFilter.value || pkg.category?.categoryId === packageCategoryFilter.value) &&
+          (pkg.name.toLowerCase().includes(packageSearch.value.toLowerCase()) ||
+          (pkg.description && pkg.description.toLowerCase().includes(packageSearch.value.toLowerCase())))
   );
 
   return searched.map((pkg) => ({
@@ -190,6 +204,7 @@ onMounted(async () => {
   await Promise.all([
     packageStore.fetchPackages({ skip: 0, limit: 2000 }),
     atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
+    categoryStore.fetchAllCategories(),
   ]);
 
   if (isEditMode.value) {
@@ -201,7 +216,6 @@ onMounted(async () => {
       form.totalTimeoutS = cs.totalTimeoutS || 600;
       form.packages = cs.packages || [];
       form.flowchartData = (cs.flowchartData as GraphData) || null;
-      console.log("[FINAL DEBUG] In TestCaseEditor onMounted, the flowchartData from store is:", JSON.parse(JSON.stringify(cs.flowchartData)));
     }
   }
   isLoading.value = false;
@@ -220,7 +234,6 @@ const goBack = () => {
 };
 
 const handleSave = async () => {
-  console.log("[DEBUG] Entering handleSave. Current form state:", JSON.parse(JSON.stringify(form)));
   if (!formRef.value) return;
   await formRef.value.validate();
 
@@ -249,8 +262,6 @@ const handleSave = async () => {
     }
 
     // 2. 在调用 store 之前，打印这个 payload 的最终形态
-    console.log("[DEBUG] Payload to be sent to store:", JSON.parse(JSON.stringify(payload)));
-
     if (isEditMode.value) {
       await caseStore.updateCase(caseId.value!, payload as TestCaseUpdatePayload);
     } else {
@@ -283,10 +294,7 @@ const handleSave = async () => {
   font-size: 15px; /* Slightly smaller font */
 }
 /* Reduce header height */
-:deep(.sticky-header .el-page-header__header) {
-  height: 32px; /* Force a more compact height */
-  line-height: 32px;
-}
+
 
 .case-editor-page {
   padding: 0;
@@ -299,6 +307,11 @@ const handleSave = async () => {
   height: 600px;
   display: flex;
   flex-direction: column;
+}
+.pool-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .pool-content {
   flex-grow: 1;
@@ -347,7 +360,7 @@ const handleSave = async () => {
   color: #c0c4cc;
   border-color: #e4e7ed;
 }
-.editor-content {
-  margin-top: 20px;
+.el-tag {
+  margin-left: 8px;
 }
 </style>

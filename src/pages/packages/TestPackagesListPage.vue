@@ -14,6 +14,14 @@
             <el-button :icon="Search" @click="handleSearch" />
           </template>
         </el-input>
+        <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 200px">
+          <el-option
+              v-for="category in categoryStore.allCategories"
+              :key="category.categoryId"
+              :label="category.name"
+              :value="category.categoryId"
+          />
+        </el-select>
       </div>
 
       <el-table :data="packageStore.packages" v-loading="packageStore.isLoading" style="width: 100%" border stripe>
@@ -59,6 +67,7 @@ defineOptions({
 import { ref, onMounted, onActivated } from "vue";
 import { useRouter } from "vue-router";
 import { usePackageStore } from "@/stores/packageStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
@@ -68,16 +77,19 @@ dayjs.extend(utc);
 
 const router = useRouter();
 const packageStore = usePackageStore();
+const categoryStore = useAtomCategoryStore();
 
 const currentPage = ref(1);
 const pageSize = ref(10);
 const searchQuery = ref("");
+const categoryFilter = ref<number | "">("");
 
 const fetchData = () => {
   const params = {
     skip: (currentPage.value - 1) * pageSize.value,
     limit: pageSize.value,
     search: searchQuery.value || undefined,
+    categoryId: categoryFilter.value || undefined,
   };
   packageStore.fetchPackages(params);
 };
@@ -91,6 +103,7 @@ onActivated(() => {
 
 onMounted(() => {
   fetchData();
+  categoryStore.fetchAllCategories();
 });
 
 const handleSearch = () => {

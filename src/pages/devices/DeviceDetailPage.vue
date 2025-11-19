@@ -10,19 +10,10 @@
       </template>
     </el-page-header>
 
-    <el-row :gutter="20" class="detail-content-row">
+    <el-row :gutter="6" class="detail-content-row">
       <!-- 左侧栏 -->
       <el-col :span="15">
         <DeviceInfoCard :device="device" />
-
-        <!-- 使用可选链操作符 (?.) 来安全地访问可能为null的device对象的属性 -->
-        <QuickActionsCard
-          :is-connected="device?.isConnectedWs || false"
-          :is-sending-screen-power-cmd="isSendingScreenPowerCmd"
-          :is-sending-hotkey="isSendingHotkey"
-          @send-command="handleQuickCommand"
-          class="card-margin"
-        />
 
         <InstalledAppsCard
           :apps="installedApps"
@@ -39,6 +30,15 @@
           :is-connected="device?.isConnectedWs || false"
           @fetch-ui-structure="handleGetUiStructure"
           class="card-margin"
+        />
+
+        <!-- 使用可选链操作符 (?.) 来安全地访问可能为null的device对象的属性 -->
+        <QuickActionsCard
+            :is-connected="device?.isConnectedWs || false"
+            :is-sending-screen-power-cmd="isSendingScreenPowerCmd"
+            :is-sending-hotkey="isSendingHotkey"
+            @send-command="handleQuickCommand"
+            class="card-margin"
         />
 
         <ActionSequenceEditor class="card-margin" mode="standalone" :device-id="deviceId" v-model="standaloneActions">
@@ -409,10 +409,10 @@ onBeforeUnmount(() => {
   padding: 20px;
 }
 .detail-content-row {
-  margin-top: 20px;
+  margin-top: 6px;
 }
 .card-margin {
-  margin-top: 20px;
+  margin-top: 6px;
 }
 .card-header {
   display: flex;

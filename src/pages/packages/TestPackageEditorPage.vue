@@ -1,6 +1,6 @@
 <!-- AdFlowPro_ui\src\pages\packages\TestPackageEditorPage.vue (最终修正版 V3.2.3.8) -->
 <template>
-  <div class="package-editor-page">
+  <div class="package-editor-page" style="padding: 0px">
     <el-page-header @back="goBack" :content="isEditMode ? '编辑测试包' : '新建测试包'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
@@ -15,10 +15,21 @@
         <template #header>
           <span>基础信息</span>
         </template>
-        <el-form :model="form" ref="formRef" label-width="120px" :rules="rules">
-          <el-form-item label="名称" prop="name">
-            <el-input v-model="form.name" placeholder="为测试包起一个明确的名称"></el-input>
-          </el-form-item>
+        <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="名称" prop="name">
+                <el-input v-model="form.name" placeholder="为测试包起一个明确的名称"></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="所属分类" prop="categoryId">
+                <el-select v-model="form.categoryId" placeholder="选择一个分类" clearable filterable style="width: 100%">
+                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
           <el-form-item label="描述" prop="description">
             <el-input v-model="form.description" type="textarea" placeholder="描述此测试包封装的流程"></el-input>
           </el-form-item>
@@ -36,7 +47,17 @@
         <el-col :span="10">
           <el-card class="pool-card" body-style="padding: 0;">
             <template #header>
-              <span>原子操作池</span>
+              <div class="pool-header">
+                <span>原子操作池</span>
+                <el-select
+                    v-model="atomCategoryFilter"
+                    placeholder="按分类筛选"
+                    clearable
+                    size="small"
+                    style="width: 150px">
+                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                </el-select>
+              </div>
             </template>
             <div class="pool-content">
               <el-input v-model="atomSearch" placeholder="搜索原子操作" clearable class="pool-search" />
@@ -53,6 +74,7 @@
                   <div class="draggable-item" :class="{ 'is-disabled': element.disabled }">
                     <el-icon><Operation /></el-icon>
                     <span class="item-text">{{ element.name }}</span>
+                    <el-tag v-if="element.categoryName" type="info" size="small">{{ element.categoryName }}</el-tag>
                   </div>
                 </template>
               </draggable>
@@ -100,6 +122,7 @@ import { Delete, Rank, Operation, QuestionFilled, Edit } from "@element-plus/ico
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { TestPackageCreatePayload, TestPackageUpdatePayload, AtomicOperationPublic } from "@/types/api";
 
@@ -108,6 +131,7 @@ const router = useRouter();
 const atomStore = useAtomStore();
 const packageStore = usePackageStore();
 const tabStore = useTabStore();
+const categoryStore = useAtomCategoryStore();
 
 const packageId = computed(() => (route.params.packageId ? Number(route.params.packageId) : null));
 const isEditMode = computed(() => !!packageId.value);
@@ -119,11 +143,13 @@ const form = reactive<{
   name: string;
   description: string;
   isCommon: boolean;
+  categoryId: number | null;
   atoms: AtomicOperationPublic[];
 }>({
   name: "",
   description: "",
   isCommon: false,
+  categoryId: null,
   atoms: [],
 });
 
@@ -132,14 +158,17 @@ const rules = reactive<FormRules>({
 });
 
 const atomSearch = ref("");
+const atomCategoryFilter = ref<number | "">("");
 
 const selectedAtomIds = computed(() => new Set(form.atoms.map((a) => a.atomId)));
 
 const availableAtoms = computed(() => {
   const searched = atomStore.atoms.filter(
     (atom) =>
-      atom.name.toLowerCase().includes(atomSearch.value.toLowerCase()) ||
-      (atom.description && atom.description.toLowerCase().includes(atomSearch.value.toLowerCase()))
+      // Corrected logic: (text search) AND (category filter)
+      (atom.name.toLowerCase().includes(atomSearch.value.toLowerCase()) ||
+        (atom.description && atom.description.toLowerCase().includes(atomSearch.value.toLowerCase()))) &&
+      (!atomCategoryFilter.value || atom.categoryId === atomCategoryFilter.value)
   );
 
   return searched.map((atom) => ({
@@ -159,7 +188,8 @@ const cloneAtom = (original: AtomicOperationPublic & { disabled: boolean }) => {
 
 onMounted(async () => {
   isLoading.value = true;
-  await atomStore.fetchAtoms({ skip: 0, limit: 100 });
+  // Fetch all atoms and categories for the editor
+  await Promise.all([atomStore.fetchAtoms({ skip: 0, limit: 2000 }), categoryStore.fetchAllCategories()]);
 
   if (isEditMode.value) {
     const pkg = await packageStore.fetchPackageById(packageId.value!);
@@ -167,6 +197,7 @@ onMounted(async () => {
       form.name = pkg.name;
       form.description = pkg.description || "";
       form.isCommon = pkg.isCommon;
+      form.categoryId = pkg.category?.categoryId || null;
       form.atoms = pkg.atoms || [];
     }
   }
@@ -193,6 +224,7 @@ const handleSave = async () => {
       name: form.name,
       description: form.description,
       isCommon: form.isCommon,
+      categoryId: form.categoryId,
       atomIds: form.atoms.map((a) => a.atomId),
     };
     if (isEditMode.value) {
@@ -242,6 +274,11 @@ const handleSave = async () => {
   display: flex;
   flex-direction: column;
 }
+.pool-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .pool-content {
   flex-grow: 1;
   overflow-y: auto;
@@ -287,5 +324,8 @@ const handleSave = async () => {
   background-color: #f5f7fa;
   color: #c0c4cc;
   border-color: #e4e7ed;
+}
+.el-tag {
+  margin-left: 8px;
 }
 </style>

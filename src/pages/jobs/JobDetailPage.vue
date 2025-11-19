@@ -185,7 +185,7 @@ const calculateDuration = (start?: string, end?: string) => {
 
 <style scoped>
 .job-detail-page {
-  padding: 20px;
+  padding: 0px;
 }
 .detail-content {
   margin-top: 20px;
