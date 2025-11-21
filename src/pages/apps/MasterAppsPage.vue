@@ -29,6 +29,7 @@
         <el-table-column prop="appName" label="应用名称" width="120" sortable />
         <el-table-column prop="packageName" label="应用包名" min-width="180" sortable />
         <el-table-column prop="versionName" label="版本" width="100" />
+        <el-table-column prop="weight" label="权重" width="100" sortable />
         <el-table-column prop="defaultSuiteName" label="默认测试套件" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             <el-tag v-if="scope.row.defaultSuiteName" type="info">{{ scope.row.defaultSuiteName }}</el-tag>
@@ -81,6 +82,9 @@
           <el-col :span="12">
             <el-form-item label="版本号" prop="versionCode">
               <el-input-number v-model="form.versionCode" :min="0" controls-position="right" style="width: 100%" placeholder="例如: 2460" />
+            </el-form-item>
+            <el-form-item label="权重" prop="weight">
+              <el-input-number v-model="form.weight" :min="0" :max="100000" step="100" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -203,6 +207,7 @@ const form = reactive({
   description: "",
   versionName: "",
   versionCode: undefined as number | undefined,
+  weight: 10000,
   apkUrl: "",
   defaultSuiteId: undefined as number | undefined,
   defaultSuiteType: "linear" as "linear" | "flow" | null, // Kept for radio button, but logic simplified
@@ -285,6 +290,7 @@ const resetForm = () => {
   form.description = "";
   form.versionName = "";
   form.versionCode = undefined;
+  form.weight = 10000;
   form.apkUrl = "";
   form.defaultSuiteId = undefined;
   form.defaultSuiteType = "linear";
@@ -300,6 +306,7 @@ const handleOpenDialog = (app: MasterAppPublic | null) => {
     form.description = app.description || "";
     form.versionName = app.versionName || "";
     form.versionCode = app.versionCode;
+    form.weight = app.weight;
     form.apkUrl = app.apkUrl || "";
     form.defaultSuiteId = app.defaultSuiteId || undefined;
     form.defaultSuiteType = "linear"; // Always linear now
@@ -317,6 +324,7 @@ const handleSubmit = async () => {
         description: form.description,
         versionName: form.versionName,
         versionCode: form.versionCode,
+        weight: form.weight,
         apkUrl: form.apkUrl,
         defaultSuiteId: form.defaultSuiteId || null,
       };

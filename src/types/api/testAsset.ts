@@ -60,7 +60,7 @@ export interface Matcher {
   enableMultiScale?: boolean;
 
   // 4. Common filters
-  screenRegion: ScreenRegion;
+  screenRegion: ScreenRegion[];
   spatialRelation?: SpatialRelation | null;
 }
 
@@ -114,6 +114,7 @@ export interface TestPackagePublic {
   isCommon: boolean;
   categoryId?: number | null;
   createdAt: string;
+  category?: any;
   updatedAt: string;
 }
 

@@ -20,14 +20,15 @@
         <el-table-column prop="categoryId" label="ID" width="80" sortable />
         <el-table-column prop="name" label="分类名称" width="250" sortable />
         <el-table-column prop="atomCount" label="原子操作数量" width="150" sortable align="center" />
+        <el-table-column prop="packageCount" label="测试包数量" width="150" sortable align="center" />
         <el-table-column prop="description" label="描述" min-width="300" show-overflow-tooltip />
         <el-table-column label="更新时间" prop="updatedAt" width="180" sortable>
           <template #default="scope">{{ formatDate(scope.row.updatedAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="scope">
-            <el-button size="small" type="primary" :icon="Edit" @click="handleOpenDialog(scope.row)" />
-            <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(scope.row)" :disabled="scope.row.atomCount > 0" />
+            <el-button size="small" type="primary" :icon="Edit" @click="handleOpenDialog(scope.row)"/>
+            <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(scope.row)" :disabled="scope.row.atomCount > 0 || scope.row.packageCount > 0"/>
           </template>
         </el-table-column>
       </el-table>
@@ -61,7 +62,7 @@ import { ref, onMounted, reactive } from "vue";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import type { AtomCategoryPublic } from "@/types/api";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
-import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue"; // This is correct
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 
@@ -69,7 +70,7 @@ dayjs.extend(utc);
 
 const categoryStore = useAtomCategoryStore();
 
-const searchQuery = ref("");
+const searchQuery = ref<string>("");
 const formRef = ref<FormInstance>();
 
 const dialog = reactive({
@@ -143,11 +144,12 @@ const handleSubmit = async () => {
   });
 };
 
-const handleDelete = async (category: AtomCategoryPublic & { atomCount: number }) => {
-  if (category.atomCount > 0) {
-    ElMessage.error(`无法删除，该分类下有 ${category.atomCount} 个原子操作。`);
+const handleDelete = async (category: AtomCategoryPublic & { atomCount: number; packageCount: number }) => {
+  if (category.atomCount > 0 || category.packageCount > 0) {
+    ElMessage.error(`无法删除，该分类下有 ${category.atomCount} 个原子操作和 ${category.packageCount} 个测试包。`);
     return;
   }
+
   try {
     await ElMessageBox.confirm(`确定要删除分类 "${category.name}" 吗？`, "确认删除", {
       type: "warning",

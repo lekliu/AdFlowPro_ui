@@ -4,6 +4,7 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑测试包' : '新建测试包'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
+          <el-button type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此包 </el-button>
           <el-button @click="goBack">取消</el-button>
           <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
@@ -16,28 +17,32 @@
           <span>基础信息</span>
         </template>
         <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
-          <el-row :gutter="20">
-            <el-col :span="12">
+          <el-row :gutter="15">
+            <el-col :span="8">
               <el-form-item label="名称" prop="name">
                 <el-input v-model="form.name" placeholder="为测试包起一个明确的名称"></el-input>
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :span="8">
               <el-form-item label="所属分类" prop="categoryId">
                 <el-select v-model="form.categoryId" placeholder="选择一个分类" clearable filterable style="width: 100%">
                   <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
                 </el-select>
               </el-form-item>
             </el-col>
+            <el-col :span="8">
+              <el-form-item label="公共包">
+                <div style="display: flex; align-items: center; height: 32px">
+                  <el-switch v-model="form.isCommon" />
+                  <el-tooltip content="公共包在所有项目中都可见并可被引用" placement="top">
+                    <el-icon style="margin-left: 8px; color: #909399"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+              </el-form-item>
+            </el-col>
           </el-row>
           <el-form-item label="描述" prop="description">
             <el-input v-model="form.description" type="textarea" placeholder="描述此测试包封装的流程"></el-input>
-          </el-form-item>
-          <el-form-item label="公共包">
-            <el-switch v-model="form.isCommon" />
-            <el-tooltip content="公共包在所有项目中都可见并可被引用" placement="top">
-              <el-icon style="margin-left: 8px; color: #909399"><QuestionFilled /></el-icon>
-            </el-tooltip>
           </el-form-item>
         </el-form>
       </el-card>
@@ -107,6 +112,30 @@
         </el-col>
       </el-row>
     </div>
+
+    <!-- Live Test Dialog -->
+    <el-dialog v-model="testDialog.visible" title="测试此测试包" width="400px">
+      <el-form label-position="top">
+        <el-form-item label="选择一个在线设备执行">
+          <el-select
+            v-model="testDialog.targetDeviceId"
+            placeholder="请选择设备"
+            style="width: 100%"
+            :loading="deviceStore.isLoading"
+          >
+            <el-option
+              v-for="device in onlineDevices"
+              :key="device.deviceId"
+              :label="`${device.deviceName} (${device.deviceId})`"
+              :value="device.deviceId" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="testDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="handleTestPackage" :disabled="!testDialog.targetDeviceId"> 开始执行 </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -118,12 +147,15 @@ import { ref, reactive, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, Operation, QuestionFilled, Edit } from "@element-plus/icons-vue";
+import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick } from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useTabStore } from "@/stores/tabStore";
+import { useDeviceStore } from "@/stores/deviceStore";
+import { useWebSocketStore } from "@/stores/webSocketStore";
+import { wsService } from "@/services/wsService";
 import type { TestPackageCreatePayload, TestPackageUpdatePayload, AtomicOperationPublic } from "@/types/api";
 
 const route = useRoute();
@@ -132,6 +164,8 @@ const atomStore = useAtomStore();
 const packageStore = usePackageStore();
 const tabStore = useTabStore();
 const categoryStore = useAtomCategoryStore();
+const deviceStore = useDeviceStore();
+const wsStore = useWebSocketStore();
 
 const packageId = computed(() => (route.params.packageId ? Number(route.params.packageId) : null));
 const isEditMode = computed(() => !!packageId.value);
@@ -159,6 +193,12 @@ const rules = reactive<FormRules>({
 
 const atomSearch = ref("");
 const atomCategoryFilter = ref<number | "">("");
+
+const testDialog = reactive({
+  visible: false,
+  targetDeviceId: "",
+});
+const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
 
 const selectedAtomIds = computed(() => new Set(form.atoms.map((a) => a.atomId)));
 
@@ -189,7 +229,11 @@ const cloneAtom = (original: AtomicOperationPublic & { disabled: boolean }) => {
 onMounted(async () => {
   isLoading.value = true;
   // Fetch all atoms and categories for the editor
-  await Promise.all([atomStore.fetchAtoms({ skip: 0, limit: 2000 }), categoryStore.fetchAllCategories()]);
+  await Promise.all([
+    atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
+    categoryStore.fetchAllCategories(),
+    deviceStore.fetchDevices({ limit: 1000 }), // Pre-fetch devices for test dialog
+  ]);
 
   if (isEditMode.value) {
     const pkg = await packageStore.fetchPackageById(packageId.value!);
@@ -239,6 +283,24 @@ const handleSave = async () => {
   } finally {
     isSaving.value = false;
   }
+};
+
+const openTestDialog = () => {
+  if (!isEditMode.value) {
+    ElMessage.warning("请先保存测试包，然后再进行测试。");
+    return;
+  }
+  testDialog.targetDeviceId = "";
+  testDialog.visible = true;
+};
+
+const handleTestPackage = () => {
+  if (!wsStore.isLogPanelVisible) {
+    wsStore.toggleLogPanel();
+  }
+  wsService.sendValidateTestPackage(packageId.value!, testDialog.targetDeviceId);
+  ElMessage.info("测试包验证请求已发送，请在底部状态栏查看结果。");
+  testDialog.visible = false;
 };
 </script>
 

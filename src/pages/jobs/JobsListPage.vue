@@ -235,7 +235,6 @@ const handleExportReport = async (jobId: number) => {
 };
 
 const handleDeleteJob = async (job: JobListPublic) => {
-  console.log(`[DEBUG] handleDeleteJob called for job #${job.jobId}`); // <-- 诊断日志 1
   try {
     await ElMessageBox.confirm(
       `确定要永久删除任务 #${job.jobId} 吗？<br/><strong>此操作将同时删除所有关联的截图文件，且不可恢复。</strong>`,
@@ -248,12 +247,10 @@ const handleDeleteJob = async (job: JobListPublic) => {
     }
     );
 
-    console.log(`[DEBUG] User confirmed deletion for job #${job.jobId}. Calling store action...`); // <-- 诊断日志 2
     await jobStore.deleteJob(job.jobId);
     // After successful deletion, refresh the current page data
     fetchData();
   } catch (error) {
-    console.log(`[DEBUG] Caught error in handleDeleteJob:`, error); // <-- 诊断日志 3
     if (error !== "cancel") {
       // API error handled by interceptor
     }

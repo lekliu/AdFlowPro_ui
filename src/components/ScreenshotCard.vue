@@ -214,7 +214,7 @@ const handleMouseLeave = () => {
   mousePosition.visible = false;
 };
 
-// 完整的点击/长按处理逻辑 **********
+// 完整的点击/长按处理逻辑
 const handleMouseDown = (event: MouseEvent) => {
   if (event.button !== 0) return; // Only handle left clicks
   if (!props.screenshotUrl) return; // Don't do anything if there's no image

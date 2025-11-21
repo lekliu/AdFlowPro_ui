@@ -20,6 +20,7 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     tap: ["startX", "startY"],
     tap_relative: ["offsetX", "offsetY"],
     swipe: ["startX", "startY", "endX", "endY", "duration"],
+    swipe_gesture: ["direction"],
     wait: ["duration"],
     press_key: ["keyCode"],
     report_value: ["reportLabel"],

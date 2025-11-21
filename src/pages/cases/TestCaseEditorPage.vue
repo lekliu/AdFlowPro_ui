@@ -3,6 +3,7 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑测试用例' : '新建测试用例'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
+          <el-button v-if="isEditMode" type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此用例 </el-button>
           <el-button @click="goBack">取消</el-button>
           <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
@@ -112,6 +113,30 @@
         </el-card>
       </div>
     </div>
+
+    <!-- Live Test Dialog -->
+    <el-dialog v-model="testDialog.visible" title="测试此测试用例" width="400px">
+      <el-form label-position="top">
+        <el-form-item label="选择一个在线设备执行">
+          <el-select
+            v-model="testDialog.targetDeviceId"
+            placeholder="请选择设备"
+            style="width: 100%"
+            :loading="deviceStore.isLoading"
+          >
+            <el-option
+              v-for="device in onlineDevices"
+              :key="device.deviceId"
+              :label="`${device.deviceName} (${device.deviceId})`"
+              :value="device.deviceId" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="testDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="handleTestLinearCase" :disabled="!testDialog.targetDeviceId"> 开始执行 </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -123,7 +148,7 @@ import { ref, reactive, computed, onMounted, defineAsyncComponent } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules, ElIcon } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, TakeawayBox, QuestionFilled, Edit } from "@element-plus/icons-vue";
+import { Delete, Rank, TakeawayBox, QuestionFilled, Edit, MagicStick } from "@element-plus/icons-vue";
 
 import FlowchartEditor from "@/components/editors/FlowchartEditor.vue";
 import { usePackageStore } from "@/stores/packageStore";
@@ -131,6 +156,9 @@ import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useAtomStore } from "@/stores/atomStore";
 import { useCaseStore } from "@/stores/caseStore";
 import { useTabStore } from "@/stores/tabStore";
+import { useDeviceStore } from "@/stores/deviceStore";
+import { useWebSocketStore } from "@/stores/webSocketStore";
+import { wsService } from "@/services/wsService";
 import type { TestCaseCreatePayload, TestCaseUpdatePayload, TestPackagePublic } from "@/types/api";
 import type  GraphData  from "@logicflow/core";
 
@@ -141,6 +169,8 @@ const categoryStore = useAtomCategoryStore();
 const atomStore = useAtomStore();
 const caseStore = useCaseStore();
 const tabStore = useTabStore();
+const deviceStore = useDeviceStore();
+const wsStore = useWebSocketStore();
 
 const caseId = computed(() => (route.params.caseId ? Number(route.params.caseId) : null));
 const isEditMode = computed(() => !!caseId.value);
@@ -174,6 +204,13 @@ const rules = reactive<FormRules>({
 const packageSearch = ref("");
 const packageCategoryFilter = ref<number | "">("");
 
+const testDialog = reactive({
+  visible: false,
+  targetDeviceId: "",
+});
+
+const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
+
 const selectedPackageIds = computed(() => new Set(form.packages.map((p) => p.packageId)));
 
 const availablePackages = computed(() => {
@@ -205,6 +242,7 @@ onMounted(async () => {
     packageStore.fetchPackages({ skip: 0, limit: 2000 }),
     atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
     categoryStore.fetchAllCategories(),
+    deviceStore.fetchDevices({ limit: 1000 }),
   ]);
 
   if (isEditMode.value) {
@@ -231,6 +269,20 @@ const handleEditPackage = (packageId: number) => {
 
 const goBack = () => {
   tabStore.removeTab(route.fullPath);
+};
+
+const openTestDialog = () => {
+  testDialog.targetDeviceId = "";
+  testDialog.visible = true;
+};
+
+const handleTestLinearCase = () => {
+  if (!wsStore.isLogPanelVisible) {
+    wsStore.toggleLogPanel();
+  }
+  wsService.sendValidateTestCase(caseId.value!, testDialog.targetDeviceId);
+  ElMessage.info("测试用例验证请求已发送，请在底部状态栏查看结果。");
+  testDialog.visible = false;
 };
 
 const handleSave = async () => {

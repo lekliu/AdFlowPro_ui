@@ -76,4 +76,40 @@ export const wsService = {
 
     return wsStore.sendMessage(message);
   },
+
+  sendValidateTestPackage(packageId: number, deviceId: string): boolean {
+    const wsStore = useWebSocketStore();
+    if (!wsStore.isConnected) {
+      ElMessage.error(`无法发送测试请求，与服务器的实时连接已断开。`);
+      return false;
+    }
+
+    const message = {
+      type: "validate_test_package",
+      payload: {
+        packageId,
+        deviceId,
+      },
+    };
+
+    return wsStore.sendMessage(message);
+  },
+
+  sendValidateTestCase(caseId: number, deviceId: string): boolean {
+    const wsStore = useWebSocketStore();
+    if (!wsStore.isConnected) {
+      ElMessage.error(`无法发送测试请求，与服务器的实时连接已断开。`);
+      return false;
+    }
+
+    const message = {
+      type: "validate_test_case",
+      payload: {
+        caseId,
+        deviceId,
+      },
+    };
+
+    return wsStore.sendMessage(message);
+  },
 };

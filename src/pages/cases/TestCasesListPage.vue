@@ -18,7 +18,16 @@
 
       <el-table :data="caseStore.cases" v-loading="caseStore.isLoading" style="width: 100%" border stripe>
         <el-table-column type="index" width="50" label="序号" />
-        <el-table-column prop="name" label="名称" width="200" sortable />
+        <el-table-column prop="name" label="名称" width="200" sortable>
+          <template #default="scope">
+            <div style="display: flex; align-items: center; gap: 8px">
+              <el-tag size="small" :type="scope.row.caseType === 'flow' ? 'warning' : 'info'" disable-transitions>
+                {{ scope.row.caseType === "flow" ? "流" : "线" }}
+              </el-tag>
+              <span>{{ scope.row.name }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
           <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>

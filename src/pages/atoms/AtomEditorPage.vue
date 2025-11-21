@@ -83,7 +83,7 @@
       </el-card>
 
       <el-row :gutter="6" style="margin-top: 6px">
-        <el-col :span="12">
+        <el-col :span="10">
           <el-card>
             <template #header>
               <div class="card-header">
@@ -175,7 +175,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="14">
           <ActionSequenceEditor mode="editor" v-model="form.actionsJson" />
         </el-col>
       </el-row>
@@ -245,7 +245,7 @@ const createNewPrimaryMatcher = (): Matcher => ({
   sceneType: "ui",
   text: [],
   matchMode: "fuzzy",
-  screenRegion: "",
+  screenRegion: [],
   spatialRelation: null,
   coordinates: undefined,
   templateId: null,

@@ -7,6 +7,8 @@ export interface AtomCategoryPublic {
     description?: string;
     createdAt: string;
     updatedAt: string;
+    atomCount?: number;
+    packageCount?: number;
 }
 
 /**

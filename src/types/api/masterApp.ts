@@ -11,6 +11,7 @@ export interface MasterAppPublic {
   apkUrl?: string;
   versionName?: string;
   versionCode?: number;
+  weight: number;
   defaultSuiteId?: number | null;
   defaultSuiteName?: string | null;
   createdAt: string;
@@ -26,6 +27,7 @@ export interface MasterAppCreatePayload {
   description?: string;
   apkUrl?: string;
   defaultSuiteId?: number | null;
+  weight: number;
 }
 
 /**
@@ -36,4 +38,5 @@ export interface MasterAppUpdatePayload {
   description?: string;
   apkUrl?: string;
   defaultSuiteId?: number | null;
+  weight?: number;
 }

@@ -27,20 +27,30 @@
       </el-row>
 
       <!-- Swipe -->
-      <el-row v-if="editableAction.action === 'swipe'" :gutter="10">
-        <el-col :span="6"><el-input-number v-model="editableAction.parameters.startX" placeholder="Start X" controls-position="right" /></el-col>
-        <el-col :span="6"><el-input-number v-model="editableAction.parameters.startY" placeholder="Start Y" controls-position="right" /></el-col>
-        <el-col :span="6"><el-input-number v-model="editableAction.parameters.endX" placeholder="End X" controls-position="right" /></el-col>
-        <el-col :span="6"><el-input-number v-model="editableAction.parameters.endY" placeholder="End Y" controls-position="right" /></el-col>
-      </el-row>
+      <div v-if="editableAction.action === 'swipe'" class="swipe-coords-container">
+        <el-row :gutter="10">
+          <el-col :span="12"><el-input-number v-model="editableAction.parameters.startX" placeholder="Start X" controls-position="right" /></el-col>
+          <el-col :span="12"><el-input-number v-model="editableAction.parameters.startY" placeholder="Start Y" controls-position="right" /></el-col>
+        </el-row>
+        <el-row :gutter="10">
+          <el-col :span="12"><el-input-number v-model="editableAction.parameters.endX" placeholder="End X" controls-position="right" /></el-col>
+          <el-col :span="12"><el-input-number v-model="editableAction.parameters.endY" placeholder="End Y" controls-position="right" /></el-col>
+        </el-row>
+      </div>
+      <el-select v-if="editableAction.action === 'swipe_gesture'" v-model="editableAction.parameters.direction" placeholder="选择滑动方向">
+        <el-option label="上滑" value="UP" />
+        <el-option label="下滑" value="DOWN" />
+        <el-option label="左滑" value="LEFT" />
+        <el-option label="右滑" value="RIGHT" />
+      </el-select>
 
       <!-- Wait -->
       <el-input-number
-        v-if="editableAction.action === 'wait'"
-        v-model="editableAction.parameters.duration"
-        :min="100"
-        placeholder="等待毫秒数"
-        controls-position="right"
+          v-if="editableAction.action === 'wait'"
+          v-model="editableAction.parameters.duration"
+          :min="100"
+          placeholder="等待毫秒数"
+          controls-position="right"
       />
 
       <!-- Press Key -->
@@ -92,6 +102,7 @@ const actionOptions = [
       { value: "tap", label: "Tap (by Coordinate)" },
       { value: "tap_relative", label: "Tap Relative (to Anchor)" },
       { value: "swipe", label: "Swipe (by Coordinate)" },
+      { value: "swipe_gesture", label: "Swipe (by Gesture)" },
     ],
   },
   {
@@ -124,33 +135,33 @@ const actionOptions = [
 const needsSelector = computed(() => ["click", "long_click", "input_text"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
-  ["wait_dynamic", "end_case", "reopen_app_if_needed", "wake_up", "sleep", "assert_element_exists"].includes(editableAction.action)
+    ["wait_dynamic", "end_case", "reopen_app_if_needed", "wake_up", "sleep", "assert_element_exists"].includes(editableAction.action)
 );
 
 watch(
-  editableAction,
-  (newVal) => {
-    // Reset parameters when action type changes
-    if (newVal.action !== props.modelValue.action) {
-      newVal.parameters = {};
-      if (!needsSelector.value) {
+    editableAction,
+    (newVal) => {
+      if (newVal.action !== props.modelValue.action) {
+        // --- 核心修复：当动作类型改变时，重置并根据新类型初始化参数 ---
+        newVal.parameters = {};
         newVal.selector = undefined;
-      } else if (!newVal.selector) {
-        newVal.selector = { index: 0 };
+
+        switch (newVal.action) {
+          case 'click':
+          case 'long_click':
+          case 'input_text':
+            newVal.selector = { index: 0 };
+            break;
+          case 'swipe_gesture':
+            newVal.parameters = { direction: 'UP' };
+            break;
+        }
       }
-    }
 
-    // Ensure selector and parameters objects exist when needed
-    if (needsSelector.value && !newVal.selector) {
-      newVal.selector = { index: 0 };
-    }
-    if (!newVal.parameters) {
-      newVal.parameters = {};
-    }
-
-    emit("update:modelValue", newVal);
-  },
-  { deep: true }
+      console.log('[ActionRow] Emitting update:modelValue with:', JSON.parse(JSON.stringify(newVal)));
+      emit("update:modelValue", newVal);
+    },
+    { deep: true }
 );
 </script>
 
@@ -183,5 +194,10 @@ watch(
 }
 .el-input-number {
   width: 100%;
+}
+.swipe-coords-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Adds space between the start and end coordinate rows */
 }
 </style>

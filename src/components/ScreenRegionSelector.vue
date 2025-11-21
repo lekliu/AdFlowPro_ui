@@ -4,14 +4,13 @@
       <div
         v-for="region in regions"
         :key="region"
-        class="grid-cell"
-        :class="{ 'is-active': modelValue === region }"
+        :class="['grid-cell', { 'is-active': modelValue.includes(region) }]"
         @click="selectRegion(region)"
       ></div>
     </div>
     <div class="controls">
       <el-button @click="toggleOrientation" :icon="Refresh" circle title="切换方向" />
-      <el-button type="info" link @click="selectRegion('')" :disabled="!modelValue">清除选择</el-button>
+      <el-button type="info" link @click="emit('update:modelValue', [])" :disabled="modelValue.length === 0">清除选择</el-button>
     </div>
   </div>
 </template>
@@ -21,8 +20,8 @@ import { ref } from "vue";
 import { Refresh } from "@element-plus/icons-vue";
 import type { ScreenRegion } from "@/types/api";
 
-defineProps<{
-  modelValue: ScreenRegion | "";
+const props = defineProps<{
+  modelValue: ScreenRegion[];
 }>();
 
 const emit = defineEmits(["update:modelValue"]);
@@ -45,8 +44,15 @@ const toggleOrientation = () => {
   orientation.value = orientation.value === "portrait" ? "landscape" : "portrait";
 };
 
-const selectRegion = (region: ScreenRegion | "") => {
-  emit("update:modelValue", region);
+const selectRegion = (region: ScreenRegion) => {
+  const newSelection = [...props.modelValue];
+  const index = newSelection.indexOf(region);
+  if (index > -1) {
+    newSelection.splice(index, 1); // Remove if already selected
+  } else {
+    newSelection.push(region); // Add if not selected
+  }
+  emit("update:modelValue", newSelection);
 };
 </script>
 

@@ -3,7 +3,7 @@
     <div class="editor-header">
       <el-button :icon="Plus" @click="addAction">添加动作</el-button>
       <div class="header-actions" v-if="modelValue.length > 0">
-        <el-button v-if="mode === 'editor'" type="primary" :icon="VideoPlay" @click="openTestDialog"> 测试此序列 </el-button>
+        <el-button v-if="mode === 'editor'" type="success" plain :icon="VideoPlay" @click="openTestDialog"> 测试此序列 </el-button>
         <el-button v-if="mode === 'standalone'" type="success" :icon="Promotion" @click="executeSequence"> 执行序列 </el-button>
       </div>
     </div>
@@ -115,6 +115,7 @@ const addAction = () => {
 };
 
 const updateAction = (index: number, updatedAction: ActionWithId) => {
+  console.log('[ActionSequenceEditor] Received updated action at index', index, ':', JSON.parse(JSON.stringify(updatedAction)));
   editableActions.value[index] = updatedAction;
 };
 
@@ -140,6 +141,10 @@ const executeSequence = async () => {
     return;
   }
 
+  // --- [DIAGNOSTIC LOG 1] ---
+  console.log('[DIAGNOSTIC] Data BEFORE cleanup:', JSON.parse(JSON.stringify(editableActions.value)));
+  // --- [END DIAGNOSTIC LOG] ---
+
   const actionsToSend = cleanupActionSequence(editableActions.value);
   if (actionsToSend.length === 0) {
     ElMessage.warning("清理后动作序列为空，无需执行");
@@ -149,6 +154,10 @@ const executeSequence = async () => {
   if (!wsStore.isLogPanelVisible) {
     wsStore.toggleLogPanel();
   }
+
+  // --- [DIAGNOSTIC LOG 2] ---
+  console.log('[DIAGNOSTIC] Data AFTER cleanup (This is what is being sent):', JSON.parse(JSON.stringify(actionsToSend)));
+  // --- [END DIAGNOSTIC LOG] ---
 
   wsService.sendExecuteActionSequence(targetId, actionsToSend);
   ElMessage.info("动作序列执行请求已发送，请在底部状态栏查看结果。");

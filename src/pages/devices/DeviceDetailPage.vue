@@ -32,6 +32,12 @@
           class="card-margin"
         />
 
+        <ActionSequenceEditor class="card-margin" mode="standalone" :device-id="deviceId" v-model="standaloneActions">
+          <template #header>
+            <span>发送即时指令序列</span>
+          </template>
+        </ActionSequenceEditor>
+
         <!-- 使用可选链操作符 (?.) 来安全地访问可能为null的device对象的属性 -->
         <QuickActionsCard
             :is-connected="device?.isConnectedWs || false"
@@ -40,12 +46,6 @@
             @send-command="handleQuickCommand"
             class="card-margin"
         />
-
-        <ActionSequenceEditor class="card-margin" mode="standalone" :device-id="deviceId" v-model="standaloneActions">
-          <template #header>
-            <span>发送即时指令序列</span>
-          </template>
-        </ActionSequenceEditor>
       </el-col>
 
       <!-- 右侧栏 -->

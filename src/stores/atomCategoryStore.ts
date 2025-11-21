@@ -3,8 +3,9 @@ import { atomCategoryService } from "@/api/atomCategoryService";
 import type { AtomCategoryPublic, AtomCategoryCreatePayload, AtomCategoryUpdatePayload } from "@/types/api";
 import { ElMessage } from "element-plus";
 
-interface AtomCategoryWithCount extends AtomCategoryPublic {
+export interface AtomCategoryWithCount extends AtomCategoryPublic {
     atomCount: number;
+    packageCount: number;
 }
 
 interface AtomCategoryState {
