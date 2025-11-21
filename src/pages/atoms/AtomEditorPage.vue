@@ -51,6 +51,7 @@
                 <el-input-number v-model="form.priority" :min="0" :max="100" controls-position="right" style="width: 100%" />
               </el-form-item>
             </el-col>
+
           </el-row>
           <el-row :gutter="20">
             <el-col :span="10">
@@ -64,7 +65,7 @@
                 <el-input-number v-model="form.executionCountLimit" :min="1" controls-position="right" style="width: 100%" />
               </el-form-item>
             </el-col>
-            <el-col :span="14">
+            <el-col :span="8">
               <el-form-item prop="continueAfterMatch">
                 <template #label>
                   <span>匹配后继续扫描</span>
@@ -73,6 +74,17 @@
                   </el-tooltip>
                 </template>
                 <el-switch v-model="form.continueAfterMatch" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item>
+                <template #label>
+                  <span>动作序列循环次数</span>
+                  <el-tooltip content="场景匹配成功后, 连续执行内部动作序列的次数。" placement="top">
+                    <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <el-input-number v-model="form.actionLoopCount" :min="1" controls-position="right" style="width: 100%" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -261,6 +273,7 @@ const createNewFormState = () => ({
   priority: 50,
   executionCountLimit: 100,
   continueAfterMatch: false,
+  actionLoopCount: 1,
   sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[] },
   actionsJson: [] as (PerformActionPayload & { id: string })[],
 });
@@ -274,24 +287,24 @@ const primaryMatcherComponent = computed(() => {
 });
 
 watch(
-  () => form.sceneSnapshotJson.primaryMatcher.matchTargetType,
-  (newType, oldType) => {
-    if (newType === oldType) return;
-    const pm = form.sceneSnapshotJson.primaryMatcher;
-    if (newType === "image") {
-      pm.text = [];
-      pm.matchMode = "fuzzy";
-      delete pm.coordinates;
-      pm.spatialRelation = null;
-      form.sceneSnapshotJson.secondaryMatchers = [];
-    } else if (newType === "text") {
-      pm.templateId = null;
-      pm.publicUrl = "";
-      pm.matchThreshold = 0.8;
-      pm.imageMatchStrategy = "best";
-      pm.sceneType = pm.sceneType || "ui";
+    () => form.sceneSnapshotJson.primaryMatcher.matchTargetType,
+    (newType, oldType) => {
+      if (newType === oldType) return;
+      const pm = form.sceneSnapshotJson.primaryMatcher;
+      if (newType === "image") {
+        pm.text = [];
+        pm.matchMode = "fuzzy";
+        delete pm.coordinates;
+        pm.spatialRelation = null;
+        form.sceneSnapshotJson.secondaryMatchers = [];
+      } else if (newType === "text") {
+        pm.templateId = null;
+        pm.publicUrl = "";
+        pm.matchThreshold = 0.8;
+        pm.imageMatchStrategy = "best";
+        pm.sceneType = pm.sceneType || "ui";
+      }
     }
-  }
 );
 
 const anchorMatcherText = computed({
@@ -330,6 +343,7 @@ const loadAtomData = async (id: number) => {
       form.priority = atom.priority;
       form.executionCountLimit = atom.executionCountLimit;
       form.continueAfterMatch = atom.continueAfterMatch;
+      form.actionLoopCount = atom.actionLoopCount || 1;
       form.actionsJson = atom.actionsJson.map((a) => ({ ...a, id: uuidv4() }));
 
       if (atom.sceneSnapshotJson) {
@@ -465,9 +479,9 @@ const handleSave = async () => {
     }
   }
   if (
-    pm.spatialRelation &&
-    (!pm.spatialRelation.anchorMatcher.text ||
-      (Array.isArray(pm.spatialRelation.anchorMatcher.text) && pm.spatialRelation.anchorMatcher.text.length === 0))
+      pm.spatialRelation &&
+      (!pm.spatialRelation.anchorMatcher.text ||
+          (Array.isArray(pm.spatialRelation.anchorMatcher.text) && pm.spatialRelation.anchorMatcher.text.length === 0))
   ) {
     ElMessage.error("空间约束中的“锚点匹配文本”不能为空。");
     return;

@@ -1,8 +1,9 @@
 // FILE: AdFlowPro_ui/src/stores/webSocketStore.ts
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue"; // <-- 导入 computed
 import logger from "@/utils/logger";
 import { ElNotification } from "element-plus";
+import { wsService } from "@/services/wsService";
 
 // Define a type for our log entries for better structure
 export interface LogEntry {
@@ -14,6 +15,11 @@ export interface LogEntry {
 }
 
 type ConnectionStatus = "connected" | "disconnected" | "connecting";
+
+interface AdhocTaskInfo {
+  correlationId: string;
+  deviceId: string;
+}
 
 // Function to get the base WebSocket URL from the HTTP base URL
 const getWebSocketBaseUrl = (): string => {
@@ -27,6 +33,9 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
   const isConnected = computed(() => connectionStatus.value === "connected");
   const logs = ref<LogEntry[]>([]);
   const isLogPanelVisible = ref(false);
+
+  const currentAdhocTask = ref<AdhocTaskInfo | null>(null);
+  const isAbortingAdhocTask = ref(false);
 
   let ws: WebSocket | null = null;
   let logCounter = 0;
@@ -74,10 +83,10 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
 
         // --- 1. 识别并派发自定义浏览器事件 ---
         if (
-          data.type === "screen_data_ready" ||
-          data.type === "ui_structure_ready" ||
-          data.type === "app_list_ready" ||
-          data.type === "apk_pull_complete"
+            data.type === "screen_data_ready" ||
+            data.type === "ui_structure_ready" ||
+            data.type === "app_list_ready" ||
+            data.type === "apk_pull_complete"
         ) {
           const customEvent = new CustomEvent(data.type, { detail: payload });
           window.dispatchEvent(customEvent);
@@ -85,39 +94,62 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
           return; // Don't add to log panel
         }
 
+        // --- 2. 识别并处理即时任务生命周期事件 ---
+        if (data.type === "adhocTaskCreated") {
+          currentAdhocTask.value = {
+            correlationId: payload.correlationId,
+            deviceId: payload.deviceId,
+          };
+          isAbortingAdhocTask.value = false; // Reset aborting state
+          addLog(`一个新的即时调试任务已启动 (ID: ${payload.correlationId?.slice(0, 8)}...)`, "info");
+          return;
+        }
+        if (data.type === "adhocTaskAbortSent") {
+          isAbortingAdhocTask.value = false;
+          addLog(`中止指令已发送至任务 (ID: ${payload.correlationId?.slice(0, 8)}...)`, "warning");
+          return;
+        }
+
         let message = `收到消息: ${data.type}`;
         let type: LogEntry["type"] = "info";
+        let isTerminalMessage = false;
 
-        if (data.type === "live_validation_result") {
+        // --- 3. 处理不同类型的终端消息 ---
+        const correlationId = payload.correlationId || ""; // <-- 安全地获取ID
+
+        if (data.type === "live_validation_result" || data.type === "live_test_result") {
+          isTerminalMessage = true; // 标记这是一个终结消息
+
+          // --- 关键调试日志：提前打印ID ---
+          console.log("[ID_COMPARISON] Checking for task completion:", {
+            storedTaskId: currentAdhocTask.value?.correlationId,
+            receivedTaskId: correlationId,
+            areEqual: currentAdhocTask.value?.correlationId === correlationId
+          });
+
           if (payload.success) {
             type = "success";
-            let details = "";
-            if (payload.foundNode) {
-              const node = payload.foundNode;
-              const source = `source="${node.source}"`;
-              const text = node.text ? `text="${node.text}"` : "";
-              const desc = node.contentDescription ? `desc="${node.contentDescription}"` : "";
-              const bounds = `bounds=[${node.boundsInScreen.join(",")}]`;
-              details = ` | 找到元素: { ${[source, text, desc, bounds].filter(Boolean).join(", ")} }`;
-            }
-            if (payload.regexGroups && payload.regexGroups.length > 0) {
-              details += ` | 捕获内容: [${payload.regexGroups.map((g: string) => `"${g}"`).join(", ")}]`;
-            }
-            message = `[${payload.correlationId.slice(0, 10)}] ✅ 匹配验证成功${details}`;
+            message = `[${correlationId.slice(0, 10)}] ✅ ${payload.message || '操作成功'}`;
           } else {
-            type = "error";
-            message = `[${payload.correlationId.slice(0, 10)}] ❌ ${payload.message}`;
-          }
-        } else if (data.type === "live_test_result") {
-          if (payload.success) {
-            type = "success";
-            message = `[${payload.correlationId.slice(0, 10)}] ✅ ${payload.message}`;
-          } else {
-            type = "error";
-            message = `[${payload.correlationId.slice(0, 10)}] ❌ ${payload.message}`;
+            if (payload.message && payload.message.toLowerCase().includes("cancel")) {
+              type = "warning";
+              message = `[${correlationId.slice(0, 10)}] 🟡 ${payload.message}`;
+            } else {
+              type = "error";
+              message = `[${correlationId.slice(0, 10)}] ❌ ${payload.message || '操作失败'}`;
+            }
           }
         }
+
+        // --- 4. 统一处理日志和状态清理 ---
         addLog(message, type, payload);
+
+        if (isTerminalMessage && currentAdhocTask.value?.correlationId === correlationId) {
+          logger.info(`[AdhocTask] Task ${correlationId} finished. Clearing state.`);
+          currentAdhocTask.value = null;
+          isAbortingAdhocTask.value = false;
+        }
+
       } catch (e) {
         logger.error("[WS-UI] Error parsing message:", e);
         addLog(`接收到无法解析的消息: ${event.data}`, "error");
@@ -181,6 +213,20 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
     addLog("日志已清空。", "info");
   }
 
+  const isAdhocTaskRunning = computed(() => !!currentAdhocTask.value);
+
+  function abortCurrentAdhocTask() {
+    if (currentAdhocTask.value) {
+      isAbortingAdhocTask.value = true;
+      wsService.sendAbortAdhocTask(
+        currentAdhocTask.value.deviceId,
+        currentAdhocTask.value.correlationId
+      );
+    }
+  }
+
+
+
   return {
     isConnected,
     connectionStatus,
@@ -191,5 +237,9 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
     sendMessage,
     toggleLogPanel,
     clearLogs,
+    currentAdhocTask,
+    isAdhocTaskRunning,
+    isAbortingAdhocTask,
+    abortCurrentAdhocTask,
   };
 });

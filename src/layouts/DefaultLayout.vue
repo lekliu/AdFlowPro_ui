@@ -32,7 +32,8 @@
           </el-tooltip>
           <el-dropdown>
             <span class="el-dropdown-link">
-              Admin<el-icon class="el-icon--right"><arrow-down /></el-icon>
+              Admin
+              <el-icon class="el-icon--right"><arrow-down /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
@@ -42,6 +43,17 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <!-- 新增：中止调试任务按钮 -->
+          <el-tooltip content="中止当前正在运行的即时调试任务" placement="bottom" v-if="webSocketStore.isAdhocTaskRunning">
+            <el-button
+              type="danger"
+              :icon="CircleClose"
+              @click="handleAbortAdhocTask"
+              :loading="webSocketStore.isAbortingAdhocTask"
+              circle
+              plain
+            />
+          </el-tooltip>
         </div>
       </el-header>
 
@@ -77,7 +89,7 @@ import { useWebSocketStore } from "@/stores/webSocketStore";
 import type { TabPaneName, TabsPaneContext } from "element-plus";
 
 import { Fold, Expand, ArrowDown, Link, Connection, Loading } from "@element-plus/icons-vue";
-import IconPanelToggle from "@/components/icons/IconPanelToggle.vue";
+import { CircleClose } from "@element-plus/icons-vue"; // 新增图标
 
 const route = useRoute();
 const router = useRouter();
@@ -133,6 +145,12 @@ const wsStatusType = computed(() => {
 const handleWsStatusClick = () => {
   if (webSocketStore.connectionStatus === "disconnected") {
     webSocketStore.connect();
+  }
+};
+
+const handleAbortAdhocTask = () => {
+  if (webSocketStore.currentAdhocTask) {
+    webSocketStore.abortCurrentAdhocTask();
   }
 };
 

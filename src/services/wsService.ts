@@ -112,4 +112,24 @@ export const wsService = {
 
     return wsStore.sendMessage(message);
   },
+
+  /**
+   * Sends a request to abort a running ad-hoc task.
+   * @param deviceId The ID of the target device where the task is running.
+   * @param correlationId The unique ID of the task to be aborted.
+   */
+  sendAbortAdhocTask(deviceId: string, correlationId: string): boolean {
+    const wsStore = useWebSocketStore();
+    if (!wsStore.isConnected) {
+      ElMessage.error(`无法发送中止请求，与服务器的实时连接已断开。`);
+      return false;
+    }
+
+    const message = {
+      type: "abort_adhoc_task",
+      payload: { deviceId, correlationId },
+    };
+
+    return wsStore.sendMessage(message);
+  },
 };

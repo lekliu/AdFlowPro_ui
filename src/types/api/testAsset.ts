@@ -78,6 +78,7 @@ export interface AtomicOperationPublic {
   priority: number;
   executionCountLimit: number;
   continueAfterMatch: boolean;
+  actionLoopCount?: number;
   sceneSnapshotJson: SceneSnapshot;
   actionsJson: PerformActionPayload[];
   createdAt: string;
@@ -91,6 +92,7 @@ export interface AtomicOperationCreatePayload {
   priority?: number;
   executionCountLimit?: number;
   continueAfterMatch?: boolean;
+  actionLoopCount?: number;
   sceneSnapshotJson: SceneSnapshot;
   actionsJson: PerformActionPayload[];
 }
@@ -102,6 +104,7 @@ export interface AtomicOperationUpdatePayload {
   priority?: number;
   executionCountLimit?: number;
   continueAfterMatch?: boolean;
+  actionLoopCount?: number;
   sceneSnapshotJson?: SceneSnapshot;
   actionsJson?: PerformActionPayload[];
 }

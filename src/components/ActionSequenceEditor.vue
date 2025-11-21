@@ -22,10 +22,10 @@
         <el-form-item label="选择一个在线设备执行">
           <el-select v-model="testDialog.targetDeviceId" placeholder="请选择设备" style="width: 100%" :loading="deviceStore.isLoading">
             <el-option
-              v-for="device in onlineDevices"
-              :key="device.deviceId"
-              :label="`${device.deviceName} (${device.deviceId})`"
-              :value="device.deviceId"
+                v-for="device in onlineDevices"
+                :key="device.deviceId"
+                :label="`${device.deviceName} (${device.deviceId})`"
+                :value="device.deviceId"
             />
           </el-select>
         </el-form-item>
@@ -73,25 +73,25 @@ const editableActions = ref<ActionWithId[]>([]);
 // 2. 创建一个只单向同步的 watch：当 props.modelValue 变化时，更新内部状态
 //    我们通过比较 JSON 字符串来避免不必要的更新，从而切断循环！
 watch(
-  () => props.modelValue,
-  (newVal) => {
-    // 只有当外部 prop 的内容真的和内部状态不同时，才进行更新
-    if (JSON.stringify(newVal) !== JSON.stringify(editableActions.value)) {
-      console.log("Prop changed, updating internal state."); // 调试日志，之后可删除
-      // 确保新数据也有唯一的 ID
-      editableActions.value = JSON.parse(JSON.stringify(newVal)).map((a: ActionWithId) => ({ ...a, id: a.id || uuidv4() }));
-    }
-  },
-  { deep: true, immediate: true } // immediate 确保初始值被正确设置
+    () => props.modelValue,
+    (newVal) => {
+      // 只有当外部 prop 的内容真的和内部状态不同时，才进行更新
+      if (JSON.stringify(newVal) !== JSON.stringify(editableActions.value)) {
+        console.log("Prop changed, updating internal state."); // 调试日志，之后可删除
+        // 确保新数据也有唯一的 ID
+        editableActions.value = JSON.parse(JSON.stringify(newVal)).map((a: ActionWithId) => ({ ...a, id: a.id || uuidv4() }));
+      }
+    },
+    { deep: true, immediate: true } // immediate 确保初始值被正确设置
 );
 
 // 3. 创建另一个只单向 emit 的 watch：当内部状态变化时，通知父组件
 watch(
-  editableActions,
-  (newVal) => {
-    emit("update:modelValue", newVal);
-  },
-  { deep: true }
+    editableActions,
+    (newVal) => {
+      emit("update:modelValue", newVal);
+    },
+    { deep: true }
 );
 
 // ==================== 核心修复逻辑结束 ====================
