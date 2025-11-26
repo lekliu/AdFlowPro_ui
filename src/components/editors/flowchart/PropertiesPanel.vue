@@ -21,6 +21,14 @@
           <el-form-item label="迁移描述">
             <el-input v-model="properties.textValue" @change="updateNodeText" />
           </el-form-item>
+          
+          <!-- 新增：原子操作分类筛选 -->
+          <el-form-item label="筛选分类">
+            <el-select v-model="atomCategoryFilter" placeholder="全部分类" clearable>
+              <el-option v-for="cat in atomCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+            </el-select>
+          </el-form-item>
+
           <el-form-item label="触发器 (原子操作)">
             <el-select
               v-model="properties.conditionAtomIds"
@@ -30,7 +38,7 @@
               style="width: 100%"
               @change="updateProperties"
             >
-              <el-option v-for="atom in atomPool" :key="atom.atomId" :label="atom.name" :value="atom.atomId">
+              <el-option v-for="atom in filteredAtomPool" :key="atom.atomId" :label="atom.name" :value="atom.atomId">
                 <div class="option-item">
                   <span class="option-text">{{ atom.name }}</span>
                   <el-button type="primary" link :icon="Edit" @click.stop="handleEditAtom(atom.atomId)" />
@@ -58,6 +66,11 @@
     <div v-else class="panel-content">
       <h4>编辑画布属性</h4>
       <el-form label-position="top">
+        <el-form-item label="筛选分类">
+          <el-select v-model="atomCategoryFilter" placeholder="全部分类" clearable>
+            <el-option v-for="cat in atomCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="全局触发器 (原子操作)">
           <el-select
             :model-value="globalAtomIds"
@@ -67,7 +80,7 @@
             placeholder="选择全局触发器"
             style="width: 100%"
           >
-            <el-option v-for="atom in atomPool" :key="atom.atomId" :label="atom.name" :value="atom.atomId">
+            <el-option v-for="atom in filteredAtomPool" :key="atom.atomId" :label="atom.name" :value="atom.atomId">
               <div class="option-item">
                 <span class="option-text">{{ atom.name }}</span>
                 <el-button type="primary" link :icon="Edit" @click.stop="handleEditAtom(atom.atomId)" />
@@ -81,9 +94,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { Edit } from "@element-plus/icons-vue";
-import type { AtomicOperationPublic, TestPackagePublic } from "@/types/api";
+import type { AtomicOperationPublic, TestPackagePublic, AtomCategoryPublic } from "@/types/api";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 
 type LogicFlowElement = {
   id: string;
@@ -105,6 +119,20 @@ const props = defineProps<{
 const emit = defineEmits(["properties-change", "update:globalAtomIds", "edit-atom"]);
 
 const properties = ref<any>({});
+const atomCategoryFilter = ref<number | null>(null);
+const categoryStore = useAtomCategoryStore();
+
+const atomCategories = computed(() => categoryStore.allCategories);
+
+onMounted(() => {
+  // 确保分类数据已加载
+  categoryStore.fetchAllCategories();
+});
+
+const filteredAtomPool = computed(() => {
+  if (!atomCategoryFilter.value) return props.atomPool;
+  return props.atomPool.filter((atom) => atom.categoryId === atomCategoryFilter.value);
+});
 
 const isNode = computed(() => props.activeElement && props.activeElement.BaseType === "node");
 const isEdge = computed(() => props.activeElement && props.activeElement.BaseType === "edge");

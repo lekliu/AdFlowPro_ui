@@ -1,6 +1,14 @@
 // FILE: AdFlowPro_ui/src/api/deviceService.ts
 import apiClient from "./apiClient";
-import type { DevicePublic, FetchDeviceParams, DeviceUpdatePayload, OcrPayload, CommandResponse, DeviceInstalledApp } from "@/types/api";
+import type {
+    DevicePublic,
+    FetchDeviceParams,
+    DeviceUpdatePayload,
+    OcrPayload,
+    CommandResponse,
+    DeviceInstalledApp,
+    DebugModePayload, DebugModeStatus
+} from "@/types/api";
 
 // 我们需要为卸载和安装定义Payload类型
 interface UninstallPayload {
@@ -99,4 +107,19 @@ export const deviceService = {
       },
     });
   },
+
+  // --- Remote Debugging ---
+  async getAvailableDebugTags(): Promise<string[]> {
+    return apiClient.get("/devices/debug/tags");
+  },
+
+  async getDebugConfig(deviceId: string): Promise<DebugModeStatus> {
+    return apiClient.get(`/devices/${deviceId}/debug-mode`);
+  },
+
+  async setDebugConfig(deviceId: string, payload: DebugModePayload): Promise<CommandResponse> {
+    return apiClient.post(`/devices/${deviceId}/debug-mode`, payload);
+  },
+
+
 };

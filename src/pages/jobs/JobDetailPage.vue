@@ -9,6 +9,7 @@
           <div class="card-header">
             <span>任务概览</span>
             <div class="header-actions">
+              <el-button :icon="CopyDocument" type="primary" plain @click="handleCopyForAI">复制给AI分析</el-button>
               <el-button :icon="Refresh" @click="handleRefresh" :loading="jobStore.isDetailsLoading" plain>刷新</el-button>
               <el-button
                 v-if="['completed', 'failed', 'cancelled'].includes(jobDetails.status)"
@@ -107,8 +108,8 @@ defineOptions({
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useJobStore } from "@/stores/jobStore";
-import { Check, Close, VideoPause, Download, Refresh } from "@element-plus/icons-vue";
-import { ElMessageBox } from "element-plus";
+import { Check, Close, VideoPause, Download, Refresh, CopyDocument } from "@element-plus/icons-vue";
+import { ElMessageBox, ElMessage } from "element-plus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 
@@ -131,6 +132,75 @@ onMounted(() => {
 
 const handleRefresh = () => {
   jobStore.fetchJobDetails(Number(props.jobId));
+};
+
+const handleCopyForAI = async () => {
+  if (!jobDetails.value || results.value.length === 0) {
+    ElMessage.warning("任务详情为空，无法生成分析数据。");
+    return;
+  }
+
+  const details = jobDetails.value;
+  const steps = results.value;
+
+  // 1. 构建任务概览
+  let prompt = `# AdFlowPro 自动化测试故障分析请求\n\n`;
+  prompt += `## 1. 任务环境\n`;
+  prompt += `- **Job ID**: ${details.jobId}\n`;
+  prompt += `- **测试套件**: ${details.suite?.name || "N/A"}\n`;
+  prompt += `- **目标应用**: ${details.targetAppPackageName}\n`;
+  prompt += `- **执行设备**: ${details.device?.deviceName || details.device?.deviceId}\n`;
+  prompt += `- **最终状态**: ${details.status}\n`;
+  prompt += `- **开始时间**: ${formatDate(details.startedAt)}\n`;
+  prompt += `- **结束时间**: ${formatDate(details.completedAt)}\n\n`;
+
+  // 2. 构建步骤概览表
+  prompt += `## 2. 执行步骤概览\n`;
+  prompt += `| 步骤名称 | 类型 | 状态 | 耗时(ms) | 简要日志 |\n`;
+  prompt += `|---|---|---|---|---|\n`;
+  
+  steps.forEach((step) => {
+    // 截取日志前50个字符防止表格过宽
+    const shortLog = (step.log || "").replace(/\n/g, " ").slice(0, 50) + (step.log && step.log.length > 50 ? "..." : "");
+    const statusIcon = step.status === "success" ? "✅" : "❌";
+    prompt += `| ${step.stepName} | ${step.stepType} | ${statusIcon} ${step.status} | ${step.durationMs || 0} | ${shortLog} |\n`;
+  });
+  prompt += `\n`;
+
+  // 3. 提取失败详情
+  const failedSteps = steps.filter((s) => s.status !== "success");
+
+  if (failedSteps.length > 0) {
+    prompt += `## 3. 故障深度诊断数据\n`;
+    prompt += `请基于以下详细信息分析失败原因：\n\n`;
+
+    failedSteps.forEach((step, index) => {
+      prompt += `### 故障点 ${index + 1}: ${step.stepName}\n`;
+      prompt += `- **完整日志**:\n\`\`\`text\n${step.log || "无日志"}\n\`\`\`\n`;
+
+      if (step.reportedValue) {
+        prompt += `- **断言实际值 (Actual Value)**: \`${step.reportedValue}\`\n`;
+      }
+
+      if (step.failureContextJson) {
+        prompt += `- **失败时的 UI/OCR 上下文 (JSON)**:\n`;
+        prompt += `> 注意：这是执行动作失败时捕获的屏幕结构，请分析目标元素是否存在或属性是否匹配。\n\n`;
+        prompt += `\`\`\`json\n${JSON.stringify(step.failureContextJson, null, 2)}\n\`\`\`\n`;
+      } else {
+        prompt += `- **上下文**: 未捕获到 UI 结构快照。\n`;
+      }
+      prompt += `\n---\n`;
+    });
+  }
+
+  // 4. 写入剪切板
+  try {
+    await navigator.clipboard.writeText(prompt);
+    ElMessage.success("已复制 AI 分析提示词到剪切板！");
+  } catch (err) {
+    console.error("Copy failed", err);
+    ElMessage.error("复制失败，请检查浏览器权限。");
+  }
 };
 
 const goBack = () => router.push({ name: "JobsList" });

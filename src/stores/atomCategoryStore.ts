@@ -36,8 +36,7 @@ export const useAtomCategoryStore = defineStore("atomCategory", {
             }
         },
         async fetchAllCategories() {
-            // Use as a cache: only fetch if empty
-            if (this.allCategories.length > 0) return;
+            // Always fetch to ensure we have the full list, even if visited before
             this.isLoading = true;
             try {
                 const response = await atomCategoryService.getCategories({ withCount: false });

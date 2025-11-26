@@ -43,6 +43,10 @@ export const suiteService = {
    * 获取用于执行的、完整的、已打包的测试套件 "剧本"
    */
   async getSuitePackage(suiteId: number): Promise<any> {
-    return apiClient.get(`/suites/${suiteId}/package`);
+    return apiClient.get(`/suites/${suiteId}/package`, {
+      params: {
+        encrypt: false // Request plain JSON for UI preview
+      }
+    });
   },
 };

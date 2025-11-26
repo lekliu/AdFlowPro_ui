@@ -6,8 +6,6 @@
         <el-option label="Text" value="text" />
         <el-option label="ID" value="resourceId" />
         <el-option label="Desc" value="contentDesc" />
-        <el-option label="Class" value="className" />
-        <el-option label="XPath" value="xpath" />
       </el-select>
     </el-col>
     <!-- Part 2: Selector Value Input (using our great MultiTextInput) -->
@@ -27,8 +25,8 @@ const props = defineProps<{
 
 const emit = defineEmits(["update:modelValue"]);
 
-type SelectorType = "text" | "resourceId" | "contentDesc" | "className" | "xpath";
-const VALID_SELECTOR_TYPES: SelectorType[] = ["text", "resourceId", "contentDesc", "className", "xpath"];
+type SelectorType = "text" | "resourceId" | "contentDesc";
+const VALID_SELECTOR_TYPES: SelectorType[] = ["text", "resourceId", "contentDesc"];
 
 const selectorType = ref<SelectorType>("text");
 const selectorValue = ref("");

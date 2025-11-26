@@ -53,7 +53,7 @@
             {{ formatDate(scope.row.lastSeenAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="scope">
             <el-button size="small" :icon="View" @click="viewDetails(scope.row.deviceId)">详情</el-button>
             <el-button size="small" type="primary" :icon="Edit" @click="openEditModal(scope.row)"> 编辑 </el-button>

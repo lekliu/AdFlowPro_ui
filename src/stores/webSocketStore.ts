@@ -129,14 +129,34 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
 
           if (payload.success) {
             type = "success";
-            message = `[${correlationId.slice(0, 10)}] ✅ ${payload.message || '操作成功'}`;
+            
+            // Enhanced formatting for match results
+            if (data.type === "live_validation_result" && payload.foundNode) {
+              const node = payload.foundNode;
+              const boundsStr = node.boundsInScreen ? `[${node.boundsInScreen.join(", ")}]` : "N/A";
+              let details = "";
+              
+              if (node.text) details += ` Text: "${node.text}"`;
+              if (node.contentDescription) details += ` Desc: "${node.contentDescription}"`;
+              if (node.className) details += ` Class: ${node.className.split('.').pop()}`; // Short class name
+              if (node.score) details += ` Score: ${node.score.toFixed(2)}`;
+              if (payload.regexGroups && payload.regexGroups.length > 0) {
+                details += ` | Regex Capture: [${payload.regexGroups.join(", ")}]`;
+              }
+
+              message = `[${correlationId.slice(0, 8)}] ✅ 匹配成功! ${details} @ ${boundsStr}`;
+            } else {
+              // Default success message
+              message = `[${correlationId.slice(0, 8)}] ✅ ${payload.message || '操作成功'}`;
+            }
+
           } else {
             if (payload.message && payload.message.toLowerCase().includes("cancel")) {
               type = "warning";
-              message = `[${correlationId.slice(0, 10)}] 🟡 ${payload.message}`;
+              message = `[${correlationId.slice(0, 8)}] 🟡 ${payload.message}`;
             } else {
               type = "error";
-              message = `[${correlationId.slice(0, 10)}] ❌ ${payload.message || '操作失败'}`;
+              message = `[${correlationId.slice(0, 8)}] ❌ ${payload.message || '操作失败'}`;
             }
           }
         }

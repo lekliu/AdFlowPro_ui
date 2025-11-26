@@ -62,6 +62,8 @@ const focusInput = () => {
   background-color: var(--el-input-bg-color, var(--el-fill-color-blank));
   cursor: text;
   transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .multi-text-input:hover {

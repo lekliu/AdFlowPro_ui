@@ -28,6 +28,11 @@ export interface PerformActionParameters {
   offsetX?: number;
   offsetY?: number;
   reportLabel?: string;
+  comparisonOperator?: string;
+  leftSource?: "regex" | "variable";
+  leftValue?: string;
+  rightSource?: "value" | "variable" | "regex";
+  rightValue?: string;
 }
 
 /**
@@ -48,10 +53,12 @@ export interface PerformActionPayload {
     | "tap_relative"
     | "wait_dynamic"
     | "report_value"
+    | "calculate_value"
     | "end_case"
     | "reopen_app_if_needed"
     | "assert_element_exists"
-    | "assert_text_equals";
+    | "assert_text_equals"
+    | "conditional_tap";
   selector?: Selector;
   parameters?: PerformActionParameters;
 }

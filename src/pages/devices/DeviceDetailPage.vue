@@ -32,6 +32,8 @@
           class="card-margin"
         />
 
+        <DebugControlCard :device-id="deviceId" />
+
         <ActionSequenceEditor class="card-margin" mode="standalone" :device-id="deviceId" v-model="standaloneActions">
           <template #header>
             <span>发送即时指令序列</span>
@@ -91,6 +93,7 @@ import UiStructureCard from "@/components/UiStructureCard.vue";
 import ScreenshotCard from "@/components/ScreenshotCard.vue";
 import InstalledAppsCard from "@/components/InstalledAppsCard.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
+import DebugControlCard from "@/components/DebugControlCard.vue";
 
 // 为 standalone 模式的 ActionSequenceEditor 创建本地状态
 type ActionWithId = PerformActionPayload & { id: string };

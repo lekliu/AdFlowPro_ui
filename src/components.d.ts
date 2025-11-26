@@ -17,6 +17,7 @@ declare module 'vue' {
     CommandForm: typeof import('./components/CommandForm_will_be_deleted.vue')['default']
     CommandForm_will_be_deleted: typeof import('./components/CommandForm_will_be_deleted.vue')['default']
     CommandModal: typeof import('./components/CommandModal.vue')['default']
+    DebugControlCard: typeof import('./components/DebugControlCard.vue')['default']
     DeviceCard: typeof import('./components/DeviceCard.vue')['default']
     DeviceInfoCard: typeof import('./components/DeviceInfoCard.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']

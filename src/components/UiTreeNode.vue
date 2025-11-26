@@ -19,7 +19,13 @@
 
           <!-- Display properties in a compact, single-line format -->
           <template v-if="Object.keys(displayProperties).length > 0">
-            <el-tag v-if="displayProperties.boundsInScreen" class="prop-tag" type="warning" size="small" effect="plain">
+            <el-tag 
+              v-if="displayProperties.boundsInScreen" 
+              class="prop-tag" 
+              :type="isSmallElement ? '' : 'warning'" 
+              size="small" 
+              effect="plain"
+            >
               {{ formatPropertyValue(displayProperties.boundsInScreen) }}
             </el-tag>
             <el-tag v-for="flag in booleanFlags" :key="flag" class="prop-tag" type="success" size="small" effect="plain">
@@ -37,6 +43,7 @@
           v-for="(child, index) in node.children"
           :key="generateNodeKey(child, index)"
           :node="child"
+          :parent-area="currentArea"
           :root-package-name="rootPackageName"
           :is-expanded-override="isExpandedOverride"
       />
@@ -52,6 +59,7 @@ import type { UiNode } from "@/types/api/device";
 const props = defineProps<{
   node: UiNode;
   rootPackageName?: string;
+  parentArea?: number; // Receive parent area from parent component
   isExpandedOverride: boolean | null;
 }>();
 
@@ -95,6 +103,27 @@ const otherPropsString = computed(() => {
       .filter(([key, value]) => key !== "packageName" || value !== props.rootPackageName)
       .map(([key, value]) => `${key}: ${formatPropertyValue(value)}`)
       .join(", ");
+});
+
+// --- Area Calculation Helpers ---
+const calculateArea = (bounds?: number[]) => {
+  if (!bounds || bounds.length !== 4) return 0;
+  const width = bounds[2] - bounds[0];
+  const height = bounds[3] - bounds[1];
+  return width * height;
+};
+
+const currentArea = computed(() => calculateArea(props.node.boundsInScreen));
+
+const isSmallElement = computed(() => {
+  // If no parent area (root node), or no bounds, it's not "small"
+  if (!props.parentArea || !props.node.boundsInScreen) return false;
+  
+  const area = currentArea.value;
+  if (area <= 0) return false;
+
+  // Threshold: 1/4 of parent area
+  return area < (props.parentArea / 4);
 });
 
 // --- Methods ---

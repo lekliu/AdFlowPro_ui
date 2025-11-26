@@ -26,6 +26,50 @@
         <el-col :span="12"><el-input-number v-model="editableAction.parameters.offsetY" placeholder="Y 偏移量" controls-position="right" /></el-col>
       </el-row>
 
+      <!-- Conditional Tap (Enhanced) -->
+      <div v-if="editableAction.action === 'conditional_tap'" class="conditional-tap-container">
+        <!-- Row 1: Left Side + Operator -->
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <el-tag type="info" effect="plain" style="flex-shrink: 0">变量</el-tag>
+          <el-input
+              v-model="editableAction.parameters.leftValue"
+              placeholder="变量名"
+              style="flex-grow: 1"
+          />
+          <!-- Operator at end of Row 1 -->
+          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 120px">
+            <el-option label=">" value=">" />
+            <el-option label=">=" value=">=" />
+            <el-option label="<" value="<" />
+            <el-option label="<=" value="<=" />
+            <el-option label="==" value="==" />
+            <el-option label="!=" value="!=" />
+            <el-option label="包含" value="contains" />
+          </el-select>
+        </div>
+
+        <!-- Row 2: Right Side -->
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <el-select v-model="editableAction.parameters.rightSource" placeholder="右值" style="width: 140px">
+            <el-option label="固定值" value="value" />
+            <el-option label="变量" value="variable" />
+          </el-select>
+          <el-input
+              v-if="true" 
+              v-model="editableAction.parameters.rightValue"
+              placeholder="值/变量名"
+              style="flex-grow: 1"
+          />
+        </div>
+
+        <!-- Row 3: Coordinates (Existing) -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">点击坐标:</span>
+          <el-input-number v-model="editableAction.parameters.startX" placeholder="X" controls-position="right" style="width: 110px" />
+          <el-input-number v-model="editableAction.parameters.startY" placeholder="Y" controls-position="right" style="width: 110px" />
+        </div>
+      </div>
+
       <!-- Swipe -->
       <div v-if="editableAction.action === 'swipe'" class="swipe-coords-container">
         <el-row :gutter="10">
@@ -53,6 +97,15 @@
           controls-position="right"
       />
 
+      <!-- Wait Dynamic (Enhanced) -->
+      <div v-if="editableAction.action === 'wait_dynamic'" style="display: flex; gap: 8px; align-items: center; width: 100%">
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+          <el-option label="变量" value="variable" />
+          <el-option label="公式计算" value="expression" />
+        </el-select>
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="变量名/公式 (单位: 秒)" style="flex-grow: 1" />
+      </div>
+
       <!-- Press Key -->
       <el-select v-if="editableAction.action === 'press_key'" v-model="editableAction.parameters.keyCode" placeholder="选择按键">
         <el-option label="Home" value="home" />
@@ -60,13 +113,38 @@
         <el-option label="Recents" value="recents" />
       </el-select>
 
-      <el-input v-if="editableAction.action === 'report_value'" v-model="editableAction.parameters.reportLabel" placeholder="输入要上报的数据标签" />
+      <!-- Report Value (Enhanced) -->
+      <div v-if="editableAction.action === 'report_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
+        <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名/标签" style="width: 150px" />
+        <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+          <el-option label="固定值" value="value" />
+          <el-option label="变量" value="variable" />
+          <el-option label="公式计算" value="expression" />
+        </el-select>
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="值/变量名" style="flex-grow: 1" />
+      </div>
+
+      <!-- Calculate Value (New) -->
+      <div v-if="editableAction.action === 'calculate_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
+        <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 150px" />
+        <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+          <el-option label="固定值" value="value" />
+          <el-option label="变量" value="variable" />
+          <el-option label="公式计算" value="expression" />
+        </el-select>
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="值/变量名" style="flex-grow: 1" />
+        <el-tooltip content="仅保存变量到内存，不上报给服务器。" placement="top">
+          <el-icon style="color: #909399; cursor: help"><InfoFilled /></el-icon>
+        </el-tooltip>
+      </div>
 
       <!-- Assert Text Equals -->
       <el-input v-if="editableAction.action === 'assert_text_equals'" v-model="editableAction.parameters.text" placeholder="输入期望的文本" />
 
       <!-- No visible parameters for wait_dynamic, wake_up, etc. -->
-      <el-input v-if="isParameterlessAction" disabled placeholder="此动作用于流程控制，无参数" />
+      <el-input v-if="isParameterlessAction" disabled placeholder="此动作无参数" />
     </div>
 
     <!-- Controls -->
@@ -79,7 +157,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, watch, nextTick } from "vue";
-import { Delete, Rank } from "@element-plus/icons-vue";
+import { Delete, Rank, InfoFilled } from "@element-plus/icons-vue";
 import type { PerformActionPayload, Selector } from "@/types/api/common";
 import SelectorInput from "@/components/SelectorInput.vue";
 
@@ -101,6 +179,7 @@ const actionOptions = [
       { value: "input_text", label: "Input Text (by Selector)" },
       { value: "tap", label: "Tap (by Coordinate)" },
       { value: "tap_relative", label: "Tap Relative (to Anchor)" },
+      { value: "conditional_tap", label: "Conditional Tap" },
       { value: "swipe", label: "Swipe (by Coordinate)" },
       { value: "swipe_gesture", label: "Swipe (by Gesture)" },
     ],
@@ -110,7 +189,8 @@ const actionOptions = [
     options: [
       { value: "wait", label: "Wait (Fixed Time)" },
       { value: "wait_dynamic", label: "Wait (Dynamic)" },
-      { value: "report_value", label: "Report Value (from Regex)" },
+      { value: "calculate_value", label: "Set / Calculate Variable" },
+      { value: "report_value", label: "Report Value (Upload)" },
       { value: "end_case", label: "End Case" },
       { value: "reopen_app_if_needed", label: "Reopen App If Needed" },
     ],
@@ -135,7 +215,7 @@ const actionOptions = [
 const needsSelector = computed(() => ["click", "long_click", "input_text"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
-    ["wait_dynamic", "end_case", "reopen_app_if_needed", "wake_up", "sleep", "assert_element_exists"].includes(editableAction.action)
+    ["end_case", "reopen_app_if_needed", "wake_up", "sleep", "assert_element_exists"].includes(editableAction.action)
 );
 
 watch(
@@ -155,10 +235,31 @@ watch(
           case 'swipe_gesture':
             newVal.parameters = { direction: 'UP' };
             break;
+          case 'conditional_tap':
+            newVal.parameters = {
+              leftSource: 'variable',
+              comparisonOperator: '>',
+              rightSource: 'value'
+            };
+            break;
+          case 'report_value':
+            newVal.parameters = {
+              leftSource: 'variable'
+            };
+            break;
+          case 'wait_dynamic':
+            newVal.parameters = {
+              leftSource: 'variable'
+            };
+            break;
+          case 'calculate_value':
+            newVal.parameters = {
+              leftSource: 'variable'
+            };
+            break;
         }
       }
 
-      console.log('[ActionRow] Emitting update:modelValue with:', JSON.parse(JSON.stringify(newVal)));
       emit("update:modelValue", newVal);
     },
     { deep: true }
@@ -174,7 +275,7 @@ watch(
   border-bottom: 1px solid var(--el-border-color-light);
 }
 .action-selector {
-  width: 220px;
+  width: 180px;
   flex-shrink: 0;
 }
 .parameters {

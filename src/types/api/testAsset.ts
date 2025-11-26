@@ -33,6 +33,12 @@ export interface SecondaryMatcher {
   isExclusion: boolean;
 }
 
+export interface Extractor {
+  name: string;
+  regex: string;
+  scope: "matched_node" | "full_screen";
+}
+
 // 定义空间关系接口
 export interface SpatialRelation {
   operator: SpatialOperator;
@@ -46,7 +52,7 @@ export interface Matcher {
   // 2. Text-specific fields
   sceneType?: "ui" | "ocr";
   text?: string | string[];
-  matchMode?: "fuzzy" | "regex" | "fuzzy_with_coords";
+  matchMode?: "fuzzy" | "fuzzy_with_coords" | "class_and_bounds";
   coordinates?: MatcherCoordinates;
 
   // 3. Image-specific fields
@@ -67,6 +73,7 @@ export interface Matcher {
 export interface SceneSnapshot {
   primaryMatcher: Matcher;
   secondaryMatchers: SecondaryMatcher[];
+  extractors: Extractor[];
 }
 
 export interface AtomicOperationPublic {

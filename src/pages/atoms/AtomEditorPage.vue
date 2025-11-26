@@ -185,6 +185,26 @@
                 <el-button @click="addSecondaryMatcher" :icon="Plus" type="primary" plain>添加次级匹配条件</el-button>
               </template>
             </div>
+            
+            <!-- 新增：数据提取器区域 -->
+            <el-divider content-position="left">数据提取 (Extractors)</el-divider>
+            <div class="extractors-list">
+              <div v-for="(extractor, index) in form.sceneSnapshotJson.extractors" :key="index" class="extractor-row">
+                <el-input v-model="extractor.name" placeholder="变量名" style="width: 120px" />
+                <span class="eq-sign">=</span>
+                <el-input v-model="extractor.regex" placeholder="正则 (e.g. 余额:(\d+))" style="flex-grow: 1" />
+                <el-select v-model="extractor.scope" placeholder="范围" style="width: 110px">
+                  <el-option label="当前节点" value="matched_node" />
+                  <el-option label="全屏文本" value="full_screen" />
+                </el-select>
+                <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeExtractor(index)" />
+              </div>
+              <div v-if="form.sceneSnapshotJson.extractors.length === 0" class="empty-tip">
+                暂无提取规则
+              </div>
+              <el-button type="primary" link :icon="Plus" @click="addExtractor">添加提取规则</el-button>
+            </div>
+
           </el-card>
         </el-col>
         <el-col :span="14">
@@ -226,7 +246,7 @@ import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
 import { cleanupActionSequence, cleanupSceneSnapshot } from "@/utils/payloadCleaner";
 import { useAtomStore } from "@/stores/atomStore";
 import { useTabStore } from "@/stores/tabStore";
-import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, PerformActionPayload } from "@/types/api";
+import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, Extractor, PerformActionPayload } from "@/types/api";
 import TextMatcherEditor from "@/components/editors/TextMatcherEditor.vue";
 import ImageMatcherEditor from "@/components/editors/ImageMatcherEditor.vue";
 import { useDeviceStore } from "@/stores/deviceStore";
@@ -266,6 +286,7 @@ const createNewPrimaryMatcher = (): Matcher => ({
   imageMatchStrategy: "best",
 });
 const createNewSecondaryMatcher = (): SecondaryMatcher => ({ text: [], isExclusion: false });
+const createNewExtractor = (): Extractor => ({ name: "", regex: "", scope: "matched_node" });
 const createNewFormState = () => ({
   name: "",
   description: "",
@@ -274,7 +295,7 @@ const createNewFormState = () => ({
   executionCountLimit: 100,
   continueAfterMatch: false,
   actionLoopCount: 1,
-  sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[] },
+  sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[], extractors: [] as Extractor[] },
   actionsJson: [] as (PerformActionPayload & { id: string })[],
 });
 
@@ -362,6 +383,9 @@ const loadAtomData = async (id: number) => {
         if (snapshot.secondaryMatchers) {
           snapshot.secondaryMatchers.forEach(normalizeTextOnLoad);
         }
+        if (!snapshot.extractors) {
+          snapshot.extractors = [];
+        }
         if (!snapshot.primaryMatcher.matchTargetType) snapshot.primaryMatcher.matchTargetType = "text";
         if (snapshot.type && !snapshot.primaryMatcher.sceneType) snapshot.primaryMatcher.sceneType = snapshot.type;
         delete snapshot.type;
@@ -447,6 +471,8 @@ const removeSpatialRelation = () => {
 };
 const addSecondaryMatcher = () => form.sceneSnapshotJson.secondaryMatchers.push(createNewSecondaryMatcher());
 const removeSecondaryMatcher = (index: number) => form.sceneSnapshotJson.secondaryMatchers.splice(index, 1);
+const addExtractor = () => form.sceneSnapshotJson.extractors.push(createNewExtractor());
+const removeExtractor = (index: number) => form.sceneSnapshotJson.extractors.splice(index, 1);
 const goBack = () => tabStore.removeTab(route.fullPath);
 
 const handleCategoryChange = async (value: number | string) => {
@@ -583,5 +609,20 @@ const handleSave = async () => {
 :deep(.matcher-type-switch .el-radio-button__inner) {
   width: 80px;
   text-align: center;
+}
+.extractor-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.eq-sign {
+  font-weight: bold;
+  color: var(--el-text-color-secondary);
+}
+.empty-tip {
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+  margin-bottom: 8px;
 }
 </style>

@@ -9,13 +9,8 @@
 
     <el-form-item label="匹配模式">
       <el-select v-model="editableMatcher.matchMode">
-        <el-option label="模糊匹配" value="fuzzy" />
-        <el-option label="正则匹配" value="regex" />
-        <el-option label="模糊匹配+坐标" value="fuzzy_with_coords" />
+        <el-option v-for="opt in availableMatchModes" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
-      <el-tooltip content="使用 (...) 捕获组可动态提取值, 如 `等待(\d+)秒`" placement="top" v-if="editableMatcher.matchMode === 'regex'">
-        <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
-      </el-tooltip>
     </el-form-item>
 
     <el-form-item label="锚点坐标" v-if="editableMatcher.matchMode === 'fuzzy_with_coords' && editableMatcher.coordinates">
@@ -31,7 +26,7 @@
     </el-form-item>
 
     <el-form-item label="匹配文本">
-      <MultiTextInput v-model="matcherTextProxy" placeholder="输入备选文本后按回车" />
+      <MultiTextInput v-model="matcherTextProxy" :placeholder="placeholderText" />
     </el-form-item>
   </div>
 </template>
@@ -69,6 +64,19 @@ watch(
   { deep: true }
 );
 
+const availableMatchModes = computed(() => {
+  const modes = [
+    { label: "模糊匹配", value: "fuzzy" },
+    { label: "模糊匹配+坐标", value: "fuzzy_with_coords" },
+  ];
+  
+  // Only UI scene supports class name matching
+  if (editableMatcher.sceneType === 'ui') {
+    modes.push({ label: "类名+坐标", value: "class_and_bounds" });
+  }
+  return modes;
+});
+
 const matcherTextProxy = computed({
   get: () => {
     const text = editableMatcher.text;
@@ -77,6 +85,20 @@ const matcherTextProxy = computed({
   set: (newValue: string[]) => {
     editableMatcher.text = newValue;
   },
+});
+
+const placeholderText = computed(() => {
+  if (editableMatcher.matchMode === 'class_and_bounds') {
+    return '例如: ImageView [100, 200, 300, 400]';
+  }
+  return '输入备选文本后按回车';
+});
+
+// Auto-reset matchMode if switching to OCR and current mode is incompatible
+watch(() => editableMatcher.sceneType, (newType) => {
+  if (newType === 'ocr' && editableMatcher.matchMode === 'class_and_bounds') {
+    editableMatcher.matchMode = 'fuzzy';
+  }
 });
 
 watch(

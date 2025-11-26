@@ -77,3 +77,13 @@ export interface UiNode {
   isEditable?: boolean;
   children?: UiNode[];
 }
+
+// --- Remote Debugging ---
+export interface DebugModePayload {
+    enabled: boolean;
+    tags: string[];
+}
+export interface DebugModeStatus {
+    enabled: boolean;
+    tags: string[];
+}

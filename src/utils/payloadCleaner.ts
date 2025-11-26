@@ -19,11 +19,12 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     input_text: ["text"],
     tap: ["startX", "startY"],
     tap_relative: ["offsetX", "offsetY"],
+    conditional_tap: ["startX", "startY", "comparisonOperator", "leftSource", "leftValue", "rightSource", "rightValue"],
     swipe: ["startX", "startY", "endX", "endY", "duration"],
     swipe_gesture: ["direction"],
     wait: ["duration"],
     press_key: ["keyCode"],
-    report_value: ["reportLabel"],
+    report_value: ["reportLabel", "leftSource", "leftValue"],
     assert_text_equals: ["text"],
   };
 
@@ -149,6 +150,14 @@ export const cleanupSceneSnapshot = (sceneSnapshot: any) => {
     } else {
       // If the array is empty, remove the key itself.
       delete snapshotCopy.secondaryMatchers;
+    }
+  }
+
+  // Clean Extractors
+  if (snapshotCopy.extractors) {
+    snapshotCopy.extractors = snapshotCopy.extractors.filter((e: any) => e.name && e.regex);
+    if (snapshotCopy.extractors.length === 0) {
+      delete snapshotCopy.extractors;
     }
   }
 
