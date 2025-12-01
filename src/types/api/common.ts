@@ -11,6 +11,7 @@ export interface Selector {
   contentDesc?: string;
   className?: string;
   xpath?: string;
+  bounds?: string; // Format: "[left, top, right, bottom]"
   index?: number;
 }
 
@@ -33,6 +34,7 @@ export interface PerformActionParameters {
   leftValue?: string;
   rightSource?: "value" | "variable" | "regex";
   rightValue?: string;
+  targetStateLabel?: string;
 }
 
 /**
@@ -48,7 +50,7 @@ export interface PerformActionPayload {
     | "tap"
     | "wait"
     | "press_key"
-    | "wake_up"
+    | "wake_up" | "jump_to_state"
     | "sleep"
     | "tap_relative"
     | "wait_dynamic"

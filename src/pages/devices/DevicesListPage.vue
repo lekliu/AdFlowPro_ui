@@ -57,9 +57,6 @@
           <template #default="scope">
             <el-button size="small" :icon="View" @click="viewDetails(scope.row.deviceId)">详情</el-button>
             <el-button size="small" type="primary" :icon="Edit" @click="openEditModal(scope.row)"> 编辑 </el-button>
-            <el-button size="small" type="primary" :icon="Promotion" @click="openCommandModal(scope.row)" :disabled="!scope.row.isConnectedWs"
-              >指令</el-button
-            >
           </template>
         </el-table-column>
       </el-table>
@@ -76,14 +73,6 @@
         @current-change="handleCurrentChange"
       />
     </el-card>
-
-    <!-- Modals... -->
-    <el-dialog v-model="commandModalVisible" :title="'向 ' + selectedDeviceForCommand?.deviceId + ' 发送指令'" width="60%" destroy-on-close>
-      <CommandForm v-if="selectedDeviceForCommand" :device-id="selectedDeviceForCommand.deviceId" @command-sent="handleCommandSent" />
-      <template #footer>
-        <el-button @click="commandModalVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
 
     <el-dialog v-model="editModalVisible" title="编辑设备名称" width="30%" @close="editingDeviceName = ''">
       <el-form v-if="editingDevice" label-position="top">
@@ -111,7 +100,7 @@ import { useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { deviceService } from "@/api/deviceService";
 import type { DevicePublic, DeviceUpdatePayload } from "@/types/api";
-import { Plus, Search, Refresh, View, Promotion, SuccessFilled, CircleCloseFilled, Edit } from "@element-plus/icons-vue";
+import { Plus, Search, Refresh, View, SuccessFilled, CircleCloseFilled, Edit } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { ElMessage } from "element-plus";
@@ -128,9 +117,6 @@ const filterParams = reactive({
 
 const currentPage = ref(1);
 const pageSize = ref(10);
-
-const commandModalVisible = ref(false);
-const selectedDeviceForCommand = ref<DevicePublic | null>(null);
 
 const editModalVisible = ref(false);
 const editingDevice = ref<DevicePublic | null>(null);
@@ -178,11 +164,6 @@ const viewDetails = (deviceId: string) => {
   router.push({ name: "DeviceDetail", params: { deviceId } });
 };
 
-const openCommandModal = (device: DevicePublic) => {
-  selectedDeviceForCommand.value = device;
-  commandModalVisible.value = true;
-};
-
 const openEditModal = (device: DevicePublic) => {
   editingDevice.value = device;
   editingDeviceName.value = device.deviceName || "";
@@ -209,13 +190,6 @@ const handleUpdateDeviceName = async () => {
 
 const handleAddDevice = () => {
   ElMessage.info("手动添加设备功能尚未实现。");
-};
-
-const handleCommandSent = (success: boolean) => {
-  if (success) {
-    ElMessage.success("指令已成功分派。");
-  }
-  commandModalVisible.value = false;
 };
 
 const formatDate = (dateString: string | Date): string => {

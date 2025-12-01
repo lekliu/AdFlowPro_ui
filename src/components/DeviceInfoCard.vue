@@ -1,22 +1,23 @@
 <template>
   <el-card>
-    <el-descriptions title="设备信息" :column="2" border>
+    <!-- 修改 column 为 3 -->
+    <el-descriptions title="设备信息" :column="3" border>
       <el-descriptions-item label="Device ID">{{
-        device.deviceId
-      }}</el-descriptions-item>
+          device.deviceId
+        }}</el-descriptions-item>
       <el-descriptions-item label="Name">{{
-        device.deviceName || "N/A"
-      }}</el-descriptions-item>
+          device.deviceName || "N/A"
+        }}</el-descriptions-item>
       <el-descriptions-item label="OS Version">{{
-        device.osVersion || "N/A"
-      }}</el-descriptions-item>
+          device.osVersion || "N/A"
+        }}</el-descriptions-item>
       <el-descriptions-item label="App Version">{{
-        device.appVersion || "N/A"
-      }}</el-descriptions-item>
+          device.appVersion || "N/A"
+        }}</el-descriptions-item>
       <el-descriptions-item label="DB Status">
         <el-tag :type="device.status === 'online' ? 'success' : 'info'">{{
-          device.status
-        }}</el-tag>
+            device.status
+          }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="WebSocket">
         <el-tag :type="device.isConnectedWs ? 'success' : 'danger'">
@@ -24,14 +25,14 @@
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="IP Address">{{
-        device.ipAddress || "N/A"
-      }}</el-descriptions-item>
+          device.ipAddress || "N/A"
+        }}</el-descriptions-item>
       <el-descriptions-item label="Last Seen">{{
-        formatDate(device.lastSeenAt)
-      }}</el-descriptions-item>
+          formatDate(device.lastSeenAt)
+        }}</el-descriptions-item>
       <el-descriptions-item label="Registered At">{{
-        formatDate(device.registeredAt)
-      }}</el-descriptions-item>
+          formatDate(device.registeredAt)
+        }}</el-descriptions-item>
     </el-descriptions>
   </el-card>
 </template>

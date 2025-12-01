@@ -1,5 +1,5 @@
-<!-- AdFlowPro_ui\src\components\InstalledAppsCard.vue -->
 <template>
+  <!-- 移除 body-style 中的高度限制 -->
   <el-card class="card-margin" v-loading="isLoading">
     <template #header>
       <div class="card-header">
@@ -15,7 +15,8 @@
       </div>
     </template>
 
-    <el-table :data="apps" style="width: 100%" height="400px" border stripe>
+    <!-- 核心修改：移除 height 属性，或者设为 null/auto，让表格自动撑开 -->
+    <el-table :data="apps" style="width: 100%" border stripe>
       <el-table-column label="应用名称" prop="appName" min-width="160" show-overflow-tooltip>
         <template #default="scope">
           <el-tag v-if="scope.row.isInMaster" type="success" size="small" effect="dark" style="margin-right: 5px" title="在主应用目录中">白</el-tag>
@@ -27,22 +28,22 @@
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="scope">
           <el-button
-            v-if="!scope.row.isInMaster"
-            size="small"
-            type="primary"
-            :icon="Plus"
-            @click="$emit('addToMaster', scope.row)"
-            plain
+              v-if="!scope.row.isInMaster"
+              size="small"
+              type="primary"
+              :icon="Plus"
+              @click="$emit('addToMaster', scope.row)"
+              plain
           >
             添加
           </el-button>
           <el-button
-            size="small"
-            type="danger"
-            :icon="Delete"
-            @click="$emit('uninstall', scope.row.packageName)"
-            :disabled="!isConnected || scope.row.isSystemApp"
-            plain
+              size="small"
+              type="danger"
+              :icon="Delete"
+              @click="$emit('uninstall', scope.row.packageName)"
+              :disabled="!isConnected || scope.row.isSystemApp"
+              plain
           >
             卸载
           </el-button>
@@ -72,6 +73,8 @@ defineEmits(["refresh", "uninstall", "pullApk", "addToMaster"]);
   align-items: center;
 }
 .card-margin {
-  margin-top: 20px;
+  margin-top: 0;
+  border: none;
+  box-shadow: none;
 }
 </style>

@@ -99,116 +99,130 @@
           <el-card>
             <template #header>
               <div class="card-header">
-                <span>触发条件 (场景快照)</span>
-                <el-button type="success" :icon="MagicStick" plain @click="openValidationDialog"> 测试此条件 </el-button>
+                <span>触发条件</span>
+                <el-radio-group v-model="form.triggerType" size="small">
+                  <el-radio-button value="scene">场景触发</el-radio-button>
+                  <el-radio-button value="state">状态触发</el-radio-button>
+                </el-radio-group>
+                <el-button v-if="form.triggerType === 'scene'" type="success" :icon="MagicStick" plain @click="openValidationDialog"> 测试此条件 </el-button>
               </div>
             </template>
-            <div class="matchers-list">
-              <el-card shadow="never" class="matcher-card">
-                <template #header>
-                  <div class="card-header">
-                    <span>主匹配器 (Primary)</span>
-                    <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="large" class="matcher-type-switch">
-                      <el-radio-button value="text">文本</el-radio-button>
-                      <el-radio-button value="image">图元</el-radio-button>
-                    </el-radio-group>
-                  </div>
-                </template>
-                <el-form label-position="top">
-                  <component :is="primaryMatcherComponent" v-model="form.sceneSnapshotJson.primaryMatcher" />
-
-                  <!-- Common Filters -->
-                  <el-form-item label="屏幕区域 (可选)">
-                    <div class="region-selector-container">
-                      <ScreenRegionSelector v-model="form.sceneSnapshotJson.primaryMatcher.screenRegion" />
-                      <el-tooltip content="约束匹配到的元素的中心点必须位于屏幕的指定区域内。" placement="top">
-                        <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
-                      </el-tooltip>
-                    </div>
-                  </el-form-item>
-
-                  <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
-                    <el-button
-                        v-if="!form.sceneSnapshotJson.primaryMatcher.spatialRelation"
-                        type="primary"
-                        link
-                        :icon="Plus"
-                        @click="addSpatialRelation"
-                    >
-                      添加空间约束
-                    </el-button>
-                    <div v-else class="spatial-relation-box">
-                      <div class="spatial-header">
-                        <span>空间约束</span>
-                        <el-button type="danger" link :icon="Delete" @click="removeSpatialRelation">移除</el-button>
-                      </div>
-                      <el-form-item label="关系">
-                        <el-select v-model="form.sceneSnapshotJson.primaryMatcher.spatialRelation.operator" style="width: 100%">
-                          <el-option label="在...的右侧" value="RIGHT_OF" />
-                          <el-option label="在...的左侧" value="LEFT_OF" />
-                          <el-option label="在...的上方" value="ABOVE" />
-                          <el-option label="在...的下方" value="BELOW" />
-                          <el-option label="在...的附近" value="NEAR" />
-                        </el-select>
-                      </el-form-item>
-                      <el-form-item label="锚点匹配文本">
-                        <MultiTextInput v-model="anchorMatcherText" placeholder="输入备选锚点文本后按回车" />
-                      </el-form-item>
+            <template v-if="form.triggerType === 'scene'">
+              <div class="matchers-list">
+                <el-card shadow="never" class="matcher-card">
+                  <template #header>
+                    <div class="card-header">
+                      <span>主匹配器 (Primary)</span>
+                      <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="large" class="matcher-type-switch">
+                        <el-radio-button value="text">文本</el-radio-button>
+                        <el-radio-button value="image">图元</el-radio-button>
+                      </el-radio-group>
                     </div>
                   </template>
-                </el-form>
-              </el-card>
+                  <el-form label-position="top">
+                    <component :is="primaryMatcherComponent" v-model="form.sceneSnapshotJson.primaryMatcher" />
 
-              <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
-                <div v-for="(matcher, index) in form.sceneSnapshotJson.secondaryMatchers" :key="index" class="matcher-item">
-                  <el-card shadow="never" class="matcher-card">
-                    <template #header>
-                      <div class="card-header">
-                        <span>次级匹配器 {{ index + 1 }}</span>
-                        <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeSecondaryMatcher(index)" />
+                    <!-- Common Filters -->
+                    <el-form-item label="屏幕区域 (可选)">
+                      <div class="region-selector-container">
+                        <ScreenRegionSelector v-model="form.sceneSnapshotJson.primaryMatcher.screenRegion" />
+                        <el-tooltip content="约束匹配到的元素的中心点必须位于屏幕的指定区域内。" placement="top">
+                          <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                        </el-tooltip>
+                      </div>
+                    </el-form-item>
+
+                    <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
+                      <el-button
+                          v-if="!form.sceneSnapshotJson.primaryMatcher.spatialRelation"
+                          type="primary"
+                          link
+                          :icon="Plus"
+                          @click="addSpatialRelation"
+                      >
+                        添加空间约束
+                      </el-button>
+                      <div v-else class="spatial-relation-box">
+                        <div class="spatial-header">
+                          <span>空间约束</span>
+                          <el-button type="danger" link :icon="Delete" @click="removeSpatialRelation">移除</el-button>
+                        </div>
+                        <el-form-item label="关系">
+                          <el-select v-model="form.sceneSnapshotJson.primaryMatcher.spatialRelation.operator" style="width: 100%">
+                            <el-option label="在...的右侧" value="RIGHT_OF" />
+                            <el-option label="在...的左侧" value="LEFT_OF" />
+                            <el-option label="在...的上方" value="ABOVE" />
+                            <el-option label="在...的下方" value="BELOW" />
+                            <el-option label="在...的附近" value="NEAR" />
+                          </el-select>
+                        </el-form-item>
+                        <el-form-item label="锚点匹配文本">
+                          <MultiTextInput v-model="anchorMatcherText" placeholder="输入备选锚点文本后按回车" />
+                        </el-form-item>
                       </div>
                     </template>
-                    <el-form label-position="top">
-                      <el-form-item label="匹配类型">
-                        <el-switch v-model="matcher.isExclusion" active-text="排除 (NOT)" inactive-text="包含 (AND)" />
-                      </el-form-item>
-                      <el-form-item label="匹配文本">
-                        <MultiTextInput
-                            :model-value="getSecondaryMatcherText(index)"
-                            @update:model-value="setSecondaryMatcherText(index, $event)"
-                            placeholder="输入备选文本后按回车"
-                        />
-                      </el-form-item>
-                    </el-form>
-                  </el-card>
-                </div>
-                <el-button @click="addSecondaryMatcher" :icon="Plus" type="primary" plain>添加次级匹配条件</el-button>
-              </template>
-            </div>
-            
-            <!-- 新增：数据提取器区域 -->
-            <el-divider content-position="left">数据提取 (Extractors)</el-divider>
-            <div class="extractors-list">
-              <div v-for="(extractor, index) in form.sceneSnapshotJson.extractors" :key="index" class="extractor-row">
-                <el-input v-model="extractor.name" placeholder="变量名" style="width: 120px" />
-                <span class="eq-sign">=</span>
-                <el-input v-model="extractor.regex" placeholder="正则 (e.g. 余额:(\d+))" style="flex-grow: 1" />
-                <el-select v-model="extractor.scope" placeholder="范围" style="width: 110px">
-                  <el-option label="当前节点" value="matched_node" />
-                  <el-option label="全屏文本" value="full_screen" />
-                </el-select>
-                <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeExtractor(index)" />
-              </div>
-              <div v-if="form.sceneSnapshotJson.extractors.length === 0" class="empty-tip">
-                暂无提取规则
-              </div>
-              <el-button type="primary" link :icon="Plus" @click="addExtractor">添加提取规则</el-button>
-            </div>
+                  </el-form>
+                </el-card>
 
+                <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
+                  <div v-for="(matcher, index) in form.sceneSnapshotJson.secondaryMatchers" :key="index" class="matcher-item">
+                    <el-card shadow="never" class="matcher-card">
+                      <template #header>
+                        <div class="card-header">
+                          <span>次级匹配器 {{ index + 1 }}</span>
+                          <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeSecondaryMatcher(index)" />
+                        </div>
+                      </template>
+                      <el-form label-position="top">
+                        <el-form-item label="匹配类型">
+                          <el-switch v-model="matcher.isExclusion" active-text="排除 (NOT)" inactive-text="包含 (AND)" />
+                        </el-form-item>
+                        <el-form-item label="匹配文本">
+                          <MultiTextInput
+                              :model-value="getSecondaryMatcherText(index)"
+                              @update:model-value="setSecondaryMatcherText(index, $event)"
+                              placeholder="输入备选文本后按回车"
+                          />
+                        </el-form-item>
+                      </el-form>
+                    </el-card>
+                  </div>
+                  <el-button @click="addSecondaryMatcher" :icon="Plus" type="primary" plain>添加次级匹配条件</el-button>
+                </template>
+              </div>
+
+              <!-- 新增：数据提取器区域 -->
+              <el-divider content-position="left">数据提取 (Extractors)</el-divider>
+              <div class="extractors-list">
+                <div v-for="(extractor, index) in form.sceneSnapshotJson.extractors" :key="index" class="extractor-row">
+                  <el-input v-model="extractor.name" placeholder="变量名" style="width: 120px" />
+                  <span class="eq-sign">=</span>
+                  <el-input v-model="extractor.regex" placeholder="正则 (e.g. 余额:(\d+))" style="flex-grow: 1" />
+                  <el-select v-model="extractor.scope" placeholder="范围" style="width: 110px">
+                    <el-option label="当前节点" value="matched_node" />
+                    <el-option label="全屏文本" value="full_screen" />
+                  </el-select>
+                  <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeExtractor(index)" />
+                </div>
+                <div v-if="form.sceneSnapshotJson.extractors.length === 0" class="empty-tip">
+                  暂无提取规则
+                </div>
+                <el-button type="primary" link :icon="Plus" @click="addExtractor">添加提取规则</el-button>
+              </div>
+            </template>
+            <StateConditionEditor v-else v-model="form.stateCondition" />
           </el-card>
         </el-col>
         <el-col :span="14">
           <ActionSequenceEditor mode="editor" v-model="form.actionsJson" />
+        </el-col>
+      </el-row>
+
+      <el-row style="margin-top: 6px" v-if="isEditMode">
+        <el-col :span="24">
+          <el-card header="引用分析 (Usage Analysis)">
+            <AtomUsagePanel :atom-id="atomIdNum!" />
+          </el-card>
         </el-col>
       </el-row>
     </div>
@@ -239,17 +253,19 @@ import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import { v4 as uuidv4 } from "uuid";
+import StateConditionEditor from "@/components/editors/StateConditionEditor.vue";
 import { Delete, Plus, QuestionFilled, MagicStick } from "@element-plus/icons-vue";
 import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
 import MultiTextInput from "@/components/MultiTextInput.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
-import { cleanupActionSequence, cleanupSceneSnapshot } from "@/utils/payloadCleaner";
+import { cleanupActionSequence, cleanupSceneSnapshot, cleanupStateCondition } from "@/utils/payloadCleaner";
 import { useAtomStore } from "@/stores/atomStore";
 import { useTabStore } from "@/stores/tabStore";
-import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, Extractor, PerformActionPayload } from "@/types/api";
+import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, Extractor, PerformActionPayload, StateCondition } from "@/types/api";
 import TextMatcherEditor from "@/components/editors/TextMatcherEditor.vue";
 import ImageMatcherEditor from "@/components/editors/ImageMatcherEditor.vue";
 import { useDeviceStore } from "@/stores/deviceStore";
+import AtomUsagePanel from "@/components/AtomUsagePanel.vue";
 import { wsService } from "@/services/wsService";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useWebSocketStore } from "@/stores/webSocketStore";
@@ -291,21 +307,35 @@ const createNewFormState = () => ({
   name: "",
   description: "",
   categoryId: null as number | null,
+  triggerType: "scene" as "scene" | "state",
   priority: 50,
   executionCountLimit: 100,
   continueAfterMatch: false,
   actionLoopCount: 1,
   sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[], extractors: [] as Extractor[] },
   actionsJson: [] as (PerformActionPayload & { id: string })[],
+  stateCondition: { conditionType: "variable_comparison", parameters: {} } as StateCondition,
 });
 
 const form = reactive(createNewFormState());
+
 const rules = reactive<FormRules>({ name: [{ required: true, message: "请输入原子操作名称", trigger: "blur" }] });
 const dialogTitle = computed(() => (liveTestDialog.testType === "matcher" ? "实时匹配验证" : "测试完整原子操作"));
 
 const primaryMatcherComponent = computed(() => {
   return form.sceneSnapshotJson.primaryMatcher.matchTargetType === "text" ? TextMatcherEditor : ImageMatcherEditor;
 });
+
+watch(
+    () => form.triggerType,
+    (newType) => {
+      if (newType === 'scene') {
+        form.stateCondition = { conditionType: 'variable_comparison', parameters: {} };
+      } else {
+        form.sceneSnapshotJson = createNewFormState().sceneSnapshotJson;
+      }
+    }
+);
 
 watch(
     () => form.sceneSnapshotJson.primaryMatcher.matchTargetType,
@@ -361,6 +391,7 @@ const loadAtomData = async (id: number) => {
       form.name = atom.name;
       form.description = atom.description || "";
       form.categoryId = atom.categoryId || null;
+      form.triggerType = atom.triggerType || "scene";
       form.priority = atom.priority;
       form.executionCountLimit = atom.executionCountLimit;
       form.continueAfterMatch = atom.continueAfterMatch;
@@ -390,6 +421,10 @@ const loadAtomData = async (id: number) => {
         if (snapshot.type && !snapshot.primaryMatcher.sceneType) snapshot.primaryMatcher.sceneType = snapshot.type;
         delete snapshot.type;
         form.sceneSnapshotJson = snapshot;
+      }
+
+      if (atom.stateCondition) {
+        form.stateCondition = atom.stateCondition;
       }
 
       const pm = form.sceneSnapshotJson.primaryMatcher;
@@ -491,30 +526,33 @@ const handleCategoryChange = async (value: number | string) => {
 const handleSave = async () => {
   if (!formRef.value) return;
   await formRef.value.validate();
-  const pm = form.sceneSnapshotJson.primaryMatcher;
-  if (pm.matchTargetType === "text") {
-    const t = Array.isArray(pm.text) ? pm.text : [pm.text];
-    if (!t || t.length === 0) {
-      ElMessage.error("主匹配器的“匹配文本”不能为空。");
+
+  if (form.triggerType === 'scene') {
+    const pm = form.sceneSnapshotJson.primaryMatcher;
+    if (pm.matchTargetType === "text") {
+      const t = Array.isArray(pm.text) ? pm.text : [pm.text];
+      if (!t || t.length === 0) {
+        ElMessage.error("主匹配器的“匹配文本”不能为空。");
+        return;
+      }
+    } else if (pm.matchTargetType === "image") {
+      if (!pm.templateId) {
+        ElMessage.error("主匹配器为图元模式时，必须选择一个图元模板。");
+        return;
+      }
+    }
+    if (
+        pm.spatialRelation &&
+        (!pm.spatialRelation.anchorMatcher.text ||
+            (Array.isArray(pm.spatialRelation.anchorMatcher.text) && pm.spatialRelation.anchorMatcher.text.length === 0))
+    ) {
+      ElMessage.error("空间约束中的“锚点匹配文本”不能为空。");
       return;
     }
-  } else if (pm.matchTargetType === "image") {
-    if (!pm.templateId) {
-      ElMessage.error("主匹配器为图元模式时，必须选择一个图元模板。");
+    if (form.sceneSnapshotJson.secondaryMatchers.some((m) => !m.text || (Array.isArray(m.text) && m.text.length === 0))) {
+      ElMessage.error("所有次级匹配器的“匹配文本”不能为空。");
       return;
     }
-  }
-  if (
-      pm.spatialRelation &&
-      (!pm.spatialRelation.anchorMatcher.text ||
-          (Array.isArray(pm.spatialRelation.anchorMatcher.text) && pm.spatialRelation.anchorMatcher.text.length === 0))
-  ) {
-    ElMessage.error("空间约束中的“锚点匹配文本”不能为空。");
-    return;
-  }
-  if (form.sceneSnapshotJson.secondaryMatchers.some((m) => !m.text || (Array.isArray(m.text) && m.text.length === 0))) {
-    ElMessage.error("所有次级匹配器的“匹配文本”不能为空。");
-    return;
   }
   if (form.actionsJson.length === 0) {
     ElMessage.error("必须添加至少一个执行动作。");
@@ -523,7 +561,14 @@ const handleSave = async () => {
   isSaving.value = true;
   try {
     const payload = JSON.parse(JSON.stringify(form));
-    payload.sceneSnapshotJson = cleanupSceneSnapshot(payload.sceneSnapshotJson);
+    // Clean based on trigger type
+    if (payload.triggerType === 'scene') {
+      payload.sceneSnapshotJson = cleanupSceneSnapshot(payload.sceneSnapshotJson);
+      delete payload.stateCondition;
+    } else {
+      payload.stateCondition = cleanupStateCondition(payload.stateCondition);
+      delete payload.sceneSnapshotJson;
+    }
     payload.actionsJson = cleanupActionSequence(payload.actionsJson);
     if (isEditMode.value) {
       await atomStore.updateAtom(atomIdNum.value!, payload as AtomicOperationUpdatePayload);

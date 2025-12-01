@@ -68,11 +68,13 @@ const availableMatchModes = computed(() => {
   const modes = [
     { label: "模糊匹配", value: "fuzzy" },
     { label: "模糊匹配+坐标", value: "fuzzy_with_coords" },
+    { label: "不包含 (Must Not Contain)", value: "must_not_contain" },
   ];
   
   // Only UI scene supports class name matching
   if (editableMatcher.sceneType === 'ui') {
-    modes.push({ label: "类名+坐标", value: "class_and_bounds" });
+    // Insert at a specific position for better ordering if needed
+    modes.splice(3, 0, { label: "类名+坐标", value: "class_and_bounds" });
   }
   return modes;
 });
@@ -104,7 +106,7 @@ watch(() => editableMatcher.sceneType, (newType) => {
 watch(
   () => editableMatcher.matchMode,
   (newMode) => {
-    if (newMode === "fuzzy_with_coords") {
+    if (newMode === "fuzzy_with_coords" || newMode === "class_and_bounds") {
       if (!editableMatcher.coordinates) {
         editableMatcher.coordinates = { left: 0, top: 0 };
       }

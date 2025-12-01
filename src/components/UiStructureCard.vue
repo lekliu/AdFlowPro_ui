@@ -18,7 +18,11 @@
         </div>
       </div>
     </template>
-    <!-- >>>>>>>>>> 修改这里的显示逻辑 <<<<<<<<<< -->
+
+    <div v-if="fullText" class="full-text-preview">
+      <strong>Full Text Preview:</strong>
+      <pre>{{ fullText }}</pre>
+    </div>
     <div class="ui-structure-container" v-loading="isLoading">
       <UiTreeNode v-if="structure" :node="structure" :root-package-name="structure.packageName" :is-expanded-override="isAllExpanded" />
       <el-empty v-else description="暂无UI结构, 请点击按钮获取" :image-size="80" />
@@ -28,7 +32,7 @@
 
 <script setup lang="ts">
 import { Search, CopyDocument } from "@element-plus/icons-vue";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import UiTreeNode from "./UiTreeNode.vue";
 import type { UiNode } from "@/types/api/device";
 import { ElMessage } from "element-plus";
@@ -42,6 +46,23 @@ const props = defineProps<{
 defineEmits(["fetchUiStructure"]);
 
 const isAllExpanded = ref<boolean | null>(null);
+
+const fullText = computed(() => {
+  if (!props.structure) return "";
+  const lines: string[] = [];
+  
+  const traverse = (node: UiNode) => {
+    if (node.text) lines.push(node.text);
+    else if (node.contentDescription) lines.push(node.contentDescription);
+    
+    if (node.children) {
+      node.children.forEach(traverse);
+    }
+  };
+  
+  traverse(props.structure);
+  return lines.join("  ");
+});
 
 const handleCopyStructure = async () => {
   if (!props.structure) {
@@ -82,5 +103,21 @@ const handleCopyStructure = async () => {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+.full-text-preview {
+  margin-bottom: 10px;
+  padding: 15px;
+  background-color: #f0f2f5;
+  border-radius: 14px;
+  font-size: 14px;
+  color: #606266;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.full-text-preview pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0px;
 }
 </style>

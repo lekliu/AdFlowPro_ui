@@ -26,7 +26,7 @@
 
       <el-table :data="atomStore.atoms" v-loading="atomStore.isLoading || categoryStore.isLoading" style="width: 100%" border stripe>
         <el-table-column prop="atomId" label="ID" width="80" sortable />
-        <el-table-column prop="name" label="名称" width="200" sortable />
+        <el-table-column prop="name" label="名称" width="290" sortable />
         <el-table-column prop="categoryName" label="分类" width="150" sortable>
           <template #default="scope">
             <el-tag v-if="scope.row.categoryName" type="info">{{ scope.row.categoryName }}</el-tag>
@@ -34,12 +34,13 @@
           </template>
         </el-table-column>
         <el-table-column prop="priority" label="优先级" width="110" sortable align="center" />
-        <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
           <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="scope">
+            <el-button size="small" type="warning" :icon="CopyDocument" @click="handleCopy(scope.row.atomId)" title="复制" />
             <el-button size="small" type="primary" :icon="Edit" @click="handleEdit(scope.row.atomId)" />
             <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(scope.row.atomId, scope.row.name)" />
           </template>
@@ -71,7 +72,8 @@ import { useRouter } from "vue-router";
 import { useAtomStore } from "@/stores/atomStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search, CopyDocument } from "@element-plus/icons-vue";
+import type { AtomicOperationCreatePayload } from "@/types/api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 
@@ -129,6 +131,45 @@ const handleCreate = () => {
 
 const handleEdit = (atomId: number) => {
   router.push({ name: "AtomEditor", params: { atomId } });
+};
+
+const handleCopy = async (atomId: number) => {
+  try {
+    await ElMessageBox.confirm("确定要复制此原子操作吗？", "确认复制", {
+      type: "info",
+      confirmButtonText: "复制",
+      cancelButtonText: "取消"
+    });
+
+    const atom = await atomStore.fetchAtomById(atomId);
+    if (!atom) {
+      ElMessage.error("获取原数据失败");
+      return;
+    }
+
+    // 构造创建 Payload，剔除 ID，添加副本后缀
+    // 使用 JSON 序列化确保深拷贝，断绝引用关系
+    const source = JSON.parse(JSON.stringify(atom));
+    const payload: AtomicOperationCreatePayload = {
+      name: `${source.name} - 副本`,
+      description: source.description,
+      categoryId: source.categoryId,
+      priority: source.priority,
+      executionCountLimit: source.executionCountLimit,
+      continueAfterMatch: source.continueAfterMatch,
+      actionLoopCount: source.actionLoopCount,
+      sceneSnapshotJson: source.sceneSnapshotJson,
+      actionsJson: source.actionsJson
+    };
+
+    await atomStore.addAtom(payload);
+    ElMessage.success("复制成功");
+    fetchData();
+  } catch (error) {
+    if (error !== "cancel") {
+      console.error("Copy failed:", error);
+    }
+  }
 };
 
 const handleDelete = async (atomId: number, name: string) => {

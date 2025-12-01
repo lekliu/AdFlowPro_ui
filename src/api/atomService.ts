@@ -1,5 +1,5 @@
 import apiClient from "./apiClient";
-import type { AtomicOperationPublic, AtomicOperationCreatePayload, AtomicOperationUpdatePayload, PaginatedResponse } from "@/types/api";
+import type { AtomicOperationPublic, AtomicOperationCreatePayload, AtomicOperationUpdatePayload, PaginatedResponse, AtomUsageReport } from "@/types/api";
 
 export const atomService = {
   async getAtoms(params?: { skip?: number; limit?: number; search?: string; categoryId?: number }): Promise<PaginatedResponse<AtomicOperationPublic>> {
@@ -20,5 +20,9 @@ export const atomService = {
 
   async deleteAtom(atomId: number): Promise<void> {
     return apiClient.delete(`/atoms/${atomId}`);
+  },
+
+  async getAtomUsage(atomId: number): Promise<AtomUsageReport> {
+    return apiClient.get(`/atoms/${atomId}/usage`);
   },
 };

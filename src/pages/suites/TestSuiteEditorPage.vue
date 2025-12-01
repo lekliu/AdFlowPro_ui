@@ -334,6 +334,14 @@ const handleSave = async () => {
   display: flex;
   flex-direction: column;
 }
+:deep(.pool-card .el-card__body),
+:deep(.build-card .el-card__body) {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .pool-content {
   flex-grow: 1;
   overflow-y: auto;

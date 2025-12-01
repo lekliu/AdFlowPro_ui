@@ -91,7 +91,7 @@
               报告
             </el-button>
             <el-button
-                v-if="['completed', 'failed', 'cancelled'].includes(scope.row.status)"
+                v-if="['completed', 'failed', 'cancelled', 'pending'].includes(scope.row.status)"
                 size="small"
                 type="danger"
                 :icon="Delete"

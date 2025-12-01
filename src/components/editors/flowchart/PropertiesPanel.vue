@@ -55,7 +55,7 @@
               style="width: 100%"
               @change="updateProperties"
             >
-              <el-option v-for="pkg in packagePool" :key="pkg.packageId" :label="pkg.name" :value="pkg.packageId" />
+              <el-option v-for="pkg in filteredPackagePool" :key="pkg.packageId" :label="pkg.name" :value="pkg.packageId" />
             </el-select>
           </el-form-item>
         </el-form>
@@ -132,6 +132,11 @@ onMounted(() => {
 const filteredAtomPool = computed(() => {
   if (!atomCategoryFilter.value) return props.atomPool;
   return props.atomPool.filter((atom) => atom.categoryId === atomCategoryFilter.value);
+});
+
+const filteredPackagePool = computed(() => {
+  if (!atomCategoryFilter.value) return props.packagePool;
+  return props.packagePool.filter((pkg) => pkg.categoryId === atomCategoryFilter.value);
 });
 
 const isNode = computed(() => props.activeElement && props.activeElement.BaseType === "node");

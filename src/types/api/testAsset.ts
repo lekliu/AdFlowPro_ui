@@ -1,6 +1,7 @@
 // FILE: AdFlowPro_ui/src/types/api/testAsset.ts
 import type { PerformActionPayload } from "./common";
 import type  GraphData  from "@logicflow/core";
+import type { AtomCategoryPublic } from "./atomCategory";
 
 // --- L1: Atomic Operation ---
 export interface MatcherCoordinates {
@@ -8,18 +9,36 @@ export interface MatcherCoordinates {
   top: number;
 }
 
+// --- State Condition Schemas ---
+export interface StateConditionParameters {
+  // For variable_comparison
+  leftSource?: "variable" | "expression" | "value";
+  leftValue?: string;
+  comparisonOperator?: string;
+  rightSource?: "value" | "variable";
+  rightValue?: string;
+  // For app_foreground_check
+  expectedState?: "foreground" | "background";
+}
+
+export interface StateCondition {
+  conditionType: "variable_comparison" | "app_foreground_check";
+  parameters: StateConditionParameters;
+}
+
+
 // 定义屏幕区域的类型
 export type ScreenRegion =
-  | ""
-  | "TOP_LEFT"
-  | "TOP_CENTER"
-  | "TOP_RIGHT"
-  | "MIDDLE_LEFT"
-  | "CENTER"
-  | "MIDDLE_RIGHT"
-  | "BOTTOM_LEFT"
-  | "BOTTOM_CENTER"
-  | "BOTTOM_RIGHT";
+    | ""
+    | "TOP_LEFT"
+    | "TOP_CENTER"
+    | "TOP_RIGHT"
+    | "MIDDLE_LEFT"
+    | "CENTER"
+    | "MIDDLE_RIGHT"
+    | "BOTTOM_LEFT"
+    | "BOTTOM_CENTER"
+    | "BOTTOM_RIGHT";
 
 // 定义空间关系操作符的类型
 export type SpatialOperator = "RIGHT_OF" | "LEFT_OF" | "ABOVE" | "BELOW" | "NEAR";
@@ -76,44 +95,46 @@ export interface SceneSnapshot {
   extractors: Extractor[];
 }
 
-export interface AtomicOperationPublic {
-  atomId: number;
+export interface AtomicOperationBase {
   name: string;
-  categoryId?: number | null;
-  categoryName?: string | null;
   description?: string;
+  triggerType: "scene" | "state";
   priority: number;
   executionCountLimit: number;
   continueAfterMatch: boolean;
   actionLoopCount?: number;
-  sceneSnapshotJson: SceneSnapshot;
-  actionsJson: PerformActionPayload[];
-  createdAt: string;
-  updatedAt: string;
 }
 
-export interface AtomicOperationCreatePayload {
-  name: string;
-  description?: string;
+export interface AtomicOperationCreatePayload extends AtomicOperationBase {
   categoryId?: number | null;
-  priority?: number;
-  executionCountLimit?: number;
-  continueAfterMatch?: boolean;
-  actionLoopCount?: number;
-  sceneSnapshotJson: SceneSnapshot;
+  sceneSnapshotJson?: SceneSnapshot;
+  stateCondition?: StateCondition;
   actionsJson: PerformActionPayload[];
 }
 
 export interface AtomicOperationUpdatePayload {
+  categoryId?: number | null;
   name?: string;
   description?: string;
-  categoryId?: number | null;
+  triggerType?: "scene" | "state";
   priority?: number;
-  executionCountLimit?: number;
-  continueAfterMatch?: boolean;
-  actionLoopCount?: number;
   sceneSnapshotJson?: SceneSnapshot;
+  stateCondition?: StateCondition;
+  executionCountLimit?: number;
+  actionLoopCount?: number;
+  continueAfterMatch?: boolean;
   actionsJson?: PerformActionPayload[];
+}
+
+export interface AtomicOperationPublic extends AtomicOperationBase {
+  atomId: number;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  sceneSnapshotJson?: SceneSnapshot;
+  stateCondition?: StateCondition;
+  actionsJson: PerformActionPayload[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 // --- L2: Test Package ---
@@ -223,4 +244,46 @@ export interface TestSuiteUpdatePayload {
   screenshotQuality?: number;
   caseIds?: number[]; // For linear mode
   flowchartData?: GraphData; // for flow mode
+}
+
+// --- V2.1 "关系驱动" 流程图剧本模型 ---
+
+export interface StateNode {
+  id: string;
+  label: string;
+  type: string; // "start", "state", "end"
+  outgoingAtomIds: Array<[number, string | null]>;
+}
+
+export interface FlowChartPackage {
+  startStateId: string;
+  globalAtomIds: Array<[number, string | null]>;
+  states: StateNode[];
+  // Key is the original atom_id as a string
+  atoms: Record<string, any>; // Using any here to accommodate the PackagedAtom model from job.py
+}
+
+
+// --- 引用分析报告模型 ---
+export interface FlowCaseUsage {
+  caseId: number;
+  name: string;
+  locations: string[]; // 具体引用位置描述，如 "全局触发器", "连线: [首页]->[我的]"
+}
+
+export interface LinearCaseUsage {
+  caseId: number;
+  name: string;
+}
+
+export interface PackageUsage {
+  packageId: number;
+  name: string;
+  relatedLinearCases: LinearCaseUsage[];
+  relatedFlowCases: FlowCaseUsage[];
+}
+
+export interface AtomUsageReport {
+  directFlowCases: FlowCaseUsage[];
+  packages: PackageUsage[];
 }

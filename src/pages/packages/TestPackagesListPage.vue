@@ -27,6 +27,12 @@
       <el-table :data="packageStore.packages" v-loading="packageStore.isLoading" style="width: 100%" border stripe>
         <el-table-column type="index" width="50" label="序号" />
         <el-table-column prop="name" label="名称" width="200" sortable />
+        <el-table-column prop="category" label="分类" width="150" sortable>
+          <template #default="scope">
+            <el-tag v-if="scope.row.category" type="info">{{ scope.row.category.name }}</el-tag>
+            <span v-else>--</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
         <el-table-column label="是否公共" width="100" align="center">
           <template #default="scope">

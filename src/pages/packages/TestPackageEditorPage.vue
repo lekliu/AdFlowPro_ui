@@ -59,6 +59,7 @@
                     placeholder="按分类筛选"
                     clearable
                     size="small"
+                    @change="handlePoolFilterChange"
                     style="width: 150px">
                   <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
                 </el-select>
@@ -83,6 +84,18 @@
                   </div>
                 </template>
               </draggable>
+              <div class="pool-pagination">
+                <el-pagination
+                  v-model:current-page="poolCurrentPage"
+                  v-model:page-size="poolPageSize"
+                  :page-sizes="[10, 20, 50]"
+                  layout="total, sizes, prev, next"
+                  :total="atomStore.totalAtoms"
+                  small
+                  @size-change="handlePoolSizeChange"
+                  @current-change="handlePoolPageChange"
+                />
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -147,7 +160,7 @@ import { ref, reactive, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick } from "@element-plus/icons-vue";
+import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search } from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
@@ -193,6 +206,9 @@ const rules = reactive<FormRules>({
 
 const atomSearch = ref("");
 const atomCategoryFilter = ref<number | "">("");
+// Pagination state for Atom Pool
+const poolCurrentPage = ref(1);
+const poolPageSize = ref(10);
 
 const testDialog = reactive({
   visible: false,
@@ -202,16 +218,20 @@ const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConne
 
 const selectedAtomIds = computed(() => new Set(form.atoms.map((a) => a.atomId)));
 
-const availableAtoms = computed(() => {
-  const searched = atomStore.atoms.filter(
-    (atom) =>
-      // Corrected logic: (text search) AND (category filter)
-      (atom.name.toLowerCase().includes(atomSearch.value.toLowerCase()) ||
-        (atom.description && atom.description.toLowerCase().includes(atomSearch.value.toLowerCase()))) &&
-      (!atomCategoryFilter.value || atom.categoryId === atomCategoryFilter.value)
-  );
+// Fetch atoms from server based on pagination and filters
+const fetchAtomPool = async () => {
+  await atomStore.fetchAtoms({
+    skip: (poolCurrentPage.value - 1) * poolPageSize.value,
+    limit: poolPageSize.value,
+    search: atomSearch.value || undefined,
+    categoryId: atomCategoryFilter.value || undefined,
+  });
+};
 
-  return searched.map((atom) => ({
+const availableAtoms = computed(() => {
+  // Since atomStore.atoms is now paginated and filtered by server,
+  // we just map it to add the 'disabled' state.
+  return atomStore.atoms.map((atom) => ({
     ...atom,
     disabled: selectedAtomIds.value.has(atom.atomId),
   }));
@@ -247,6 +267,22 @@ onMounted(async () => {
   }
   isLoading.value = false;
 });
+
+const handlePoolFilterChange = () => {
+  poolCurrentPage.value = 1; // Reset to first page on filter change
+  fetchAtomPool();
+};
+
+const handlePoolSizeChange = (val: number) => {
+  poolPageSize.value = val;
+  poolCurrentPage.value = 1;
+  fetchAtomPool();
+};
+
+const handlePoolPageChange = (val: number) => {
+  poolCurrentPage.value = val;
+  fetchAtomPool();
+};
 
 const removeAtom = (index: number) => {
   form.atoms.splice(index, 1);
@@ -336,6 +372,14 @@ const handleTestPackage = () => {
   display: flex;
   flex-direction: column;
 }
+:deep(.pool-card .el-card__body),
+:deep(.build-card .el-card__body) {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .pool-header {
   display: flex;
   justify-content: space-between;
@@ -343,15 +387,20 @@ const handleTestPackage = () => {
 }
 .pool-content {
   flex-grow: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
 }
 .pool-search {
   margin: 0 10px 10px 10px;
   width: calc(100% - 20px);
+  flex-shrink: 0;
 }
 .draggable-list {
-  min-height: 50px;
+  min-height: 0;
+  flex-grow: 1; /* Allow list to take available space */
+  overflow-y: auto;
 }
 .draggable-item,
 .draggable-item-selected {
@@ -389,5 +438,11 @@ const handleTestPackage = () => {
 }
 .el-tag {
   margin-left: 8px;
+}
+.pool-pagination {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
 }
 </style>

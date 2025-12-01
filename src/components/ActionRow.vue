@@ -55,7 +55,7 @@
             <el-option label="变量" value="variable" />
           </el-select>
           <el-input
-              v-if="true" 
+              v-if="true"
               v-model="editableAction.parameters.rightValue"
               placeholder="值/变量名"
               style="flex-grow: 1"
@@ -99,13 +99,33 @@
 
       <!-- Wait Dynamic (Enhanced) -->
       <div v-if="editableAction.action === 'wait_dynamic'" style="display: flex; gap: 8px; align-items: center; width: 100%">
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
           <el-option label="变量" value="variable" />
           <el-option label="公式计算" value="expression" />
         </el-select>
         <el-input v-model="editableAction.parameters.leftValue" placeholder="变量名/公式 (单位: 秒)" style="flex-grow: 1" />
       </div>
 
+      <!-- Jump to State -->
+      <el-input v-if="editableAction.action === 'jump_to_state'" v-model="editableAction.parameters.targetStateLabel" placeholder="输入目标状态的标签名" />
+
+      <!-- Reopen App -->
+      <el-input v-if="editableAction.action === 'reopen_app'" v-model="editableAction.parameters.packageName" placeholder="输入目标App的包名" />
+
+      <!-- Return to Entry App -->
+      <el-input v-if="editableAction.action === 'return_to_entry_app'" disabled placeholder="返回第一个跳转的应用" />
+
+      <!-- Assert Text Equals (Custom Layout) -->
+      <div v-if="editableAction.action === 'assert_text_equals'" class="assert-text-equals-container">
+        <div class="assert-section">
+          <div class="assert-label">1. 定位元素</div>
+          <SelectorInput v-model="editableAction.selector" />
+        </div>
+        <div class="assert-section">
+          <div class="assert-label">2. 验证文本</div>
+          <el-input v-model="editableAction.parameters.text" placeholder="输入期望的完整文本" />
+        </div>
+      </div>
       <!-- Press Key -->
       <el-select v-if="editableAction.action === 'press_key'" v-model="editableAction.parameters.keyCode" placeholder="选择按键">
         <el-option label="Home" value="home" />
@@ -117,7 +137,7 @@
       <div v-if="editableAction.action === 'report_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
         <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名/标签" style="width: 150px" />
         <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
           <el-option label="固定值" value="value" />
           <el-option label="变量" value="variable" />
           <el-option label="公式计算" value="expression" />
@@ -129,7 +149,7 @@
       <div v-if="editableAction.action === 'calculate_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
         <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 150px" />
         <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 110px">
+        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
           <el-option label="固定值" value="value" />
           <el-option label="变量" value="variable" />
           <el-option label="公式计算" value="expression" />
@@ -140,9 +160,15 @@
         </el-tooltip>
       </div>
 
-      <!-- Assert Text Equals -->
-      <el-input v-if="editableAction.action === 'assert_text_equals'" v-model="editableAction.parameters.text" placeholder="输入期望的文本" />
-
+      <!-- Assert Element Count -->
+      <div v-if="editableAction.action === 'assert_element_count'" class="comparison-row">
+        <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="操作符" style="width: 120px">
+          <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
+          <el-option label=">" value=">" /> <el-option label=">=" value=">=" />
+          <el-option label="<" value="<" /> <el-option label="<=" value="<=" />
+        </el-select>
+        <el-input-number v-model="editableAction.parameters.expectedCount" :min="0" placeholder="期望数量" controls-position="right" style="flex-grow: 1" />
+      </div>
       <!-- No visible parameters for wait_dynamic, wake_up, etc. -->
       <el-input v-if="isParameterlessAction" disabled placeholder="此动作无参数" />
     </div>
@@ -188,11 +214,15 @@ const actionOptions = [
     label: "流程控制",
     options: [
       { value: "wait", label: "Wait (Fixed Time)" },
-      { value: "wait_dynamic", label: "Wait (Dynamic)" },
+      { value: "wait_dynamic", label: "Wait (Dynamic from Var)" },
+      { value: "wait_for_vanish", label: "Wait For Vanish" },
       { value: "calculate_value", label: "Set / Calculate Variable" },
       { value: "report_value", label: "Report Value (Upload)" },
       { value: "end_case", label: "End Case" },
       { value: "reopen_app_if_needed", label: "Reopen App If Needed" },
+      { value: "reopen_app", label: "Reopen App (by PackageName)" },
+      { value: "return_to_entry_app", label: "Return to Entry App" },
+      { value: "jump_to_state", label: "Jump to State (Flow)" },
     ],
   },
   {
@@ -206,16 +236,16 @@ const actionOptions = [
   {
     label: "断言",
     options: [
-      { value: "assert_element_exists", label: "Assert Element Exists" },
       { value: "assert_text_equals", label: "Assert Text Equals" },
+      { value: "assert_element_count", label: "Assert Element Count" },
     ],
   },
 ];
 
-const needsSelector = computed(() => ["click", "long_click", "input_text"].includes(editableAction.action));
+const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
-    ["end_case", "reopen_app_if_needed", "wake_up", "sleep", "assert_element_exists"].includes(editableAction.action)
+    ["end_case", "reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep"].includes(editableAction.action)
 );
 
 watch(
@@ -229,6 +259,7 @@ watch(
         switch (newVal.action) {
           case 'click':
           case 'long_click':
+          // case 'assert_element_exists':
           case 'input_text':
             newVal.selector = { index: 0 };
             break;
@@ -257,6 +288,20 @@ watch(
               leftSource: 'variable'
             };
             break;
+          case 'wait_for_vanish':
+            newVal.selector = { index: 0 };
+            newVal.parameters = { duration: 5000 };
+            break;
+          case 'jump_to_state':
+            newVal.parameters = { targetStateLabel: '' };
+            break;
+          case 'assert_element_count':
+            newVal.selector = { index: -1 };
+            newVal.parameters = {
+              comparisonOperator: '==',
+              expectedCount: 1,
+            };
+            break;
         }
       }
 
@@ -264,6 +309,11 @@ watch(
     },
     { deep: true }
 );
+
+// Ensure parameters object exists to prevent v-model errors
+if (!editableAction.parameters) {
+  editableAction.parameters = {};
+}
 </script>
 
 <style scoped>
@@ -275,7 +325,7 @@ watch(
   border-bottom: 1px solid var(--el-border-color-light);
 }
 .action-selector {
-  width: 180px;
+  width: 190px;
   flex-shrink: 0;
 }
 .parameters {
@@ -300,5 +350,24 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px; /* Adds space between the start and end coordinate rows */
+}
+.comparison-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.assert-text-equals-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.assert-section {
+  width: 100%;
+}
+.assert-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
 }
 </style>

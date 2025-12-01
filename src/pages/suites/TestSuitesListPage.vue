@@ -311,14 +311,15 @@ const confirmRun = async () => {
     if (valid) {
       runDialog.isSubmitting = true;
       try {
-        await jobService.createJob({
+        const createdJob = await jobService.createJob({
           suiteId: runDialog.suite!.suiteId,
           suiteType: "linear", // This needs to be dynamic in the future
           targetAppPackageName: runDialog.form.targetAppPackageName,
           deviceId: runDialog.form.deviceId,
         });
-        ElMessage.success("测试任务已成功创建并下发！");
+        ElMessage.success(`任务 #${createdJob.jobId} 已启动，正在跳转监控页...`);
         resetRunDialog();
+        router.push({ name: "JobDetail", params: { jobId: createdJob.jobId } });
       } catch (error) {
         // API interceptor will handle error messages
       } finally {

@@ -23,9 +23,12 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     swipe: ["startX", "startY", "endX", "endY", "duration"],
     swipe_gesture: ["direction"],
     wait: ["duration"],
+    wait_dynamic: ["leftSource", "leftValue"],
     press_key: ["keyCode"],
     report_value: ["reportLabel", "leftSource", "leftValue"],
+    calculate_value: ["reportLabel", "leftSource", "leftValue"],
     assert_text_equals: ["text"],
+    jump_to_state: ["targetStateLabel"],
   };
 
   actionsCopy.forEach((action: any) => {
@@ -41,14 +44,14 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
         return acc;
       }, {} as any);
       if (
-        Object.keys(cleanedSelector).length === 0 ||
-        (Object.keys(cleanedSelector).length === 1 &&
-          cleanedSelector.index === 0 &&
-          !cleanedSelector.text &&
-          !cleanedSelector.resourceId &&
-          !cleanedSelector.contentDesc &&
-          !cleanedSelector.className &&
-          !cleanedSelector.xpath)
+          Object.keys(cleanedSelector).length === 0 ||
+          (Object.keys(cleanedSelector).length === 1 &&
+              cleanedSelector.index === 0 &&
+              !cleanedSelector.text &&
+              !cleanedSelector.resourceId &&
+              !cleanedSelector.contentDesc &&
+              !cleanedSelector.className &&
+              !cleanedSelector.xpath)
       ) {
         delete action.selector;
       } else {
@@ -162,4 +165,23 @@ export const cleanupSceneSnapshot = (sceneSnapshot: any) => {
   }
 
   return snapshotCopy;
+};
+
+export const cleanupStateCondition = (stateCondition: any) => {
+  if (!stateCondition) return undefined;
+  const copy = JSON.parse(JSON.stringify(stateCondition));
+  const validParams: Record<string, string[]> = {
+    variable_comparison: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
+    app_foreground_check: ["expectedState"]
+  };
+
+  const paramsToKeep = validParams[copy.conditionType] || [];
+  const cleanedParams: any = {};
+  for (const key of paramsToKeep) {
+    if (copy.parameters[key] !== undefined && copy.parameters[key] !== null && copy.parameters[key] !== '') {
+      cleanedParams[key] = copy.parameters[key];
+    }
+  }
+  copy.parameters = cleanedParams;
+  return copy;
 };

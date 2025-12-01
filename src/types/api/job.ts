@@ -35,6 +35,7 @@ export interface ResultCreatePayload {
   reportedValue?: string;
   durationMs?: number;
   failureContextJson?: Record<string, any>;
+  stepDetails?: Record<string, any>;
 }
 
 export interface ResultPublic extends ResultCreatePayload {

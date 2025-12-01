@@ -1,35 +1,42 @@
-<!-- FILE: AdFlowPro_ui/src/components/DebugControlCard.vue -->
 <template>
   <el-card class="card-margin">
     <template #header>
-      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="card-header">
         <span>远程调试</span>
       </div>
     </template>
-    <el-form label-position="top" v-loading="isLoading">
-      <el-form-item>
-        <template #label>
-          <span>调试模式</span>
-          <el-tooltip content="开启后，App会根据下方配置的TAG上报详细日志到服务器后台。" placement="top">
-            <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
-          </el-tooltip>
-        </template>
-        <el-switch v-model="isEnabled" />
-      </el-form-item>
 
-      <el-form-item label="日志TAG过滤" v-if="isEnabled">
+    <!-- Flex 布局保持单行结构 -->
+    <div v-loading="isLoading" class="compact-controls">
+
+      <!-- 左侧：开关组 -->
+      <div class="control-group">
+        <span class="label">调试模式</span>
+        <el-tooltip content="开启后，App会根据右侧配置的TAG上报详细日志到服务器后台。" placement="top">
+          <el-icon class="help-icon"><QuestionFilled /></el-icon>
+        </el-tooltip>
+        <el-switch v-model="isEnabled" />
+      </div>
+
+      <!-- 分割线 -->
+      <div class="divider" v-if="isEnabled"></div>
+
+      <!-- 右侧：TAG 选择器 -->
+      <div class="control-group flex-expand" v-if="isEnabled">
+        <span class="label">TAG过滤:</span>
+        <!-- 移除了 collapse-tags 和 collapse-tags-tooltip -->
         <el-select
-          v-model="selectedTags"
-          multiple
-          filterable
-          placeholder="选择要上报的日志TAG (可留空表示全部)"
-          style="width: 100%"
-          :disabled="!isEnabled"
+            v-model="selectedTags"
+            multiple
+            filterable
+            placeholder="留空则上报全部"
+            class="tag-select"
+            :disabled="!isEnabled"
         >
           <el-option v-for="tag in availableTags" :key="tag" :label="tag" :value="tag" />
         </el-select>
-      </el-form-item>
-    </el-form>
+      </div>
+    </div>
   </el-card>
 </template>
 
@@ -48,14 +55,12 @@ const isEnabled = ref(false);
 const selectedTags = ref<string[]>([]);
 const availableTags = ref<string[]>([]);
 
-// A flag to prevent the watcher from firing on initial data load
 let isInitialLoad = true;
 
 onMounted(async () => {
   isLoading.value = true;
   try {
     const [config, tags] = await Promise.all([
-      // Only try to get config if deviceId is present
       props.deviceId ? deviceService.getDebugConfig(props.deviceId) : Promise.resolve({ enabled: false, tags: [] }),
       deviceService.getAvailableDebugTags(),
     ]);
@@ -66,15 +71,13 @@ onMounted(async () => {
     // Error handled by interceptor
   } finally {
     isLoading.value = false;
-    // After the initial data is loaded, set the flag to false
     setTimeout(() => {
       isInitialLoad = false;
-    }, 100); // A small delay to ensure initial values are settled
+    }, 100);
   }
 });
 
 watch([isEnabled, selectedTags], async (newValue, oldValue) => {
-  // Do not trigger on initial load
   if (isInitialLoad || !props.deviceId) return;
 
   try {
@@ -82,11 +85,8 @@ watch([isEnabled, selectedTags], async (newValue, oldValue) => {
       enabled: isEnabled.value,
       tags: selectedTags.value,
     });
-    // Give a more subtle confirmation as this fires on every change
-    // ElMessage.success("调试配置已下发。");
   } catch (error) {
     ElMessage.error("配置下发失败，设备可能已离线。");
-    // Revert UI on failure
     isEnabled.value = oldValue[0];
     selectedTags.value = oldValue[1];
   }
@@ -94,9 +94,48 @@ watch([isEnabled, selectedTags], async (newValue, oldValue) => {
 </script>
 
 <style scoped>
-.form-item-tooltip {
-  margin-left: 8px;
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.compact-controls {
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  gap: 16px;
+  min-height: 32px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.flex-expand {
+  flex-grow: 1;
+}
+
+.label {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  margin-right: 8px;
+}
+
+.help-icon {
+  margin-right: 8px;
   color: #909399;
   cursor: help;
+}
+
+.tag-select {
+  width: 100%;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--el-border-color);
 }
 </style>
