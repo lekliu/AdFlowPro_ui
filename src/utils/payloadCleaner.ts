@@ -27,6 +27,7 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     press_key: ["keyCode"],
     report_value: ["reportLabel", "leftSource", "leftValue"],
     calculate_value: ["reportLabel", "leftSource", "leftValue"],
+    end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
     assert_text_equals: ["text"],
     jump_to_state: ["targetStateLabel"],
   };
@@ -66,8 +67,17 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     } else {
       const cleanedParameters: any = {};
       for (const paramKey of validParams) {
-        if (action.parameters[paramKey] !== null && action.parameters[paramKey] !== undefined) {
-          cleanedParameters[paramKey] = action.parameters[paramKey];
+        let val = action.parameters[paramKey];
+
+        // Fix: For 'tap' and 'swipe', ensure 0 is treated as a valid value
+        // And critical fix: if value is missing for these actions, force a default 0 to prevent empty params
+        if ((action.action === 'tap' || action.action === 'swipe') && (val === null || val === undefined)) {
+             val = 0;
+        }
+
+        if (val !== null && val !== undefined) {
+          // Defensive fix: Trim string values to remove accidental whitespace
+          cleanedParameters[paramKey] = typeof val === 'string' ? val.trim() : val;
         }
       }
       if (Object.keys(cleanedParameters).length > 0) {
@@ -179,7 +189,9 @@ export const cleanupStateCondition = (stateCondition: any) => {
   const cleanedParams: any = {};
   for (const key of paramsToKeep) {
     if (copy.parameters[key] !== undefined && copy.parameters[key] !== null && copy.parameters[key] !== '') {
-      cleanedParams[key] = copy.parameters[key];
+      // Defensive fix: Trim string values to remove accidental whitespace
+      const val = copy.parameters[key];
+      cleanedParams[key] = typeof val === 'string' ? val.trim() : val;
     }
   }
   copy.parameters = cleanedParams;

@@ -4,6 +4,7 @@ import { ref, computed } from "vue"; // <-- 导入 computed
 import logger from "@/utils/logger";
 import { ElNotification } from "element-plus";
 import { wsService } from "@/services/wsService";
+import { useDeviceStore } from "@/stores/deviceStore";
 
 // Define a type for our log entries for better structure
 export interface LogEntry {
@@ -93,6 +94,20 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
           window.dispatchEvent(customEvent);
           logger.info(`[WS-UI] Dispatched browser event: ${data.type}`, payload);
           return; // Don't add to log panel
+        }
+
+        // --- [新增] 设备上下线状态同步事件 ---
+        if (data.type === "device_connected") {
+          const deviceStore = useDeviceStore();
+          deviceStore.setDeviceOnline(payload.deviceId, true);
+          addLog(`设备上线: ${payload.deviceId}`, "success");
+          return;
+        }
+        if (data.type === "device_disconnected") {
+          const deviceStore = useDeviceStore();
+          deviceStore.setDeviceOnline(payload.deviceId, false);
+          addLog(`设备下线: ${payload.deviceId}`, "warning");
+          return;
         }
 
         // --- 2. 识别并处理即时任务生命周期事件 ---
@@ -236,16 +251,6 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
 
   const isAdhocTaskRunning = computed(() => !!currentAdhocTask.value);
 
-  function abortCurrentAdhocTask() {
-    if (currentAdhocTask.value) {
-      isAbortingAdhocTask.value = true;
-      wsService.sendAbortAdhocTask(
-        currentAdhocTask.value.deviceId,
-        currentAdhocTask.value.correlationId
-      );
-    }
-  }
-
 
 
   return {
@@ -261,6 +266,5 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
     currentAdhocTask,
     isAdhocTaskRunning,
     isAbortingAdhocTask,
-    abortCurrentAdhocTask,
   };
 });

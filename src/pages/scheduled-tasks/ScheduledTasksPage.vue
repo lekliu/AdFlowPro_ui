@@ -24,7 +24,7 @@
         <el-table-column prop="cronExpression" label="CRON表达式" width="140" align="center" />
         <el-table-column prop="isEnabled" label="状态" width="100" align="center">
           <template #default="scope">
-            <el-switch :model-value="scope.row.isEnabled" @change="handleToggleEnable(scope.row, $event)" />
+            <el-switch :model-value="scope.row.isEnabled" @change="handleToggleEnable(scope.row, $event as boolean)" />
           </template>
         </el-table-column>
         <el-table-column label="下次运行时间" prop="nextRunTime" width="180" sortable>
@@ -266,9 +266,9 @@ const handleSubmit = async () => {
       const { scheduleId, suiteType, ...payload } = form;
       try {
         if (isEdit) {
-          await taskStore.updateTask(scheduleId!, payload);
+          await taskStore.updateTask(scheduleId!, payload as any);
         } else {
-          await taskStore.addTask(payload);
+          await taskStore.addTask(payload as any);
         }
         ElMessage.success(`任务 ${isEdit ? "更新" : "创建"}成功！`);
         dialog.visible = false;

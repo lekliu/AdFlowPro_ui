@@ -11,6 +11,14 @@ import "element-plus/dist/index.css"; // Import Element Plus styles
 // (Optional) If you need to import a specific locale for Element Plus
 // import locale from 'element-plus/dist/locale/zh-cn.mjs' // Example: Chinese
 
+import { loader } from "@guolao/vue-monaco-editor";
+// 配置为本地路径 (Vite 中 public 目录下的文件可以直接通过 / 访问)
+loader.config({
+    paths: {
+        vs: "/vs",
+    },
+});
+
 logger.info("AdFlowPro UI is starting..."); // <--- 2. 添加启动日志
 
 const app = createApp(App);

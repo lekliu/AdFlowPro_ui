@@ -37,7 +37,7 @@ export const useJobStore = defineStore("job", {
         this.totalJobs = response.total;
       } catch (err: any) {
         this.error = err.message || "Failed to fetch jobs";
-        ElMessage.error(this.error);
+        ElMessage.error(this.error || "Unknown error");
       } finally {
         this.isLoading = false;
       }
@@ -51,7 +51,7 @@ export const useJobStore = defineStore("job", {
         this.currentJobDetails = await jobService.getJobById(jobId);
       } catch (err: any) {
         this.error = err.message || `Failed to fetch job details for ID ${jobId}`;
-        ElMessage.error(this.error);
+        ElMessage.error(this.error || "Unknown error");
         this.currentJobDetails = null;
       } finally {
         this.isDetailsLoading = false;

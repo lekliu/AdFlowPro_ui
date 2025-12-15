@@ -71,7 +71,7 @@ export interface Matcher {
   // 2. Text-specific fields
   sceneType?: "ui" | "ocr";
   text?: string | string[];
-  matchMode?: "fuzzy" | "fuzzy_with_coords" | "class_and_bounds";
+  matchMode?: "fuzzy" | "fuzzy_with_coords" | "class_and_bounds" | "must_not_contain" | "exact";
   coordinates?: MatcherCoordinates;
 
   // 3. Image-specific fields
@@ -103,6 +103,7 @@ export interface AtomicOperationBase {
   executionCountLimit: number;
   continueAfterMatch: boolean;
   actionLoopCount?: number;
+  supportedDevices?: string[];
 }
 
 export interface AtomicOperationCreatePayload extends AtomicOperationBase {
@@ -124,6 +125,7 @@ export interface AtomicOperationUpdatePayload {
   actionLoopCount?: number;
   continueAfterMatch?: boolean;
   actionsJson?: PerformActionPayload[];
+  supportedDevices?: string[];
 }
 
 export interface AtomicOperationPublic extends AtomicOperationBase {
@@ -135,6 +137,9 @@ export interface AtomicOperationPublic extends AtomicOperationBase {
   actionsJson: PerformActionPayload[];
   createdAt: string;
   updatedAt: string;
+  totalScans?: number;
+  totalMatches?: number;
+  hitRate?: number;
 }
 
 // --- L2: Test Package ---

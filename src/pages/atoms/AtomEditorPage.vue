@@ -3,8 +3,10 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑原子操作' : '新建原子操作'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
-          <el-button @click="goBack">取消</el-button>
-          <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
+          <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试原子操作 </el-button>
+          <el-button type="warning" plain  :icon="Monitor" @click="openCodeMode">代码模式</el-button>
+          <el-button :icon="Close"  @click="goBack">取消</el-button>
+          <el-button type="primary" :icon="Select" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
       </template>
     </el-page-header>
@@ -14,7 +16,6 @@
         <template #header>
           <div class="card-header">
             <span>基础信息</span>
-            <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试此原子操作 </el-button>
           </div>
         </template>
         <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
@@ -24,7 +25,7 @@
                 <el-input v-model="form.name" placeholder="为这个原子操作起一个明确的名称"></el-input>
               </el-form-item>
             </el-col>
-            <el-col :span="8">
+            <el-col :span="6">
               <el-form-item label="所属分类" prop="categoryId">
                 <el-select
                     v-model="form.categoryId"
@@ -40,7 +41,7 @@
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="6">
+            <el-col :span="4">
               <el-form-item prop="priority">
                 <template #label>
                   <span>优先级</span>
@@ -52,9 +53,7 @@
               </el-form-item>
             </el-col>
 
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="10">
+            <el-col :span="4">
               <el-form-item prop="executionCountLimit">
                 <template #label>
                   <span>最大执行次数</span>
@@ -65,7 +64,11 @@
                 <el-input-number v-model="form.executionCountLimit" :min="1" controls-position="right" style="width: 100%" />
               </el-form-item>
             </el-col>
-            <el-col :span="8">
+
+          </el-row>
+          <el-row :gutter="20">
+
+            <el-col :span="5">
               <el-form-item prop="continueAfterMatch">
                 <template #label>
                   <span>匹配后继续扫描</span>
@@ -76,7 +79,7 @@
                 <el-switch v-model="form.continueAfterMatch" />
               </el-form-item>
             </el-col>
-            <el-col :span="6">
+            <el-col :span="5">
               <el-form-item>
                 <template #label>
                   <span>动作序列循环次数</span>
@@ -87,7 +90,24 @@
                 <el-input-number v-model="form.actionLoopCount" :min="1" controls-position="right" style="width: 100%" />
               </el-form-item>
             </el-col>
+
+            <el-col :span="14">
+              <el-form-item prop="supportedDevices">
+                <template #label>
+                  <span>适用机型 (可选)</span>
+                  <el-tooltip placement="top">
+                    <template #content>
+                      <div>留空则适用于所有机型。<br/>支持普通文本(包含匹配)或正则。<br/>例如: "Pixel", "regex:^HUAWEI.*"</div>
+                    </template>
+                    <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <MultiTextInput v-model="form.supportedDevices" placeholder="输入机型关键字或 'regex:...' 后回车" />
+              </el-form-item>
+            </el-col>
+
           </el-row>
+
           <el-form-item label="描述" prop="description">
             <el-input v-model="form.description" type="textarea" placeholder="描述此操作的用途和上下文"></el-input>
           </el-form-item>
@@ -244,6 +264,40 @@
         <el-button type="primary" @click="handleLiveTest" :disabled="!liveTestDialog.targetDeviceId"> 开始 </el-button>
       </template>
     </el-dialog>
+    <el-dialog
+        v-model="codeDialog.visible"
+        title="编程式配置 (Python-like DSL)"
+        width="800px"
+        top="5vh"
+        :close-on-click-modal="false"
+    >
+      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
+        <vue-monaco-editor
+            v-model:value="codeDialog.code"
+            theme="vs"
+            language="python"
+            :options="{
+            minimap: { enabled: false },
+            fontSize: 14,
+            scrollBeyondLastLine: false,
+            automaticLayout: true
+          }"
+            @mount="handleEditorMount"
+        />
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <div style="text-align: left; font-size: 12px; color: #909399; line-height: 1.5">
+            <div>提示：支持一行一条指令，格式如 <code>config(name="Val")</code></div>
+            <div>快捷键：<code>Ctrl+S</code> 可直接应用并关闭 (需实现)</div>
+          </div>
+          <div>
+            <el-button @click="codeDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -254,7 +308,7 @@ import { useRoute } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import { v4 as uuidv4 } from "uuid";
 import StateConditionEditor from "@/components/editors/StateConditionEditor.vue";
-import { Delete, Plus, QuestionFilled, MagicStick } from "@element-plus/icons-vue";
+import { Delete, Plus, QuestionFilled, MagicStick,Select,Close } from "@element-plus/icons-vue";
 import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
 import MultiTextInput from "@/components/MultiTextInput.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
@@ -270,6 +324,9 @@ import { wsService } from "@/services/wsService";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useWebSocketStore } from "@/stores/webSocketStore";
 import { imageTemplateService } from "@/api/imageTemplateService";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import { generateCode, parseCode } from "@/utils/dslService";
+import { Monitor } from "@element-plus/icons-vue"; // 引入一个图标
 
 const props = defineProps<{ atomId?: string | number }>();
 const route = useRoute();
@@ -312,6 +369,7 @@ const createNewFormState = () => ({
   executionCountLimit: 100,
   continueAfterMatch: false,
   actionLoopCount: 1,
+  supportedDevices: [] as string[],
   sceneSnapshotJson: { primaryMatcher: createNewPrimaryMatcher(), secondaryMatchers: [] as SecondaryMatcher[], extractors: [] as Extractor[] },
   actionsJson: [] as (PerformActionPayload & { id: string })[],
   stateCondition: { conditionType: "variable_comparison", parameters: {} } as StateCondition,
@@ -396,6 +454,7 @@ const loadAtomData = async (id: number) => {
       form.executionCountLimit = atom.executionCountLimit;
       form.continueAfterMatch = atom.continueAfterMatch;
       form.actionLoopCount = atom.actionLoopCount || 1;
+      form.supportedDevices = atom.supportedDevices || [];
       form.actionsJson = atom.actionsJson.map((a) => ({ ...a, id: uuidv4() }));
 
       if (atom.sceneSnapshotJson) {
@@ -489,9 +548,24 @@ const handleLiveTest = () => {
       break;
     }
     case "full_atom": {
-      const cleanedSnapshot = cleanupSceneSnapshot(JSON.parse(JSON.stringify(form.sceneSnapshotJson)));
+      // Use cleanup logic based on trigger type
+      let cleanedSnapshot = undefined;
+      let cleanedStateCondition = undefined;
+
+      if (form.triggerType === 'scene') {
+          cleanedSnapshot = cleanupSceneSnapshot(JSON.parse(JSON.stringify(form.sceneSnapshotJson)));
+      } else {
+          cleanedStateCondition = cleanupStateCondition(JSON.parse(JSON.stringify(form.stateCondition)));
+      }
+
       const cleanedActions = cleanupActionSequence(JSON.parse(JSON.stringify(form.actionsJson)));
-      wsService.sendTestFullAtom(liveTestDialog.targetDeviceId, { sceneSnapshotJson: cleanedSnapshot, actionsJson: cleanedActions });
+      
+      wsService.sendTestFullAtom(liveTestDialog.targetDeviceId, {
+        triggerType: form.triggerType,
+        sceneSnapshotJson: cleanedSnapshot,
+        stateCondition: cleanedStateCondition,
+        actionsJson: cleanedActions
+      });
       ElMessage.info("完整原子操作测试请求已发送，请在底部状态栏查看结果。");
       break;
     }
@@ -583,6 +657,207 @@ const handleSave = async () => {
     isSaving.value = false;
   }
 };
+
+// --- Code Mode State ---
+const codeDialog = reactive({
+  visible: false,
+  code: "",
+});
+
+const openCodeMode = () => {
+  // 1. 生成代码
+  codeDialog.code = generateCode(form);
+  codeDialog.visible = true;
+};
+
+const handleApplyCode = () => {
+  try {
+    // 2. 解析代码
+    const updatedForm = parseCode(codeDialog.code, form);
+
+    // 3. 应用变更 (Object.assign 保持响应式引用)
+    // 注意：我们需要深拷贝回来的属性，特别是数组
+    Object.assign(form, updatedForm);
+
+    // 4. 特殊处理：如果是 actionsJson，需要确保 ID 存在 (dslService已经生成了临时ID)
+    // 但为了保险，我们可以重新生成一下 UUID
+    form.actionsJson = updatedForm.actionsJson.map((a: any) => ({
+      ...a,
+      id: a.id || uuidv4()
+    }));
+
+    ElMessage.success("代码配置已应用，界面已更新！");
+    codeDialog.visible = false;
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("代码解析失败，请检查语法格式。");
+  }
+};
+
+// 定义 DSL 智能提示数据
+const createDependencyProposals = (range: any, monaco: any) => {
+  return [
+    // 1. 顶层指令
+    {
+      label: 'config',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '基础配置',
+      insertText: 'config(name="${1:名称}", priority=${2:50})',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
+    },
+    {
+      label: 'description',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '描述信息',
+      insertText: 'description("${1:描述内容}")',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
+    },
+    {
+      label: 'action',
+      kind: monaco.languages.CompletionItemKind.Module,
+      documentation: '动作命名空间',
+      insertText: 'action',
+      range: range
+    },
+    {
+      label: 'match',
+      kind: monaco.languages.CompletionItemKind.Module,
+      documentation: '匹配命名空间',
+      insertText: 'match',
+      range: range
+    },
+    {
+      label: 'filter',
+      kind: monaco.languages.CompletionItemKind.Module,
+      documentation: '过滤器命名空间',
+      insertText: 'filter',
+      range: range
+    },
+    {
+      label: 'and_match',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '包含条件 (AND)',
+      insertText: 'and_match(text="${1:text}")',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
+    },
+    {
+      label: 'not_match',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '排除条件 (NOT)',
+      insertText: 'not_match(text="${1:text}")',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
+    }
+  ];
+};
+
+const createActionProposals = (range: any, monaco: any) => {
+  const actions = [
+    { label: 'click', args: 'text="${1:text}"', doc: '点击元素' },
+    { label: 'input_text', args: 'text="${1:text}"', doc: '输入文本' },
+    { label: 'wait', args: 'ms=${1:1000}', doc: '等待毫秒' },
+    { label: 'swipe', args: 'start_x=${1:500}, start_y=${2:1000}, end_y=${3:200}, ms=${4:500}', doc: '滑动' },
+    { label: 'tap', args: 'x=${1:0}, y=${2:0}', doc: '坐标点击' },
+    { label: 'press_key', args: 'keyCode="${1:home}"', doc: '按物理键' },
+    { label: 'assert_text_equals', args: 'text="${1:text}"', doc: '断言文本相等' },
+    { label: 'report_value', args: 'var="${1:key}", val="${2:value}"', doc: '上报数据' },
+    { label: 'kill_app', args: 'package="${1:com.example}"', doc: '杀进程' },
+    { label: 'wake_up', args: '', doc: '唤醒屏幕' },
+    { label: 'sleep', args: '', doc: '熄屏' },
+  ];
+
+  return actions.map(act => ({
+    label: act.label,
+    kind: monaco.languages.CompletionItemKind.Method,
+    documentation: act.doc,
+    insertText: `${act.label}(${act.args})`,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    range: range
+  }));
+};
+
+const createMatchProposals = (range: any, monaco: any) => {
+  return [
+    { label: 'ui', insertText: 'ui(text="${1:text}", mode="fuzzy")', doc: '匹配UI元素。Mode: fuzzy, exact, all_match, not_all_match' },
+    { label: 'ocr', insertText: 'ocr(text="${1:text}")', doc: '匹配OCR文本。Mode: fuzzy, exact, regex' },
+    { label: 'image', insertText: 'image(id="${1:templateId}")', doc: '匹配图元' },
+  ].map(m => ({
+    label: m.label,
+    kind: monaco.languages.CompletionItemKind.Method,
+    documentation: m.doc,
+    insertText: m.insertText,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    range: range
+  }));
+};
+
+const createFilterProposals = (range: any, monaco: any) => {
+  return [
+    { label: 'region', insertText: 'region("${1:BOTTOM_CENTER}")', doc: '屏幕区域过滤' },
+    { label: 'spatial', insertText: 'spatial(op="${1:RIGHT_OF}", anchor="${2:text}")', doc: '空间位置过滤' },
+  ].map(m => ({
+    label: m.label,
+    kind: monaco.languages.CompletionItemKind.Method,
+    documentation: m.doc,
+    insertText: m.insertText,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    range: range
+  }));
+};
+
+// 编辑器加载完成后的回调
+const handleEditorMount = (editor: any, monacoInstance: any) => {
+  // 1. 注册自动补全提供者
+  monacoInstance.languages.registerCompletionItemProvider('python', {
+    triggerCharacters: ['.'], // 键入 . 时触发
+    provideCompletionItems: function (model: any, position: any) {
+      // 获取当前行直到光标位置的文本
+      const textUntilPosition = model.getValueInRange({
+        startLineNumber: position.lineNumber,
+        startColumn: 1,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column
+      });
+
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn
+      };
+
+      // 1. 如果输入了 'action.'，提示动作
+      if (textUntilPosition.match(/action\.$/)) {
+        return { suggestions: createActionProposals(range, monacoInstance) };
+      }
+      // 2. 如果输入了 'match.'，提示匹配器
+      if (textUntilPosition.match(/match\.$/)) {
+        return { suggestions: createMatchProposals(range, monacoInstance) };
+      }
+      // 3. 如果输入了 'filter.'，提示过滤器
+      if (textUntilPosition.match(/filter\.$/)) {
+        return { suggestions: createFilterProposals(range, monacoInstance) };
+      }
+
+      // 4. 默认提示顶层指令 (不在注释行内)
+      if (!textUntilPosition.trim().startsWith('#') && !textUntilPosition.includes('.')) {
+        return { suggestions: createDependencyProposals(range, monacoInstance) };
+      }
+
+      return { suggestions: [] };
+    }
+  });
+
+  // 2. 绑定 Ctrl+S 保存快捷键
+  editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+    handleApplyCode();
+  });
+};
+
 </script>
 
 <style scoped>
@@ -598,7 +873,8 @@ const handleSave = async () => {
 
 /* Adjust the font size of the page header content to be more compact */
 :deep(.sticky-header .el-page-header__content) {
-  font-size: 16px;
+  margin-top: 5px;
+  font-size: 14px;
 }
 /* Reduce header height */
 :deep(.sticky-header .el-page-header__header) {

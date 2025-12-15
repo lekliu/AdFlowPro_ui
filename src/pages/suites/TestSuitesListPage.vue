@@ -1,36 +1,49 @@
 <template>
-  <div class="suites-list-page">
+  <div class="suites-list-page" @click="closeContextMenu">
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>测试套件管理</span>
-          <el-button type="primary" :icon="Plus" @click="handleCreate">新建测试套件</el-button>
+          <span class="title">测试套件管理</span>
+
+          <!-- 批量操作和新建 -->
+          <el-button-group class="header-button-group">
+            <el-button :icon="Plus" type="primary" @click="handleCreate">新建套件</el-button>
+            <el-button :icon="VideoPlay" type="success" @click="handleRunSelected" :disabled="selectedSuites.length !== 1">运行</el-button>
+            <el-button :icon="Document" type="info" @click="handleViewPackageSelected" :disabled="selectedSuites.length !== 1">剧本</el-button>
+            <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedSuites.length !== 1">编辑</el-button>
+            <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedSuites.length === 0">删除</el-button>
+          </el-button-group>
+
+          <!-- 搜索和筛选器 (推到最右侧) -->
+          <div class="filter-group-auto">
+            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 300px; margin-right: 10px">
+              <template #append>
+                <el-button :icon="Search" @click="handleSearch" />
+              </template>
+            </el-input>
+          </div>
         </div>
       </template>
 
-      <div class="filter-container">
-        <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 300px; margin-right: 10px">
-          <template #append>
-            <el-button :icon="Search" @click="handleSearch" />
-          </template>
-        </el-input>
-      </div>
-
-      <el-table :data="suiteStore.suites" v-loading="suiteStore.isLoading" style="width: 100%" border stripe>
-        <el-table-column type="index" width="50" label="号" />
-        <el-table-column prop="name" label="名称" width="160" sortable />
-        <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
+      <el-table
+          :data="suiteStore.suites"
+          v-loading="suiteStore.isLoading"
+          style="width: 100%"
+          border
+          stripe
+          @selection-change="handleSelectionChange"
+          @row-click="handleRowClick"
+          @row-dblclick="handleRowDblClick"
+          @row-contextmenu="handleRowContextMenu"
+          ref="suiteTableRef"
+      >
+        <el-table-column type="selection" width="40" />
+        <el-table-column prop="suiteId" label="ID" width="90" sortable />
+        <el-table-column prop="name" label="名称" width="180" sortable />
+        <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
         <el-table-column prop="targetAppPackage" label="目标App" min-width="180" show-overflow-tooltip />
-        <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
+        <el-table-column label="创建时间" prop="createdAt" width="160" sortable>
           <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
-          <template #default="scope">
-            <el-button size="small" type="success" :icon="VideoPlay" plain @click="handleRunSuite(scope.row)">运行</el-button>
-            <el-button size="small" :icon="Document" plain @click="handleViewPackage(scope.row)">剧本</el-button>
-            <el-button size="small" type="primary" :icon="Edit" @click="handleEdit(scope.row.suiteId)" />
-            <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(scope.row.suiteId, scope.row.name)" />
-          </template>
         </el-table-column>
       </el-table>
 
@@ -107,6 +120,26 @@
         <el-button @click="packageDialog.visible = false">关闭</el-button>
       </template>
     </el-dialog>
+    <!-- 2. 新增：右键菜单 -->
+    <div
+        v-show="contextMenu.visible"
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+    >
+      <div class="menu-item" @click="handleEditFromMenu">
+        <el-icon><Edit /></el-icon> 编辑
+      </div>
+      <div class="menu-item" @click="handleRunFromMenu">
+        <el-icon><VideoPlay /></el-icon> 运行
+      </div>
+      <div class="menu-item" @click="handleViewPackageFromMenu">
+        <el-icon><Document /></el-icon> 剧本
+      </div>
+      <div class="menu-divider"></div>
+      <div class="menu-item danger" @click="handleDeleteFromMenu">
+        <el-icon><Delete /></el-icon> 删除
+      </div>
+    </div>
   </div>
 </template>
 
@@ -114,13 +147,14 @@
 defineOptions({
   name: "TestSuitesList",
 });
-import { ref, onMounted, computed, reactive, onActivated, nextTick } from "vue";
+import { ref, onMounted, computed, reactive, onActivated, nextTick, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { jobService } from "@/api/jobService";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type ElTree } from "element-plus";
+import type { ElTable } from "element-plus";
 import { Plus, Edit, Delete, Search, VideoPlay, Document } from "@element-plus/icons-vue";
 import type { TestSuiteListPublic } from "@/types/api";
 import dayjs from "dayjs";
@@ -138,6 +172,8 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const searchQuery = ref("");
 const treeRef = ref<InstanceType<typeof ElTree>>();
+const suiteTableRef = ref<InstanceType<typeof ElTable>>();
+const selectedSuites = ref<TestSuiteListPublic[]>([]);
 
 const fetchData = () => {
   const params = {
@@ -178,9 +214,70 @@ const handleCreate = () => {
   router.push({ name: "TestSuiteEditor" });
 };
 
+const handleRunSelected = () => {
+  if (selectedSuites.value.length === 1) {
+    handleRunSuite(selectedSuites.value[0]);
+  }
+};
+
+const handleViewPackageSelected = () => {
+  if (selectedSuites.value.length === 1) {
+    handleViewPackage(selectedSuites.value[0]);
+  }
+};
+
 const handleEdit = (suiteId: number) => {
   router.push({ name: "TestSuiteEditor", params: { suiteId } });
 };
+
+const handleSelectionChange = (selection: TestSuiteListPublic[]) => {
+  selectedSuites.value = selection;
+};
+
+// 点击行时触发选中/取消选中
+const handleRowClick = (row: TestSuiteListPublic) => {
+  if (suiteTableRef.value) {
+    const isSelected = selectedSuites.value.some(item => item.suiteId === row.suiteId);
+    suiteTableRef.value.toggleRowSelection(row, !isSelected);
+  }
+};
+
+// 双击行进入编辑页面
+const handleRowDblClick = (row: TestSuiteListPublic) => {
+  if (row && row.suiteId) {
+    handleEdit(row.suiteId);
+  }
+};
+
+const handleEditSelected = () => {
+  if (selectedSuites.value.length === 1) {
+    handleEdit(selectedSuites.value[0].suiteId);
+  } else {
+    ElMessage.warning("请选择且只选择一个测试套件进行编辑。");
+  }
+};
+
+const handleDeleteSelected = async () => {
+  if (selectedSuites.value.length === 0) return;
+  const names = selectedSuites.value.map(a => a.name).join(', ');
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedSuites.value.length} 个测试套件吗？\n涉及: ${names}`, "确认批量删除", {
+      type: "warning",
+      dangerouslyUseHTMLString: true,
+    });
+
+    const deletePromises = selectedSuites.value.map(s => suiteStore.deleteSuite(s.suiteId));
+
+    await Promise.all(deletePromises);
+
+    ElMessage.success(`成功删除 ${selectedSuites.value.length} 个测试套件！`);
+    fetchData(); // 重新加载数据以更新列表
+  } catch (error) {
+    if (error === 'cancel') ElMessage.info("已取消删除");
+    // 其他错误（如依赖冲突）由 API 拦截器处理
+  }
+};
+
 
 const handleDelete = async (suiteId: number, name: string) => {
   try {
@@ -313,7 +410,6 @@ const confirmRun = async () => {
       try {
         const createdJob = await jobService.createJob({
           suiteId: runDialog.suite!.suiteId,
-          suiteType: "linear", // This needs to be dynamic in the future
           targetAppPackageName: runDialog.form.targetAppPackageName,
           deviceId: runDialog.form.deviceId,
         });
@@ -344,19 +440,91 @@ const formatDate = (dateString: string | Date): string => {
   if (!dateString) return "N/A";
   return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
 };
+
+// --- 右键菜单状态 ---
+const contextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null as TestSuiteListPublic | null,
+});
+
+// 处理右键点击
+const handleRowContextMenu = (row: TestSuiteListPublic, column: any, event: MouseEvent) => {
+  // 1. 阻止浏览器默认右键菜单
+  event.preventDefault();
+
+  // 2. 选中当前行 (可选，看交互习惯，通常右键点击也意味着关注该行)
+  if (suiteTableRef.value) {
+    suiteTableRef.value.clearSelection();
+    suiteTableRef.value.toggleRowSelection(row, true);
+    selectedSuites.value = [row];
+  }
+
+  // 3. 记录行数据和坐标
+  contextMenu.row = row;
+  contextMenu.x = event.clientX;
+  contextMenu.y = event.clientY;
+
+  // 4. 显示菜单
+  contextMenu.visible = true;
+};
+
+// 关闭菜单
+const closeContextMenu = () => {
+  contextMenu.visible = false;
+};
+
+// --- 菜单项动作 ---
+const handleEditFromMenu = () => {
+  if (contextMenu.row) {
+    handleEdit(contextMenu.row.suiteId);
+  }
+  closeContextMenu();
+};
+
+const handleRunFromMenu = () => {
+  if (contextMenu.row) {
+    handleRunSuite(contextMenu.row);
+  }
+  closeContextMenu();
+};
+
+const handleViewPackageFromMenu = () => {
+  if (contextMenu.row) {
+    handleViewPackage(contextMenu.row);
+  }
+  closeContextMenu();
+};
+
+const handleDeleteFromMenu = () => {
+  if (contextMenu.row) {
+    handleDelete(contextMenu.row.suiteId, contextMenu.row.name);
+  }
+  closeContextMenu();
+};
+
+// 监听滚动以关闭菜单 (防止菜单漂浮)
+onMounted(() => {
+  window.addEventListener('scroll', closeContextMenu, true);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', closeContextMenu, true);
+});
 </script>
 
 <style scoped>
 .suites-list-page {
-  padding: 0px;
+  padding: 0;
 }
 .card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 15px;
 }
-.filter-container {
-  margin-bottom: 20px;
+.filter-group-auto {
+  margin-left: auto;
 }
 .pagination-container {
   margin-top: 20px;
@@ -383,5 +551,49 @@ const formatDate = (dateString: string | Date): string => {
   white-space: pre-wrap;
   word-break: break-all;
   line-height: 1.5;
+}
+.context-menu {
+  position: fixed;
+  background-color: #fff;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 5px 0;
+  z-index: 2000; /* 确保在最上层 */
+  min-width: 120px;
+}
+
+.menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #606266;
+  transition: background-color 0.2s;
+}
+
+.menu-item:hover {
+  background-color: #ecf5ff;
+  color: var(--el-color-primary);
+}
+
+.menu-item .el-icon {
+  font-size: 14px;
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: #ebeef5;
+  margin: 5px 0;
+}
+
+.menu-item.danger {
+  color: #f56c6c;
+}
+
+.menu-item.danger:hover {
+  background-color: #fef0f0;
 }
 </style>

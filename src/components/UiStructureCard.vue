@@ -45,7 +45,7 @@ const props = defineProps<{
 
 defineEmits(["fetchUiStructure"]);
 
-const isAllExpanded = ref<boolean | null>(null);
+const isAllExpanded = ref<boolean>(false);
 
 const fullText = computed(() => {
   if (!props.structure) return "";

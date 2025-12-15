@@ -3,6 +3,7 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑测试套件' : '新建测试套件'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
+          <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button @click="goBack">取消</el-button>
           <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
@@ -159,6 +160,36 @@
         </el-col>
       </el-row>
     </div>
+
+    <!-- 在 root div 的最后添加弹窗 -->
+    <el-dialog
+        v-model="codeDialog.visible"
+        title="编程式配置 (Suite DSL)"
+        width="800px"
+        top="5vh"
+        :close-on-click-modal="false"
+    >
+      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
+        <vue-monaco-editor
+            v-model:value="codeDialog.code"
+            theme="vs"
+            language="python"
+            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
+            @mount="handleEditorMount"
+        />
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="color: #909399; font-size: 12px">
+        提示：请确保 Case ID 真实存在。
+      </span>
+          <div>
+            <el-button @click="codeDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -166,7 +197,7 @@
 defineOptions({
   name: "TestSuiteEditor",
 });
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
@@ -176,6 +207,11 @@ import { useCaseStore } from "@/stores/caseStore";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { TestSuiteCreatePayload, TestSuiteUpdatePayload, TestCaseListPublic } from "@/types/api";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import { generateSuiteCode, parseSuiteCode } from "@/utils/dslService";
+import { Monitor } from "@element-plus/icons-vue";
+
+const props = defineProps<{ suiteId?: string | number }>();
 
 const route = useRoute();
 const router = useRouter();
@@ -184,7 +220,7 @@ const caseStore = useCaseStore();
 const suiteStore = useSuiteStore();
 const tabStore = useTabStore();
 
-const suiteId = computed(() => (route.params.suiteId ? Number(route.params.suiteId) : null));
+const suiteId = computed(() => (props.suiteId ? Number(props.suiteId) : null));
 const isEditMode = computed(() => !!suiteId.value);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -299,6 +335,48 @@ const handleSave = async () => {
     isSaving.value = false;
   }
 };
+
+// --- Code Mode ---
+const codeDialog = reactive({
+  visible: false,
+  code: "",
+});
+
+const openCodeMode = () => {
+  codeDialog.code = generateSuiteCode(form);
+  codeDialog.visible = true;
+};
+
+const handleApplyCode = () => {
+  try {
+    // 传入 caseStore.cases 作为全量池
+    const updatedForm = parseSuiteCode(codeDialog.code, form, caseStore.cases);
+    Object.assign(form, updatedForm);
+    ElMessage.success("代码配置已应用！");
+    codeDialog.visible = false;
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("代码解析失败。");
+  }
+};
+
+const handleEditorMount = (editor: any, monacoInstance: any) => {
+  monacoInstance.languages.registerCompletionItemProvider('python', {
+    triggerCharacters: ['.', '('],
+    provideCompletionItems: function (model: any, position: any) {
+      const suggestions = [
+        { label: 'config', insertText: 'config(name="${1:Name}", app="${2:com.pkg}")', kind: monacoInstance.languages.CompletionItemKind.Function },
+        { label: 'params', insertText: 'params(timeout=${1:30}, delay=${2:1000})', kind: monacoInstance.languages.CompletionItemKind.Function },
+        { label: 'case.call', insertText: 'case.call(id=${1:ID})', kind: monacoInstance.languages.CompletionItemKind.Function },
+      ];
+      return { suggestions };
+    }
+  });
+
+  editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+    handleApplyCode();
+  });
+};
 </script>
 
 <style scoped>
@@ -312,11 +390,10 @@ const handleSave = async () => {
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
-/* Adjust the font size of the page header content to be more compact */
 :deep(.sticky-header .el-page-header__content) {
-  font-size: 16px;
+  margin-top: 5px;
+  font-size: 14px;
 }
-/* Reduce header height */
 :deep(.sticky-header .el-page-header__header) {
   height: 32px;
   line-height: 32px;
@@ -326,7 +403,7 @@ const handleSave = async () => {
   padding: 0;
 }
 .editor-content-wrapper {
-  padding: 0px;
+  padding: 0;
 }
 .pool-card,
 .build-card {
@@ -377,6 +454,7 @@ const handleSave = async () => {
 }
 .item-text {
   flex-grow: 1;
+  font-size: 13px;
 }
 .drag-handle {
   cursor: grab;

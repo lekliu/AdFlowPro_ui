@@ -88,6 +88,10 @@
           <el-icon><CollectionTag /></el-icon>
           <span>原子操作分类</span>
         </el-menu-item>
+        <el-menu-item index="/platform-settings/import-export">
+          <el-icon><UploadFilled /></el-icon>
+          <span>数据导入导出</span>
+        </el-menu-item>
       </el-sub-menu>
     </el-menu>
   </div>
@@ -113,7 +117,7 @@ import {
   Management,
   Cpu,
   Share,
-  CollectionTag,
+  CollectionTag, UploadFilled,
 } from "@element-plus/icons-vue";
 
 defineProps<{

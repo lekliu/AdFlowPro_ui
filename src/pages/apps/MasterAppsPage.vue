@@ -30,16 +30,16 @@
         <el-table-column prop="packageName" label="应用包名" min-width="180" sortable />
         <el-table-column prop="versionName" label="版本" width="100" />
         <el-table-column prop="weight" label="权重" width="100" sortable />
-        <el-table-column prop="defaultSuiteName" label="默认测试套件" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="defaultSuiteName" label="默认测试套件" min-width="100" show-overflow-tooltip>
           <template #default="scope">
             <el-tag v-if="scope.row.defaultSuiteName" type="info">{{ scope.row.defaultSuiteName }}</el-tag>
             <span v-else>--</span>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="apkUrl" label="下载地址" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="apkUrl" label="下载地址" min-width="100" show-overflow-tooltip />
 
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="270" fixed="right">
           <template #default="scope">
             <el-button size="small" type="warning" :icon="Upload" @click="handleOpenPullDialog(scope.row)">拉取</el-button>
             <el-button size="small" type="success" :icon="Download" :disabled="!scope.row.apkUrl" @click="handleOpenInstallDialog(scope.row)"
@@ -84,7 +84,7 @@
               <el-input-number v-model="form.versionCode" :min="0" controls-position="right" style="width: 100%" placeholder="例如: 2460" />
             </el-form-item>
             <el-form-item label="权重" prop="weight">
-              <el-input-number v-model="form.weight" :min="0" :max="100000" step="100" controls-position="right" style="width: 100%" />
+              <el-input-number v-model="form.weight" :min="0" :max="100000" :step="100" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -466,7 +466,7 @@ const handleInstall = async () => {
 
 <style scoped>
 .master-apps-page {
-  padding: 0px;
+  padding: 0;
 }
 .card-header {
   display: flex;

@@ -77,5 +77,19 @@ export const useDeviceStore = defineStore("device", {
       }
     },
     // ==================== 核心修复区域 结束 ====================
+
+    // [新增] 实时设置设备在线状态 (供 WebSocket 事件调用)
+    setDeviceOnline(deviceId: string, isOnline: boolean) {
+      // 1. 更新列表中的状态
+      const deviceInList = this.devices.find((d) => d.deviceId === deviceId);
+      if (deviceInList) {
+        deviceInList.isConnectedWs = isOnline;
+        if (isOnline) deviceInList.lastSeenAt = new Date().toISOString();
+      }
+      // 2. 如果当前正查看该设备的详情，也同步更新
+      if (this.selectedDevice?.deviceId === deviceId) {
+        this.selectedDevice.isConnectedWs = isOnline;
+      }
+    },
   },
 });

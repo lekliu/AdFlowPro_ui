@@ -1,10 +1,12 @@
 // FILE: AdFlowPro_ui/src/services/wsService.ts
 import { useWebSocketStore } from "@/stores/webSocketStore";
-import type { PerformActionPayload, SceneSnapshot } from "@/types/api";
+import type { PerformActionPayload, SceneSnapshot, StateCondition } from "@/types/api";
 import { ElMessage } from "element-plus";
 
 interface AtomDataPayload {
-  sceneSnapshotJson: SceneSnapshot;
+  triggerType: "scene" | "state";
+  sceneSnapshotJson?: SceneSnapshot;
+  stateCondition?: StateCondition;
   actionsJson: PerformActionPayload[];
 }
 

@@ -11,11 +11,7 @@
       <!-- Variable Comparison Editor -->
       <div v-if="editableCondition.conditionType === 'variable_comparison'">
         <div class="comparison-row">
-          <el-select v-model="editableCondition.parameters.leftSource" placeholder="来源" style="width: 300px">
-            <el-option label="变量" value="variable" />
-            <el-option label="公式" value="expression" />
-          </el-select>
-          <el-input v-model="editableCondition.parameters.leftValue" placeholder="变量名 / 公式" />
+          <el-input v-model="editableCondition.parameters.leftValue" placeholder="左值 (支持公式/变量{v})" />
           <el-select v-model="editableCondition.parameters.comparisonOperator" placeholder="操作符" style="width: 250px">
             <el-option label=">" value=">" />
             <el-option label=">=" value=">=" />
@@ -25,11 +21,7 @@
             <el-option label="!=" value="!=" />
             <el-option label="包含" value="contains" />
           </el-select>
-          <el-select v-model="editableCondition.parameters.rightSource" placeholder="来源" style="width: 300px">
-            <el-option label="固定值" value="value" />
-            <el-option label="变量" value="variable" />
-          </el-select>
-          <el-input v-model="editableCondition.parameters.rightValue" placeholder="值 / 变量名" />
+          <el-input v-model="editableCondition.parameters.rightValue" placeholder="右值 (支持公式/变量{v})" />
         </div>
       </div>
 
@@ -59,9 +51,7 @@ const emit = defineEmits(["update:modelValue"]);
 const createDefaultCondition = (): StateCondition => ({
   conditionType: "variable_comparison",
   parameters: {
-    leftSource: "variable",
     comparisonOperator: "==",
-    rightSource: "value",
   },
 });
 
@@ -73,9 +63,7 @@ watch(
     // Reset parameters when type changes to avoid carrying over old values
     if (newType === 'variable_comparison') {
       editableCondition.parameters = {
-        leftSource: "variable",
         comparisonOperator: "==",
-        rightSource: "value",
       };
     } else if (newType === 'app_foreground_check') {
       editableCondition.parameters = {

@@ -1,7 +1,5 @@
 // 文件路径: src/types/api/scheduledTask.ts (新文件)
 
-import type { ApiBaseModel } from "./common";
-
 /**
  * 定时任务的基础负载
  */

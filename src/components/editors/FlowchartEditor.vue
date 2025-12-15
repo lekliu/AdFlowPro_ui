@@ -22,9 +22,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, defineExpose, defineAsyncComponent } from "vue";
-import LogicFlow, { type BaseNodeModel, type BaseEdgeModel, type GraphConfigData, type GraphData } from "@logicflow/core";
-import { DndPanel, SelectionSelect, Snapshot, Menu, Control } from "@logicflow/extension";
+import { ref, onMounted, onUnmounted, watch, defineExpose } from "vue";
+import LogicFlow, { type BaseNodeModel, type BaseEdgeModel } from "@logicflow/core";
+import type GraphData from "@logicflow/core";
+
+// import { DndPanel, SelectionSelect, Snapshot, Menu, Control } from "@logicflow/extension";
 import "@logicflow/core/lib/style/index.css";
 import "@logicflow/extension/lib/style/index.css";
 
@@ -40,10 +42,10 @@ import { usePackageStore } from "@/stores/packageStore";
 import { useRouter } from "vue-router";
 
 // 全局静态注册插件
-LogicFlow.use(DndPanel);
-LogicFlow.use(SelectionSelect);
-LogicFlow.use(Snapshot);
-LogicFlow.use(Control);
+// LogicFlow.use(DndPanel);
+// LogicFlow.use(SelectionSelect);
+// LogicFlow.use(Snapshot);
+// LogicFlow.use(Control);
 
 const props = defineProps<{
   graphData: (GraphData & { globalAtomIds?: number[] }) | null;
@@ -78,9 +80,47 @@ const handleFullscreenChange = () => {
   isFullscreen.value = !!document.fullscreenElement;
 };
 
-onMounted(() => {
+// --- 3. 重写 onMounted ---
+onMounted(async () => {
   atomStore.fetchAtoms({ skip: 0, limit: 2000 });
   packageStore.fetchPackages({ skip: 0, limit: 2000 });
+
+  // === 核心修复：动态加载 LogicFlow 扩展，并隔离 AMD 环境 ===
+  let DndPanel, SelectionSelect, Snapshot, Menu, Control;
+
+  try {
+    // 1. 暂存 define.amd
+    const globalDefine = (window as any).define;
+    let storedAmd: any = undefined;
+
+    if (globalDefine && globalDefine.amd) {
+      storedAmd = globalDefine.amd;
+      globalDefine.amd = false; // 暂时禁用 AMD，欺骗 rangy
+    }
+
+    // 2. 动态导入扩展库 (rangy 会在这里面执行)
+    const extensionModule = await import("@logicflow/extension");
+    DndPanel = extensionModule.DndPanel;
+    SelectionSelect = extensionModule.SelectionSelect;
+    Snapshot = extensionModule.Snapshot;
+    Menu = extensionModule.Menu;
+    Control = extensionModule.Control;
+
+    // 3. 注册插件
+    LogicFlow.use(DndPanel);
+    LogicFlow.use(SelectionSelect);
+    LogicFlow.use(Snapshot);
+    LogicFlow.use(Menu);
+    LogicFlow.use(Control);
+
+    // 4. 恢复 define.amd
+    if (globalDefine && storedAmd) {
+      globalDefine.amd = storedAmd;
+    }
+  } catch (e) {
+    console.error("Failed to load LogicFlow extensions:", e);
+  }
+  // ========================================================
 
   if (container.value) {
     resizeObserver = new ResizeObserver((entries) => {
@@ -90,26 +130,32 @@ onMounted(() => {
           container: container.value as HTMLElement,
           grid: true,
           background: { backgroundColor: "#f7f9ff" },
-          keyboard: {   enabled: true,      },
-          plugins: [DndPanel, SelectionSelect, Snapshot, Menu],
+          keyboard: { enabled: true },
+          plugins: [DndPanel, SelectionSelect, Snapshot, Menu], // 使用动态加载的变量
         });
+
+        // ... (lf.register, lf.setMenuConfig 等代码保持不变) ...
+
         lf.register(StartNode);
         lf.register(StateNode);
         lf.register(EndNode);
         lf.setMenuConfig({
           nodeMenu: [
-            { text: "编辑文本", callback: (node) => lf?.editText(node.id) },
-            { text: "复制节点", callback: (node) => lf?.cloneNode(node.id) },
-            { text: "删除节点", callback: (node) => handleConfirmAndDelete([node]) },
+            { text: "编辑文本", callback: (node: any) => lf?.editText(node.id) },
+            { text: "复制节点", callback: (node: any) => lf?.cloneNode(node.id) },
+            { text: "删除节点", callback: (node: any) => handleConfirmAndDelete([node]) },
           ],
           edgeMenu: [
-            { text: "编辑文本", callback: (edge) => lf?.editText(edge.id) },
-            { text: "删除连接", callback: (edge) => handleConfirmAndDelete([edge]) },
+            { text: "编辑文本", callback: (edge: any) => lf?.editText(edge.id) },
+            { text: "删除连接", callback: (edge: any) => handleConfirmAndDelete([edge]) },
           ],
           graphMenu: [],
         });
+
         if (dndPanel.value && lf.extension.dndPanel) {
-          (lf.extension.dndPanel as DndPanel).setPatternItems([
+          // 注意：这里需要断言类型，因为 DndPanel 是动态导入的，TS 可能推断为 any
+          (lf.extension.dndPanel as any).setPatternItems([
+            // ... (PatternItems 保持不变) ...
             { type: "StartNode", label: "开始节点", className: "dnd-node-item start-node",
               icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAAH6ji2bAAAABGdBTUEAALGPC/xhBQAAAnBJREFUOBGdVL1rU1EcPfdGBddmaZLiEhdx1MHZQXApraCzQ7GKLgoRBxMfcRELuihWKcXFRcEWF8HBf0DdDCKYRZpnl7p0svLe9Zzbd29eQhTbC8nv+9zf130AT63jvooOGS8Vf9Nt5zxba7sXQwODfkWpkbjTQfCGUd9gIp3uuPP8bZ946g56dYQvnBg+b1HB8VIQmMFrazKcKSvFW2dQTxJnJdQ77urmXWOMBCmXM2Rke4S7UAW+/8ywwFoewmBps2tu7mbTdp8VMOkIRAkKfrVawalJTtIliclFbaOBqa0M2xImHeVIfd/nKAfVq/LGnPss5Kh00VEdSzfwnBXPUpmykNss4lUI9C1ga+8PNrBD5YeqRY2Zz8PhjooIbfJXjowvQJBqkmEkVnktWhwu2SM7SMx7Cj0N9IC0oQXRo8xwAGzQms+xrB/nNSUWVveI48ayrFGyC2+E2C+aWrZHXvOuz+CiV6iycWe1Rd1Q6+QUG07nb5SbPrL4426d+9E1axKjY3AoRrlEeSQo2Eu0T6BWAAr6COhTcWjRaYfKG5csnvytvUr/WY4rrPMB53Uo7jZRjXaG6/CFfNMaXEu75nG47X+oepU7PKJvvzGDY1YLSKHJrK7vFUwXKkaxwhCW3u+sDFMVrIju54RYYbFKpALZAo7sB6wcKyyrd+aBMryMT2gPyD6GsQoRFkGHr14TthZni9ck0z+Pnmee460mHXbRAypKNy3nuMdrWgVKj8YVV8E7PSzp1BZ9SJnJAsXdryw/h5ctboUVi4AFiCd+lQaYMw5z3LGTBKjLQOeUF35k89f58Vv/tGh+l+PE/wG0rgfIUbZK5AAAAABJRU5ErkJggg==',
             },
@@ -121,6 +167,8 @@ onMounted(() => {
             },
           ]);
         }
+
+        // ... (lf.on 监听器等保持不变) ...
         lf.on("node:delete", ({ data }) => { handleConfirmAndDelete([data]); return false; });
         lf.on("edge:delete", ({ data }) => { handleConfirmAndDelete([data]); return false; });
         lf.on("connection:not-allowed", (data) => { if (data.msg) ElMessage.warning(data.msg); });
@@ -130,7 +178,7 @@ onMounted(() => {
         });
         lf.on("blank:click", () => { activeElement.value = null; });
         if (props.graphData) {
-          lf.render(props.graphData);
+          lf.render(props.graphData as any);
         } else {
           lf.render({ nodes: [], edges: [] });
         }
@@ -166,7 +214,7 @@ watch(
       }
       if (lf) {
         if (newData && newData.nodes && newData.nodes.length > 0) {
-          lf.render(newData);
+          lf.render(props.graphData as any);
         } else {
           lf.clearData();
         }
@@ -203,7 +251,7 @@ const handleConfirmAndDelete = (elements: any[]) => {
 
   // 检查是否正在删除最后一个“开始节点”
   if (model.type === 'StartNode') {
-    const totalStartNodes = lf.graphModel.nodes.filter(n => n.type === 'StartNode').length;
+    const totalStartNodes = lf.graphModel.nodes.filter((n: any) => n.type === 'StartNode').length;
     if (totalStartNodes <= 1) {
       ElMessage.error("操作失败：必须至少保留一个“开始节点”。");
       return; // 阻止删除
@@ -217,7 +265,7 @@ const handleConfirmAndDelete = (elements: any[]) => {
     confirmButtonText: "删除",
     cancelButtonText: "取消",
     type: "warning",
-    appendTo: editorWrapperRef.value,
+    appendTo: editorWrapperRef.value!,
   }).then(() => {
     // 执行删除
     if (model.BaseType === "node") {
@@ -232,10 +280,11 @@ const handleConfirmAndDelete = (elements: any[]) => {
   });
 };
 
-const getData = (): (GraphData & { globalAtomIds?: number[] }) | null => {
+const getData = (): (any & { globalAtomIds?: number[] }) | null => {
   if (!lf) return null;
   const graphData = lf.getGraphRawData();
-  return { ...graphData, globalAtomIds: globalAtomIds.value };
+  // Explicitly return as any to satisfy the return type requirement
+  return { ...graphData, globalAtomIds: globalAtomIds.value } as any;
 };
 
 const getGraphModel = () => (lf ? lf.graphModel : null);

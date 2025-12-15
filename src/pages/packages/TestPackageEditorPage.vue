@@ -5,6 +5,7 @@
       <template #extra>
         <div class="header-actions">
           <el-button type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此包 </el-button>
+          <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button @click="goBack">取消</el-button>
           <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
@@ -112,6 +113,7 @@
                   <div class="draggable-item-selected">
                     <el-icon class="drag-handle"><Rank /></el-icon>
                     <span class="item-text">{{ element.name }}</span>
+                    <el-tag v-if="element.categoryName" type="info" size="small">{{ element.categoryName }}</el-tag>
                     <div>
                       <el-button type="primary" :icon="Edit" circle plain size="small" @click="handleEditAtom(element.atomId)" />
                       <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeAtom(index)" />
@@ -149,6 +151,36 @@
         <el-button type="primary" @click="handleTestPackage" :disabled="!testDialog.targetDeviceId"> 开始执行 </el-button>
       </template>
     </el-dialog>
+
+    <!-- 弹窗 (放在最外层 div 内) -->
+    <el-dialog
+        v-model="codeDialog.visible"
+        title="编程式配置 (Package DSL)"
+        width="800px"
+        top="5vh"
+        :close-on-click-modal="false"
+    >
+      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
+        <vue-monaco-editor
+            v-model:value="codeDialog.code"
+            theme="vs"
+            language="python"
+            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
+            @mount="handleEditorMount"
+        />
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="color: #909399; font-size: 12px">
+        提示：原子操作的 ID 必须真实存在。name 仅用于展示，不影响逻辑。
+      </span>
+          <div>
+            <el-button @click="codeDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -156,11 +188,11 @@
 defineOptions({
   name: "TestPackageEditor",
 });
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search } from "@element-plus/icons-vue";
+import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search, Monitor } from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
@@ -169,7 +201,11 @@ import { useTabStore } from "@/stores/tabStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useWebSocketStore } from "@/stores/webSocketStore";
 import { wsService } from "@/services/wsService";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import { generatePackageCode, parsePackageCode } from "@/utils/dslService";
 import type { TestPackageCreatePayload, TestPackageUpdatePayload, AtomicOperationPublic } from "@/types/api";
+
+const props = defineProps<{ packageId?: string | number }>();
 
 const route = useRoute();
 const router = useRouter();
@@ -180,7 +216,7 @@ const categoryStore = useAtomCategoryStore();
 const deviceStore = useDeviceStore();
 const wsStore = useWebSocketStore();
 
-const packageId = computed(() => (route.params.packageId ? Number(route.params.packageId) : null));
+const packageId = computed(() => (props.packageId ? Number(props.packageId) : null));
 const isEditMode = computed(() => !!packageId.value);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -338,6 +374,51 @@ const handleTestPackage = () => {
   ElMessage.info("测试包验证请求已发送，请在底部状态栏查看结果。");
   testDialog.visible = false;
 };
+
+// --- Code Mode ---
+const codeDialog = reactive({
+  visible: false,
+  code: "",
+});
+
+const openCodeMode = () => {
+  codeDialog.code = generatePackageCode(form);
+  codeDialog.visible = true;
+};
+
+const handleApplyCode = () => {
+  try {
+    // 解析代码时需要传入所有可用的原子操作列表，以便根据 ID 恢复对象引用
+    const updatedForm = parsePackageCode(codeDialog.code, form, atomStore.atoms);
+
+    Object.assign(form, updatedForm);
+
+    ElMessage.success("代码配置已应用！");
+    codeDialog.visible = false;
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("代码解析失败，请检查语法。");
+  }
+};
+
+// Monaco 提示配置 (可选，简单点可以不做)
+const handleEditorMount = (editor: any, monacoInstance: any) => {
+  monacoInstance.languages.registerCompletionItemProvider('python', {
+    triggerCharacters: ['.', '('],
+    provideCompletionItems: function (model: any, position: any) {
+      // 简单提示
+      const suggestions = [
+        { label: 'config', insertText: 'config(name="${1:Name}", common=False)', kind: monacoInstance.languages.CompletionItemKind.Function },
+        { label: 'atom.call', insertText: 'atom.call(id=${1:ID}, name="${2:Name}")', kind: monacoInstance.languages.CompletionItemKind.Function },
+      ];
+      return { suggestions };
+    }
+  });
+
+  editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+    handleApplyCode();
+  });
+};
 </script>
 
 <style scoped>
@@ -353,7 +434,8 @@ const handleTestPackage = () => {
 
 /* Adjust the font size of the page header content to be more compact */
 :deep(.sticky-header .el-page-header__content) {
-  font-size: 16px;
+  margin-top: 5px;
+  font-size: 14px;
 }
 /* Reduce header height */
 :deep(.sticky-header .el-page-header__header) {
@@ -426,6 +508,7 @@ const handleTestPackage = () => {
 }
 .item-text {
   flex-grow: 1;
+  font-size: 13px; /* 调小字体 */
 }
 .drag-handle {
   cursor: grab;

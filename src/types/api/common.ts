@@ -13,6 +13,9 @@ export interface Selector {
   xpath?: string;
   bounds?: string; // Format: "[left, top, right, bottom]"
   index?: number;
+  checked?: boolean;
+  enabled?: boolean;
+  selected?: boolean;
 }
 
 /**
@@ -29,10 +32,13 @@ export interface PerformActionParameters {
   offsetX?: number;
   offsetY?: number;
   reportLabel?: string;
-  comparisonOperator?: string;
-  leftSource?: "regex" | "variable";
+  direction?: "UP" | "DOWN" | "LEFT" | "RIGHT"; // For swipe_gesture
+  comparisonOperator?: string; // >, <, ==, !=, >=, <=, contains, etc.
+  packageName?: string; // For reopen_app
+  expectedCount?: number; // For assert_element_count
+  leftSource?: "regex" | "variable" | "expression" | "value";
   leftValue?: string;
-  rightSource?: "value" | "variable" | "regex";
+  rightSource?: "regex" | "variable" | "expression" | "value";
   rightValue?: string;
   targetStateLabel?: string;
 }
@@ -43,24 +49,31 @@ export interface PerformActionParameters {
 export interface PerformActionPayload {
   correlationId?: string;
   action:
-    | "click"
-    | "long_click"
-    | "swipe"
-    | "input_text"
-    | "tap"
-    | "wait"
-    | "press_key"
-    | "wake_up" | "jump_to_state"
-    | "sleep"
-    | "tap_relative"
-    | "wait_dynamic"
-    | "report_value"
-    | "calculate_value"
-    | "end_case"
-    | "reopen_app_if_needed"
-    | "assert_element_exists"
-    | "assert_text_equals"
-    | "conditional_tap";
+      | "click"
+      | "long_click"
+      | "swipe"
+      | "input_text"
+      | "tap"
+      | "wait"
+      | "press_key"
+      | "wake_up"
+      | "sleep"
+      | "tap_relative"
+      | "wait_dynamic"
+      | "wait_for_vanish"
+      | "report_value"
+      | "calculate_value"
+      | "end_case"
+      | "reopen_app_if_needed"
+      | "reopen_app"
+      | "return_to_entry_app"
+      | "jump_to_state"
+      | "conditional_tap"
+      | "install_helper_app"
+      | "set_brightness_auto"
+      | "set_brightness_min"
+      | "assert_text_equals"
+      | "assert_element_count";
   selector?: Selector;
   parameters?: PerformActionParameters;
 }
@@ -71,6 +84,13 @@ export interface PerformActionPayload {
 export interface PaginatedResponse<T> {
   total: number;
   items: T[];
+}
+
+/**
+ * 通用包裹数据响应 (用于后端返回 { data: T } 结构)
+ */
+export interface WrappedDataResponse<T> {
+  data: T;
 }
 
 /**
@@ -118,3 +138,4 @@ export interface ActionResultPayload {
   foundNode?: FoundNodeInfo;
   regexGroups?: string[];
 }
+

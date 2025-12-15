@@ -63,7 +63,15 @@
 
           <el-table-column label="步骤" width="300" show-overflow-tooltip>
             <template #default="scope">
-              <span>{{ scope.row.stepName }}</span>
+              <span
+                v-if="scope.row.stepDetails?.atomId"
+                class="step-name-link"
+                @click="goToAtom(scope.row.stepDetails.atomId)"
+                title="点击编辑此原子操作"
+              >
+                {{ scope.row.stepName }}
+              </span>
+              <span v-else>{{ scope.row.stepName }}</span>
               <el-tag v-if="scope.row.stepDetails?.currentState" type="warning" effect="plain" size="small" style="margin-left: 5px">{{ scope.row.stepDetails.currentStateLabel || scope.row.stepDetails.currentState }}</el-tag>
             </template>
           </el-table-column>
@@ -79,6 +87,20 @@
             <template #default="scope">
               <div class="detail-cell">
                 {{ formatStepDetails(scope.row) }}
+                
+                <!-- 新增：操作序列展示 (Tag形式) -->
+                <div v-if="scope.row.stepDetails?.executedActions?.length" class="actions-wrapper">
+                   <el-tag 
+                     v-for="(action, idx) in scope.row.stepDetails.executedActions" 
+                     :key="idx" 
+                     size="small" 
+                     type="info"
+                     class="action-tag"
+                   >
+                    <span style="font-weight: bold">{{ action.type }}</span>
+                    <span v-if="action.desc" style="margin-left: 4px; color: #606266"> {{ action.desc }}</span>
+                  </el-tag>
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -160,6 +182,10 @@ const scrollToBottom = async () => {
   }
 };
 
+const goToAtom = (atomId: number) => {
+  router.push({ name: "AtomEditor", params: { atomId } });
+};
+
 // WebSocket 事件处理器
 const handleJobStepUpdate = (event: Event) => {
   const newStep = (event as CustomEvent).detail as ResultPublic;
@@ -180,7 +206,7 @@ const handleJobStepUpdate = (event: Event) => {
 const handleRefresh = async (isAuto = false) => {
   await jobStore.fetchJobDetails(Number(props.jobId));
   if (isAuto && jobDetails.value && ['completed', 'failed', 'cancelled'].includes(jobDetails.value.status)) {
-    stopPolling();
+    // stopPolling(); // Removed as it is not defined and not needed with new mechanism
   }
   if (!isAuto) {
     ElMessage.success("刷新成功");
@@ -458,7 +484,7 @@ const calculateDuration = (start?: string, end?: string) => {
 }
 /* 增大表格内容的字体 */
 .log-table-wrapper :deep(.el-table) {
-  font-size: 14px; /* 默认是12px，调大到14px */
+  font-size: 13px; /* 默认是12px，调大到13px */
 }
 .time-text {
   color: #909399;
@@ -476,5 +502,25 @@ const calculateDuration = (start?: string, end?: string) => {
 
 :deep(.el-table .failure-row) {
   background-color: #fef0f0 !important;
+}
+
+.actions-wrapper {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.action-tag {
+  border-color: #e9e9eb; /* 更淡的边框，减少视觉干扰 */
+}
+
+.step-name-link {
+  color: var(--el-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.step-name-link:hover {
+  color: var(--el-color-primary-dark-2);
 }
 </style>

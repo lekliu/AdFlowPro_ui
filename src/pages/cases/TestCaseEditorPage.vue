@@ -4,6 +4,7 @@
       <template #extra>
         <div class="header-actions">
           <el-button v-if="isEditMode" type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此用例 </el-button>
+          <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button @click="goBack">取消</el-button>
           <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
         </div>
@@ -137,6 +138,36 @@
         <el-button type="primary" @click="handleTestLinearCase" :disabled="!testDialog.targetDeviceId"> 开始执行 </el-button>
       </template>
     </el-dialog>
+
+    <!-- 在 root div 的最后添加弹窗 -->
+    <el-dialog
+        v-model="codeDialog.visible"
+        title="编程式配置 (Suite DSL)"
+        width="800px"
+        top="5vh"
+        :close-on-click-modal="false"
+    >
+      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
+        <vue-monaco-editor
+            v-model:value="codeDialog.code"
+            theme="vs"
+            language="python"
+            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
+            @mount="handleEditorMount"
+        />
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="color: #909399; font-size: 12px">
+        提示：请确保 Case ID 真实存在。
+      </span>
+          <div>
+            <el-button @click="codeDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -144,11 +175,11 @@
 defineOptions({
   name: "TestCaseEditor",
 });
-import { ref, reactive, computed, onMounted, defineAsyncComponent } from "vue";
+import { ref, reactive, computed, onMounted, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules, ElIcon } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, TakeawayBox, QuestionFilled, Edit, MagicStick } from "@element-plus/icons-vue";
+import { Delete, Rank, TakeawayBox, QuestionFilled, Edit, MagicStick, Monitor } from "@element-plus/icons-vue";
 
 import FlowchartEditor from "@/components/editors/FlowchartEditor.vue";
 import { usePackageStore } from "@/stores/packageStore";
@@ -161,7 +192,10 @@ import { useWebSocketStore } from "@/stores/webSocketStore";
 import { wsService } from "@/services/wsService";
 import type { TestCaseCreatePayload, TestCaseUpdatePayload, TestPackagePublic } from "@/types/api";
 import type  GraphData  from "@logicflow/core";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import { generateCaseCode, parseCaseCode } from "@/utils/dsl/caseDslService";
 
+const props = defineProps<{ caseId?: string | number }>();
 const route = useRoute();
 const router = useRouter();
 const packageStore = usePackageStore();
@@ -172,7 +206,7 @@ const tabStore = useTabStore();
 const deviceStore = useDeviceStore();
 const wsStore = useWebSocketStore();
 
-const caseId = computed(() => (route.params.caseId ? Number(route.params.caseId) : null));
+const caseId = computed(() => (props.caseId ? Number(props.caseId) : null));
 const isEditMode = computed(() => !!caseId.value);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -328,6 +362,111 @@ const handleSave = async () => {
     isSaving.value = false;
   }
 };
+
+const codeDialog = reactive({
+  visible: false,
+  code: "",
+});
+
+const openCodeMode = () => {
+  // Flowchart 数据需要从编辑器组件获取最新的
+  if (form.caseType === 'flow' && flowchartEditorRef.value) {
+    form.flowchartData = flowchartEditorRef.value.getData();
+  }
+  codeDialog.code = generateCaseCode(form);
+  codeDialog.visible = true;
+};
+
+const handleApplyCode = () => {
+  try {
+    const updatedForm = parseCaseCode(codeDialog.code, form, packageStore.packages);
+
+    // 关键：如果更新了 flowchart 数据，需要通知 LogicFlow 重新渲染
+    // 通过重新赋值给 form.flowchartData，触子组件的 watch
+
+    Object.assign(form, updatedForm);
+
+    // 强制刷新 FlowchartEditor (如果存在)
+    if (form.caseType === 'flow') {
+      // 这里稍微 hack 一下，确保引用更新
+      form.flowchartData = { ...updatedForm.flowchartData };
+    }
+
+    ElMessage.success("代码配置已应用！");
+    codeDialog.visible = false;
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("代码解析失败。");
+  }
+};
+
+const handleEditorMount = (editor: any, monacoInstance: any) => {
+  // 注册 Case DSL 的智能提示
+  monacoInstance.languages.registerCompletionItemProvider('python', {
+    triggerCharacters: ['.', '('],
+    provideCompletionItems: function (model: any, position: any) {
+      const suggestions = [
+        // 基础配置
+        {
+          label: 'config',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'config(name="${1:Name}", type="${2:linear|flow}")',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+
+        // 线性模式指令
+        {
+          label: 'package.call',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'package.call(id=${1:ID})',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+
+        // 流程图模式指令 - 节点
+        {
+          label: 'node.start',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'node.start(id="${1:start_1}", x=${2:100}, y=${3:200})',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+        {
+          label: 'node.state',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'node.state(id="${1:state_1}", text="${2:Login}", x=${3:300}, y=${4:200})',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+        {
+          label: 'node.end',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'node.end(id="${1:end_1}", x=${2:600}, y=${3:200})',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+
+        // 流程图模式指令 - 连线
+        {
+          label: 'edge',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'edge(src="${1:id}", tgt="${2:id}", start="${3:right}", end="${4:left}")',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+
+        // 流程图模式指令 - 全局触发器
+        {
+          label: 'global.atoms',
+          kind: monacoInstance.languages.CompletionItemKind.Function,
+          insertText: 'global.atoms([${1:101, 102}])',
+          insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        },
+      ];
+      return { suggestions };
+    }
+  });
+
+  // 绑定 Ctrl+S 快捷键
+  editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+    handleApplyCode();
+  });
+};
 </script>
 
 <style scoped>
@@ -337,16 +476,14 @@ const handleSave = async () => {
   background-color: var(--el-bg-color-page, #f0f2f5);
   padding: 6px 6px;
   z-index: 10;
-  margin: -10px -10px 0 -10px; /* Counteract padding and set bottom margin to 0 */
+  margin: -10px -10px 0 -10px;
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
-/* Adjust the font size of the page header content to be more compact */
 :deep(.sticky-header .el-page-header__content) {
-  font-size: 15px; /* Slightly smaller font */
+  margin-top: 5px;
+  font-size: 14px;
 }
-/* Reduce header height */
-
 
 .case-editor-page {
   padding: 0;
@@ -410,6 +547,7 @@ const handleSave = async () => {
 }
 .item-text {
   flex-grow: 1;
+  font-size: 13px;
 }
 .drag-handle {
   cursor: grab;

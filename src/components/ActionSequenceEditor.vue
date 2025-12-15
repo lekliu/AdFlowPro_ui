@@ -109,7 +109,11 @@ const addAction = () => {
     id: uuidv4(), // 使用 uuid 保证唯一性
     action: "click",
     selector: {},
-    parameters: {},
+    parameters: {
+        // Initialize with safe defaults to prevent cleanup logic from removing the parameters object
+        startX: 0,
+        startY: 0
+    },
   };
   editableActions.value.push(newAction);
 };

@@ -29,6 +29,15 @@
         </el-button>
       </el-button-group>
 
+      <el-button-group>
+        <el-tooltip content="自动亮度">
+          <el-button :icon="Sunny" plain :disabled="!isConnected" @click="$emit('sendCommand', 'set_brightness_auto')" />
+        </el-tooltip>
+        <el-tooltip content="最低亮度 (节能模式)">
+          <el-button :icon="Hide" plain :disabled="!isConnected" @click="$emit('sendCommand', 'set_brightness_min')" />
+        </el-tooltip>
+      </el-button-group>
+
       <div class="divider"></div>
 
       <el-button-group>
@@ -81,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { Sunny, Moon, HomeFilled, Back, Switch, CircleClose } from "@element-plus/icons-vue";
+import { Sunny, Moon, HomeFilled, Back, Switch, CircleClose, Hide } from "@element-plus/icons-vue";
 
 defineProps<{
   isConnected: boolean;

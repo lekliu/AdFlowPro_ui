@@ -1,3 +1,4 @@
+<!-- AdFlowPro_ui/src/pages/devices/DeviceDetailPage.vue -->
 <template>
   <div class="device-detail-page" v-if="device" ref="pageRef">
     <el-page-header @back="goBack" :content="`设备详情 - ${device.deviceName || device.deviceId}`" class="header-bar">
@@ -12,13 +13,12 @@
 
     <div class="tabs-container">
       <el-tabs v-model="activeTab" type="border-card" class="device-tabs">
-
         <!-- Tab 1: 基础信息 -->
         <el-tab-pane label="基础信息" name="info">
           <div class="tab-content-scroll">
             <!-- 移除 el-row/el-col，改为垂直堆叠 -->
             <DeviceInfoCard :device="device" style="margin-bottom: 20px;" />
-            <DebugControlCard :device-id="deviceId || ''" />
+            <DebugControlCard :device-id="props.deviceId || ''" />
           </div>
         </el-tab-pane>
 
@@ -29,7 +29,7 @@
               <!-- 左侧: 屏幕预览与OCR (较窄，适合竖屏截图) -->
               <el-col :span="9">
                 <ScreenshotCard
-                    :device-id="deviceId || ''"
+                    :device-id="props.deviceId || ''"
                     :screenshot-url="screenshotUrl"
                     :ocr-result="ocrResult"
                     :is-capturing="isCapturing"
@@ -45,7 +45,7 @@
                     :is-connected="device?.isConnectedWs || false"
                     :is-sending-screen-power-cmd="isSendingScreenPowerCmd"
                     :is-sending-hotkey="isSendingHotkey"
-                    :is-adhoc-running="isAdhocRunningForThisDevice"
+                    :is-adhoc-running="wsStore.currentAdhocTask?.deviceId === props.deviceId"
                     :is-aborting="wsStore.isAbortingAdhocTask"
                     @send-command="handleQuickCommand"
                     @abort-adhoc="handleAbortAdhoc"
@@ -55,7 +55,7 @@
                 <!-- 2. 动作序列编辑器 -->
                 <ActionSequenceEditor
                     mode="standalone"
-                    :device-id="deviceId || ''"
+                    :device-id="props.deviceId || ''"
                     v-model="standaloneActions"
                 >
                   <template #header>
@@ -94,7 +94,6 @@
             />
           </div>
         </el-tab-pane>
-
       </el-tabs>
     </div>
   </div>
@@ -111,15 +110,16 @@
 defineOptions({
   name: "DeviceDetail",
 });
-import { ref, onMounted, computed, onBeforeUnmount } from "vue";
+import { ref, onMounted, computed, onBeforeUnmount, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useTabStore } from "@/stores/tabStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
 import { useWebSocketStore } from "@/stores/webSocketStore";
-import type { DevicePublic, OcrPayload, PerformActionPayload, DeviceInstalledApp } from "@/types/api";
+import type { DevicePublic, OcrPayload, PerformActionPayload, DeviceInstalledApp, UiNode } from "@/types/api";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { commandService } from "@/api/commandService";
+import { wsService } from "@/services/wsService";
 import { deviceService } from "@/api/deviceService";
 import { FullScreen } from "@element-plus/icons-vue";
 
@@ -135,6 +135,8 @@ import DebugControlCard from "@/components/DebugControlCard.vue";
 type ActionWithId = PerformActionPayload & { id: string };
 const standaloneActions = ref<ActionWithId[]>([]);
 
+const props = defineProps<{ deviceId: string }>();
+
 const route = useRoute();
 const router = useRouter();
 const deviceStore = useDeviceStore();
@@ -146,7 +148,6 @@ const isFullscreen = ref(false);
 
 const activeTab = ref("control"); // 默认打开“远程操控”页
 
-const deviceId = computed(() => route.params.deviceId as string);
 const device = ref<DevicePublic | null>(null);
 const isLoading = ref(false);
 
@@ -155,7 +156,7 @@ const screenshotUrl = ref<string | null>(null);
 const ocrResult = ref<OcrPayload | null>(null);
 
 const isFetchingStructure = ref(false);
-const uiStructure = ref<object | null>(null);
+const uiStructure = ref<UiNode | null>(null);
 
 const isSendingScreenPowerCmd = ref(false);
 const isSendingHotkey = ref(false);
@@ -163,21 +164,16 @@ const isSendingHotkey = ref(false);
 const installedApps = ref<DeviceInstalledApp[]>([]);
 const isFetchingApps = ref(false);
 
-// 计算属性：判断当前设备是否正在运行 Ad-hoc 任务
-const isAdhocRunningForThisDevice = computed(() =>
-    wsStore.currentAdhocTask?.deviceId === deviceId.value
-);
-
 const goBack = () => tabStore.removeTab(route.fullPath);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const fetchDetails = async () => {
-  if (!deviceId.value) return;
+  if (!props.deviceId) return;
   isLoading.value = true;
   try {
     // 调用 store action。这个 action 内部已经处理了错误，不会向外抛出
-    await deviceStore.fetchDeviceDetails(deviceId.value);
+    await deviceStore.fetchDeviceDetails(props.deviceId);
     // 从 store 获取更新后的设备信息
     device.value = deviceStore.selectedDevice;
     if (device.value) {
@@ -193,7 +189,10 @@ const fetchDetails = async () => {
 };
 
 const fetchInstalledApps = async (fromDevice: boolean = false) => {
-  if (!deviceId.value) return;
+  if (!props.deviceId) {
+    console.warn("fetchInstalledApps: deviceId is missing in props.");
+    return;
+  }
 
   isFetchingApps.value = true;
 
@@ -202,21 +201,29 @@ const fetchInstalledApps = async (fromDevice: boolean = false) => {
       if (!device.value?.isConnectedWs) {
         ElMessage.warning("设备未连接，无法从设备实时更新。将从服务器缓存加载。");
       } else {
-        await deviceService.refreshApps(deviceId.value);
+        await deviceService.refreshApps(props.deviceId);
         ElMessage.info("应用列表更新指令已发送，等待设备实时响应...");
         return; // exit here and wait for the event.
       }
     }
 
-    const apps = await deviceService.getInstalledApps(deviceId.value);
+    console.log(`Fetching installed apps for device: ${props.deviceId}`);
+    const apps = await deviceService.getInstalledApps(props.deviceId);
     installedApps.value = apps;
 
     if (fromDevice) {
       ElMessage.success(`列表已从设备更新，共找到 ${apps.length} 个应用。`);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to fetch/refresh installed apps:", error);
-    ElMessage.error("更新应用列表失败，请检查网络或稍后重试。");
+    // 提取更具体的错误信息
+    let errorMsg = "更新应用列表失败";
+    if (error.response) {
+      errorMsg += ` (${error.response.status}: ${error.response.statusText})`;
+    } else if (error.message) {
+      errorMsg += `: ${error.message}`;
+    }
+    ElMessage.error(errorMsg);
   } finally {
     if (!fromDevice) {
       isFetchingApps.value = false;
@@ -226,7 +233,7 @@ const fetchInstalledApps = async (fromDevice: boolean = false) => {
 
 const fetchLastScreenshot = async () => {
   try {
-    const blob = await deviceService.getLatestScreenshot(deviceId.value);
+    const blob = await deviceService.getLatestScreenshot(props.deviceId);
     if (screenshotUrl.value) URL.revokeObjectURL(screenshotUrl.value);
     screenshotUrl.value = blob.size > 0 ? URL.createObjectURL(blob) : null;
   } catch (error: any) {
@@ -237,7 +244,7 @@ const fetchLastScreenshot = async () => {
 
 const fetchLastOcrResult = async () => {
   try {
-    ocrResult.value = await deviceService.getLatestOcrResult(deviceId.value);
+    ocrResult.value = await deviceService.getLatestOcrResult(props.deviceId);
   } catch (error: any) {
     if (error.response?.status !== 404) {
       console.error("Failed to fetch ocr result:", error);
@@ -248,7 +255,7 @@ const fetchLastOcrResult = async () => {
 
 const fetchLastUiStructure = async () => {
   try {
-    const structure = await deviceService.getLatestUiStructure(deviceId.value);
+    const structure = await deviceService.getLatestUiStructure(props.deviceId);
     uiStructure.value = structure;
   } catch (error: any) {
     if (error.response?.status !== 404) {
@@ -263,7 +270,7 @@ const handleGetUiStructure = async () => {
   isFetchingStructure.value = true;
   uiStructure.value = null;
   try {
-    const res = await commandService.sendUiStructureCommand(deviceId.value);
+    const res = await commandService.sendUiStructureCommand(props.deviceId);
     ElMessage.info(`UI结构请求已发送 (ID: ${res.correlationId})，等待设备实时响应...`);
   } catch (error) {
     console.error("Error sending UI structure command", error);
@@ -278,7 +285,7 @@ const handleManualCapture = async () => {
   screenshotUrl.value = null;
   ocrResult.value = null;
   try {
-    const res = await commandService.sendCaptureScreenCommand(deviceId.value);
+    const res = await commandService.sendCaptureScreenCommand(props.deviceId);
     ElMessage.info(`截图指令已发送 (ID: ${res.correlationId})，等待设备实时响应...`);
   } catch (error) {
     console.error("Error sending capture command", error);
@@ -287,7 +294,7 @@ const handleManualCapture = async () => {
   }
 };
 
-const handleQuickCommand = async (command: "wake_up" | "sleep" | "home" | "back" | "recents") => {
+const handleQuickCommand = async (command: "wake_up" | "sleep" | "home" | "back" | "recents" | "set_brightness_auto" | "set_brightness_min") => {
   const isPowerCmd = ["wake_up", "sleep"].includes(command);
   const loadingRef = isPowerCmd ? isSendingScreenPowerCmd : isSendingHotkey;
 
@@ -295,15 +302,17 @@ const handleQuickCommand = async (command: "wake_up" | "sleep" | "home" | "back"
   try {
     let payload: PerformActionPayload;
 
-    if (command === "wake_up" || command === "sleep") {
-      payload = { action: command };
-    } else {
+    // 修复逻辑：明确指定哪些指令是 press_key，其余的直接作为 action 名称发送
+    if (command === "home" || command === "back" || command === "recents") {
       payload = {
         action: "press_key",
         parameters: { keyCode: command },
       };
+    } else {
+      // wake_up, sleep, set_brightness_auto, set_brightness_min 等
+      payload = { action: command };
     }
-    const response = await commandService.sendPerformActionCommand(deviceId.value, payload);
+    const response = await commandService.sendPerformActionCommand(props.deviceId, payload);
     ElMessage.success(`指令 '${command}' 已发送 (ID: ${response.correlationId})`);
   } catch (error) {
     console.error(`Error sending command ${command}:`, error);
@@ -313,18 +322,11 @@ const handleQuickCommand = async (command: "wake_up" | "sleep" | "home" | "back"
 };
 
 const handleAbortAdhoc = () => {
-  if (wsStore.currentAdhocTask) {
-    wsStore.abortCurrentAdhocTask();
-  } else {
-    ElMessageBox.confirm(
-        'UI 当前未追踪到正在运行的调试任务，但设备可能仍处于忙碌状态。\n是否发送【强制中止】指令？',
-        '强制重置',
-        { confirmButtonText: '强制中止', cancelButtonText: '取消', type: 'warning' }
-    ).then(() => {
-      wsService.sendAbortAdhocTask(deviceId.value, "FORCE_RESET");
-      ElMessage.success("强制中止指令已发送");
-    }).catch(() => {});
-  }
+  // 直接发送强制重置指令，不检查本地状态，确保能中止任何来源的 Ad-hoc 任务
+  wsService.sendAbortAdhocTask(props.deviceId, "FORCE_RESET");
+  // 可选：手动清理本地可能存在的任务状态显示
+  wsStore.currentAdhocTask = null;
+  ElMessage.warning("已发送强制重置指令");
 };
 
 const handleUninstall = async (packageName: string) => {
@@ -334,7 +336,7 @@ const handleUninstall = async (packageName: string) => {
     });
 
     ElMessage.info(`正在发送卸载指令并移除记录...`);
-    await deviceService.uninstallApp(deviceId.value, packageName);
+    await deviceService.uninstallApp(props.deviceId, packageName);
     ElMessage.success(`卸载指令已发送，记录已移除！请在设备端手动确认。`);
 
     const index = installedApps.value.findIndex((app) => app.packageName === packageName);
@@ -359,6 +361,7 @@ const handleAddToMaster = async (app: DeviceInstalledApp) => {
     await masterAppStore.addApp({
       appName: app.appName,
       packageName: app.packageName,
+      weight: 10000
     });
 
     const appInList = installedApps.value.find((a) => a.packageName === app.packageName);
@@ -370,10 +373,9 @@ const handleAddToMaster = async (app: DeviceInstalledApp) => {
   }
 };
 
-// --- 事件处理器 ---
 const handleScreenDataReady = (event: Event) => {
   const detail = (event as CustomEvent).detail;
-  if (detail.deviceId === deviceId.value) {
+  if (detail.deviceId === props.deviceId) {
     ElMessage.success("收到截图/OCR数据就绪通知，正在刷新...");
     Promise.allSettled([fetchLastScreenshot(), fetchLastOcrResult()]).finally(() => {
       isCapturing.value = false;
@@ -383,7 +385,7 @@ const handleScreenDataReady = (event: Event) => {
 
 const handleUiStructureReady = (event: Event) => {
   const detail = (event as CustomEvent).detail;
-  if (detail.deviceId === deviceId.value) {
+  if (detail.deviceId === props.deviceId) {
     ElMessage.success("收到UI结构数据就绪通知，正在刷新...");
     fetchLastUiStructure().finally(() => {
       isFetchingStructure.value = false;
@@ -393,7 +395,7 @@ const handleUiStructureReady = (event: Event) => {
 
 const handleAppListReady = (event: Event) => {
   const detail = (event as CustomEvent).detail;
-  if (detail.deviceId === deviceId.value) {
+  if (detail.deviceId === props.deviceId) {
     ElMessage.success("收到应用列表就绪通知，正在刷新...");
     fetchInstalledApps(false);
   }
@@ -447,12 +449,16 @@ onBeforeUnmount(() => {
   margin-bottom: 10px;
 }
 
+/* 调整页面标题字体大小 */
+:deep(.el-page-header__content) {
+  font-size: 15px;
+}
+
 .tabs-container {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* 移除 height: 0，允许自然撑开 */
 }
 
 .device-tabs {
@@ -463,26 +469,20 @@ onBeforeUnmount(() => {
   box-shadow: none;
 }
 
-/* 核心修复：允许内容区域滚动 */
 :deep(.el-tabs__content) {
   flex-grow: 1;
   padding: 15px;
-  overflow: auto; /* 改回 auto，允许出现外层滚动条 */
+  overflow: auto;
   background-color: #f5f7fa;
-  /* 移除强制的 height: 100% 和 display: flex，让内容自然堆叠 */
 }
-
-/* 移除对 el-tab-pane 的强制高度限制 */
 
 .tab-content-scroll {
   padding-bottom: 20px;
 }
 
-/* 修改全高容器，不再强制禁止滚动 */
 .tab-content-full {
   display: flex;
   flex-direction: column;
-  /* 移除 height: 100% 和 overflow: hidden */
 }
 
 .full-height-card {

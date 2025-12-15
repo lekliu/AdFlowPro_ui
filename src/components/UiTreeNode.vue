@@ -22,7 +22,7 @@
             <el-tag 
               v-if="displayProperties.boundsInScreen" 
               class="prop-tag" 
-              :type="isSmallElement ? '' : 'warning'" 
+              :type="isSmallElement ? 'info' : 'warning'" 
               size="small" 
               effect="plain"
             >
@@ -84,7 +84,7 @@ const displayProperties = computed(() => {
   const filtered: Record<string, any> = {};
   for (const [key, value] of Object.entries(rest)) {
     // Only show properties that have a meaningful value
-    if (value !== null && value !== false && value !== "" && !(Array.isArray(value) && value.length === 0)) {
+    if (value !== null && value !== false && value !== "" && !(Array.isArray(value) && (value as any[]).length === 0)) {
       filtered[key] = value;
     }
   }

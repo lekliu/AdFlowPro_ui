@@ -1,11 +1,16 @@
 <template>
   <div class="action-row">
     <!-- Action Type Selector -->
-    <el-select v-model="editableAction.action" placeholder="选择动作" class="action-selector">
-      <el-option-group v-for="group in actionOptions" :key="group.label" :label="group.label">
-        <el-option v-for="item in group.options" :key="item.value" :label="item.label" :value="item.value" />
-      </el-option-group>
-    </el-select>
+    <el-cascader
+      v-model="cascaderValue"
+      :options="cascaderOptions"
+      :props="{ expandTrigger: 'hover' }"
+      placeholder="选择动作"
+      class="action-selector"
+      filterable
+      :clearable="false"
+      @change="(val: any) => handleCascaderChange(val)"
+    />
 
     <!-- Parameters Area -->
     <div class="parameters">
@@ -30,10 +35,10 @@
       <div v-if="editableAction.action === 'conditional_tap'" class="conditional-tap-container">
         <!-- Row 1: Left Side + Operator -->
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <el-tag type="info" effect="plain" style="flex-shrink: 0">变量</el-tag>
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">左值:</span>
           <el-input
               v-model="editableAction.parameters.leftValue"
-              placeholder="变量名"
+              placeholder="变量 {v} / 公式 / 值"
               style="flex-grow: 1"
           />
           <!-- Operator at end of Row 1 -->
@@ -50,14 +55,10 @@
 
         <!-- Row 2: Right Side -->
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <el-select v-model="editableAction.parameters.rightSource" placeholder="右值" style="width: 140px">
-            <el-option label="固定值" value="value" />
-            <el-option label="变量" value="variable" />
-          </el-select>
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">右值:</span>
           <el-input
-              v-if="true"
               v-model="editableAction.parameters.rightValue"
-              placeholder="值/变量名"
+              placeholder="变量 {v} / 公式 / 值"
               style="flex-grow: 1"
           />
         </div>
@@ -67,6 +68,24 @@
           <span style="font-size: 12px; color: #909399; flex-shrink: 0">点击坐标:</span>
           <el-input-number v-model="editableAction.parameters.startX" placeholder="X" controls-position="right" style="width: 110px" />
           <el-input-number v-model="editableAction.parameters.startY" placeholder="Y" controls-position="right" style="width: 110px" />
+        </div>
+      </div>
+
+      <!-- End Case (Enhanced with Condition) -->
+      <div v-if="editableAction.action === 'end_case'" class="conditional-container">
+        <!-- 默认无条件 -->
+        <div style="display: flex; ">
+          <span style="font-size: 12px; color: #909399; width: 60px;">条件(可选):</span>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 4px; align-items: center;">
+          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值 (如 {count})" style="flex-grow: 1" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 100px">
+            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
+            <el-option label=">" value=">" /> <el-option label="<" value="<" />
+          </el-select>
+        </div>
+        <div v-if="editableAction.parameters.leftValue" style="display: flex; gap: 8px; align-items: center;">
+          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值 (如 0)" style="flex-grow: 1" />
         </div>
       </div>
 
@@ -99,11 +118,7 @@
 
       <!-- Wait Dynamic (Enhanced) -->
       <div v-if="editableAction.action === 'wait_dynamic'" style="display: flex; gap: 8px; align-items: center; width: 100%">
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
-          <el-option label="变量" value="variable" />
-          <el-option label="公式计算" value="expression" />
-        </el-select>
-        <el-input v-model="editableAction.parameters.leftValue" placeholder="变量名/公式 (单位: 秒)" style="flex-grow: 1" />
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="等待秒数，支持公式 (如 {count} * 0.5)" style="flex-grow: 1" />
       </div>
 
       <!-- Jump to State -->
@@ -137,25 +152,15 @@
       <div v-if="editableAction.action === 'report_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
         <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名/标签" style="width: 150px" />
         <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
-          <el-option label="固定值" value="value" />
-          <el-option label="变量" value="variable" />
-          <el-option label="公式计算" value="expression" />
-        </el-select>
-        <el-input v-model="editableAction.parameters.leftValue" placeholder="值/变量名" style="flex-grow: 1" />
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="值或公式 (如 {price} * 0.8)" style="flex-grow: 1" />
       </div>
 
       <!-- Calculate Value (New) -->
       <div v-if="editableAction.action === 'calculate_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
         <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 150px" />
         <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-select v-model="editableAction.parameters.leftSource" placeholder="来源" style="width: 160px">
-          <el-option label="固定值" value="value" />
-          <el-option label="变量" value="variable" />
-          <el-option label="公式计算" value="expression" />
-        </el-select>
-        <el-input v-model="editableAction.parameters.leftValue" placeholder="值/变量名" style="flex-grow: 1" />
-        <el-tooltip content="仅保存变量到内存，不上报给服务器。" placement="top">
+        <el-input v-model="editableAction.parameters.leftValue" placeholder="公式 (如 {index} + 1)" style="flex-grow: 1" />
+        <el-tooltip content="计算结果仅保存到内存变量，不上报。" placement="top">
           <el-icon style="color: #909399; cursor: help"><InfoFilled /></el-icon>
         </el-tooltip>
       </div>
@@ -182,7 +187,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch, nextTick } from "vue";
+import { computed, reactive, watch, ref } from "vue";
 import { Delete, Rank, InfoFilled } from "@element-plus/icons-vue";
 import type { PerformActionPayload, Selector } from "@/types/api/common";
 import SelectorInput from "@/components/SelectorInput.vue";
@@ -196,10 +201,11 @@ const emit = defineEmits(["update:modelValue", "remove"]);
 
 const editableAction = reactive(JSON.parse(JSON.stringify(props.modelValue)));
 
-const actionOptions = [
+const cascaderOptions = [
   {
     label: "UI 交互",
-    options: [
+    value: "ui_interaction",
+    children: [
       { value: "click", label: "Click (by Selector)" },
       { value: "long_click", label: "Long Click (by Selector)" },
       { value: "input_text", label: "Input Text (by Selector)" },
@@ -212,7 +218,8 @@ const actionOptions = [
   },
   {
     label: "流程控制",
-    options: [
+    value: "flow_control",
+    children: [
       { value: "wait", label: "Wait (Fixed Time)" },
       { value: "wait_dynamic", label: "Wait (Dynamic from Var)" },
       { value: "wait_for_vanish", label: "Wait For Vanish" },
@@ -227,25 +234,54 @@ const actionOptions = [
   },
   {
     label: "设备控制",
-    options: [
+    value: "device_control",
+    children: [
       { value: "press_key", label: "Press Key" },
       { value: "wake_up", label: "Wake Up" },
       { value: "sleep", label: "Sleep" },
+      { value: "install_helper_app", label: "Install Helper App" },
+      { value: "set_brightness_auto", label: "Set Brightness Auto" },
+      { value: "set_brightness_min", label: "Set Brightness Min" },
     ],
   },
   {
     label: "断言",
-    options: [
+    value: "assertion",
+    children: [
       { value: "assert_text_equals", label: "Assert Text Equals" },
       { value: "assert_element_count", label: "Assert Element Count" },
     ],
   },
 ];
 
+// 计算属性：根据当前的 action 值，反向查找它在级联菜单中的路径 [category, action]
+// 用于 v-model 回显
+const cascaderValue = computed({
+  get: () => {
+    const action = editableAction.action;
+    for (const group of cascaderOptions) {
+      if (group.children.some((child) => child.value === action)) {
+        return [group.value, action];
+      }
+    }
+    return [];
+  },
+  set: (val) => {
+    // setter is handled by @change event, but required for v-model
+  }
+});
+
+const handleCascaderChange = (val: string[]) => {
+  if (val && val.length > 0) {
+    // 取数组的最后一项作为实际的 action 值
+    editableAction.action = val[val.length - 1];
+  }
+};
+
 const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
-    ["end_case", "reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep"].includes(editableAction.action)
+    ["reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep", "install_helper_app", "set_brightness_auto", "set_brightness_min"].includes(editableAction.action)
 );
 
 watch(
@@ -266,26 +302,28 @@ watch(
           case 'swipe_gesture':
             newVal.parameters = { direction: 'UP' };
             break;
+          case 'tap':
+            newVal.parameters = { startX: 0, startY: 0 };
+            break;
           case 'conditional_tap':
+            // Simplified initialization
             newVal.parameters = {
-              leftSource: 'variable',
               comparisonOperator: '>',
-              rightSource: 'value'
             };
             break;
           case 'report_value':
-            newVal.parameters = {
-              leftSource: 'variable'
-            };
+            newVal.parameters = {};
             break;
           case 'wait_dynamic':
-            newVal.parameters = {
-              leftSource: 'variable'
-            };
+            newVal.parameters = {};
             break;
           case 'calculate_value':
+            newVal.parameters = {};
+            break;
+          case 'end_case':
+            // Initialize with empty conditional parameters
             newVal.parameters = {
-              leftSource: 'variable'
+              comparisonOperator: '=='
             };
             break;
           case 'wait_for_vanish':

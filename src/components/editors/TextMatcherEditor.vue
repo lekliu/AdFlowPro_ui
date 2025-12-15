@@ -68,6 +68,9 @@ const availableMatchModes = computed(() => {
   const modes = [
     { label: "模糊匹配", value: "fuzzy" },
     { label: "模糊匹配+坐标", value: "fuzzy_with_coords" },
+    { label: "精准匹配 (Exact)", value: "exact" },
+    { label: "全量匹配 (All Match)", value: "all_match" },
+    { label: "非全量匹配 (Not All Match)", value: "not_all_match" },
     { label: "不包含 (Must Not Contain)", value: "must_not_contain" },
   ];
   

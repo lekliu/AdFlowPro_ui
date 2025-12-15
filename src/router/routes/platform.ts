@@ -20,6 +20,12 @@ const platformRoutes: Array<RouteRecordRaw> = [
     component: () => import("@/pages/platform-settings/AtomCategoriesPage.vue"),
     meta: { title: "原子操作分类" },
   },
+  {
+    path: "platform-settings/import-export",
+    name: "ImportExport",
+    component: () => import("@/pages/platform-settings/ImportExportPage.vue"),
+    meta: { title: "数据导入导出" },
+  },
 ];
 
 export default platformRoutes;

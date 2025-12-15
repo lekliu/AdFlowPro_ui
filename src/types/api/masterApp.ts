@@ -37,6 +37,8 @@ export interface MasterAppUpdatePayload {
   appName?: string;
   description?: string;
   apkUrl?: string;
+  versionName?: string;
+  versionCode?: number;
   defaultSuiteId?: number | null;
   weight?: number;
 }
