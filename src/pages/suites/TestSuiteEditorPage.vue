@@ -16,9 +16,20 @@
           <span>基础信息</span>
         </template>
         <el-form :model="form" ref="formRef" label-width="200px" :rules="rules">
-          <el-form-item label="套件名称" prop="name">
-            <el-input v-model="form.name" placeholder="例如: V1.2.0 版本回归测试"></el-input>
-          </el-form-item>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="套件名称" prop="name">
+                <el-input v-model="form.name" placeholder="例如: V1.2.0 版本回归测试"></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="所属分类" prop="categoryId">
+                <el-select v-model="form.categoryId" placeholder="选择分类" clearable filterable style="width: 100%">
+                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
           <el-form-item label="目标App包名" prop="targetAppPackage">
             <el-input v-model="form.targetAppPackage" placeholder="可选, 如: com.example.app"></el-input>
           </el-form-item>
@@ -205,6 +216,7 @@ import { Delete, Rank, DocumentCopy, QuestionFilled, Edit } from "@element-plus/
 
 import { useCaseStore } from "@/stores/caseStore";
 import { useSuiteStore } from "@/stores/suiteStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { TestSuiteCreatePayload, TestSuiteUpdatePayload, TestCaseListPublic } from "@/types/api";
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
@@ -217,6 +229,7 @@ const route = useRoute();
 const router = useRouter();
 // const router = useRouter();
 const caseStore = useCaseStore();
+const categoryStore = useAtomCategoryStore();
 const suiteStore = useSuiteStore();
 const tabStore = useTabStore();
 
@@ -228,6 +241,7 @@ const isSaving = ref(false);
 const formRef = ref<FormInstance>();
 const form = reactive<{
   name: string;
+  categoryId: number | null;
   description: string;
   targetAppPackage: string;
   defocusGuardTimeoutS: number | undefined;
@@ -237,6 +251,7 @@ const form = reactive<{
   cases: TestCaseListPublic[];
 }>({
   name: "",
+  categoryId: null,
   description: "",
   targetAppPackage: "",
   defocusGuardTimeoutS: 30,
@@ -278,12 +293,14 @@ const cloneCase = (original: TestCaseListPublic & { disabled: boolean }) => {
 onMounted(async () => {
   isLoading.value = true;
   await caseStore.fetchCases({ skip: 0, limit: 2000 });
+  await categoryStore.fetchAllCategories();
 
   if (isEditMode.value) {
     const suite = await suiteStore.fetchSuiteById(suiteId.value!);
     if (suite) {
       form.name = suite.name;
       form.description = suite.description || "";
+      form.categoryId = suite.categoryId || null;
       form.targetAppPackage = suite.targetAppPackage || "";
       form.defocusGuardTimeoutS = suite.defocusGuardTimeoutS ?? 30;
       form.noMatchDelayMs = suite.noMatchDelayMs ?? 1000;
@@ -314,6 +331,7 @@ const handleSave = async () => {
     const payload = {
       name: form.name,
       description: form.description,
+      categoryId: form.categoryId,
       targetAppPackage: form.targetAppPackage,
       defocusGuardTimeoutS: form.defocusGuardTimeoutS ?? null,
       noMatchDelayMs: form.noMatchDelayMs ?? null,

@@ -137,6 +137,14 @@ export const generateCode = (form: any): string => {
                 code += `${func}(text="${smText}")\n`;
             });
         }
+        // [新增] 生成提取器代码
+        if (form.sceneSnapshotJson.extractors) {
+            form.sceneSnapshotJson.extractors.forEach((ext: any) => {
+                let params = `name="${ext.name}", regex="${ext.regex}"`;
+                if (ext.scope && ext.scope !== 'matched_node') params += `, scope="${ext.scope}"`;
+                code += `extract(${params})\n`;
+            });
+        }
     }
 
     // [Actions] - 精简逻辑
@@ -203,13 +211,20 @@ export const parseCode = (code: string, originalForm: any): any => {
     // (为了完整性，这里复述一下 parseCode 的核心结构，确保你替换文件时不丢失)
     const newForm = JSON.parse(JSON.stringify(originalForm));
     newForm.priority = 50; newForm.executionCountLimit = 100; newForm.actionLoopCount = 1; newForm.continueAfterMatch = false; newForm.supportedDevices = []; newForm.categoryId = null; newForm.actionsJson = [];
-    if (newForm.triggerType === 'scene') {
-        newForm.sceneSnapshotJson.secondaryMatchers = [];
-        if (newForm.sceneSnapshotJson.primaryMatcher) {
-            newForm.sceneSnapshotJson.primaryMatcher.screenRegion = [];
-            newForm.sceneSnapshotJson.primaryMatcher.spatialRelation = null;
-        }
+    // [核心修复] 无条件强制重置场景列表数据
+    // 无论当前 UI 处于什么状态，解析代码前都必须清空列表，防止脏数据追加
+    if (!newForm.sceneSnapshotJson) {
+        newForm.sceneSnapshotJson = { primaryMatcher: { matchTargetType: 'text' } };
     }
+    newForm.sceneSnapshotJson.secondaryMatchers = [];
+    newForm.sceneSnapshotJson.extractors = [];
+
+    if (!newForm.sceneSnapshotJson.primaryMatcher) {
+        newForm.sceneSnapshotJson.primaryMatcher = { matchTargetType: 'text' };
+    }
+    newForm.sceneSnapshotJson.primaryMatcher.screenRegion = [];
+    newForm.sceneSnapshotJson.primaryMatcher.spatialRelation = null;
+
     const lines = code.split('\n');
     lines.forEach((line) => {
         const trimmed = line.trim();
@@ -262,6 +277,15 @@ export const parseCode = (code: string, originalForm: any): any => {
             case 'and_match':
             case 'not_match':
                 newForm.sceneSnapshotJson.secondaryMatchers.push({ text: params.text ? params.text.split('|') : [], isExclusion: method === 'not_match' });
+                break;
+            case 'extract':
+                if (params.name && params.regex) {
+                    newForm.sceneSnapshotJson.extractors.push({
+                        name: params.name,
+                        regex: params.regex,
+                        scope: params.scope || 'matched_node'
+                    });
+                }
                 break;
             default:
                 if (method.startsWith('action.')) {

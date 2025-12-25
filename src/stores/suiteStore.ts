@@ -25,7 +25,7 @@ export const useSuiteStore = defineStore("suite", {
     setNeedsRefresh(status: boolean) {
       this.needsRefresh = status;
     },
-    async fetchSuites(params: { skip: number; limit: number; search?: string }) {
+    async fetchSuites(params: { skip: number; limit: number; search?: string; categoryId?: number }) {
       this.isLoading = true;
       try {
         // The API call now implicitly fetches linear suites

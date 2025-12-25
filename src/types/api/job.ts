@@ -49,6 +49,9 @@ export interface ResultPublic extends ResultCreatePayload {
 export interface JobListPublic {
   jobId: number;
   suiteName: string;
+  suiteId: number; // 补全 ID 字段用于“再次运行”
+  deviceId: string; // 补全 ID 字段用于“再次运行”
+  targetAppName?: string;
   targetAppPackageName: string;
   deviceName?: string;
   status: "pending" | "running" | "completed" | "failed" | "cancelled";

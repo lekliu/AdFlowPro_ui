@@ -88,7 +88,8 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
             data.type === "ui_structure_ready" ||
             data.type === "app_list_ready" ||
             data.type === "apk_pull_complete" ||
-            data.type === "job_step_update"
+            data.type === "job_step_update" ||
+            data.type === "job_status_change"
         ) {
           const customEvent = new CustomEvent(data.type, { detail: payload });
           window.dispatchEvent(customEvent);

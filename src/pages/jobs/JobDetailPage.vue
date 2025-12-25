@@ -21,14 +21,14 @@
             </el-tag>
             <el-button :icon="CopyDocument" type="primary" link @click="handleCopyForAI">AI分析</el-button>
             <el-button
-                v-if="['running', 'queued'].includes(jobDetails.status)"
+                v-if="['running', 'queued', 'pending'].includes(jobDetails.status)"
                 type="danger"
                 size="small"
                 :icon="VideoPause"
                 @click="handleCancelJob"
                 :loading="jobStore.isCancelling"
             >
-              {{ jobDetails.status === "running" ? "停止" : "取消排队" }}
+              {{ ['running', 'pending'].includes(jobDetails.status) ? "停止" : "取消排队" }}
             </el-button>
             <el-button
                 v-if="['completed', 'failed', 'cancelled'].includes(jobDetails.status)"
@@ -214,10 +214,19 @@ const handleRefresh = async (isAuto = false) => {
   scrollToBottom();
 };
 
+// [新增] 任务状态变更处理器
+const handleJobStatusChange = (event: Event) => {
+  const payload = (event as CustomEvent).detail;
+  if (payload.jobId === Number(props.jobId)) {
+    jobStore.updateJobStatusLocally(payload.jobId, payload.status);
+  }
+};
+
 onMounted(async () => {
   await jobStore.fetchJobDetails(Number(props.jobId));
   scrollToBottom();
   window.addEventListener("job_step_update", handleJobStepUpdate);
+  window.addEventListener("job_status_change", handleJobStatusChange);
 });
 
 onUnmounted(() => {

@@ -17,7 +17,7 @@
         </template>
         <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
           <el-row :gutter="6">
-            <el-col :span="10">
+            <el-col :span="8">
               <el-form-item label="名称" prop="name">
                 <el-input v-model="form.name" placeholder="为用例起一个明确的业务场景名称"></el-input>
               </el-form-item>
@@ -30,7 +30,14 @@
                 </el-radio-group>
               </el-form-item>
             </el-col>
-            <el-col :span="8">
+            <el-col :span="6">
+              <el-form-item label="所属分类" prop="categoryId">
+                <el-select v-model="form.categoryId" placeholder="选择分类" clearable filterable style="width: 100%">
+                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="4">
               <el-form-item label="用例总超时(秒)" prop="totalTimeoutS">
                 <el-input-number v-model="form.totalTimeoutS" :min="5" controls-position="right" placeholder="默认 600" style="width: 100%" />
                 <el-tooltip content="单个用例执行的最长总时间。留空使用默认值 (30分钟)。" placement="top">
@@ -218,6 +225,7 @@ const form = reactive<{
   name: string;
   description: string;
   totalTimeoutS: number | undefined;
+  categoryId: number | null;
   packages: TestPackagePublic[];
   caseType: "linear" | "flow";
   flowchartData: any; // Allow any object for flowchart data
@@ -225,6 +233,7 @@ const form = reactive<{
   name: "",
   description: "",
   totalTimeoutS: 1800, // 默认30分钟
+  categoryId: null,
   packages: [],
   caseType: "linear",
   flowchartData: null
@@ -286,6 +295,7 @@ onMounted(async () => {
       form.description = cs.description || "";
       form.caseType = cs.caseType;
       form.totalTimeoutS = cs.totalTimeoutS || 600;
+      form.categoryId = cs.categoryId || null;
       form.packages = cs.packages || [];
       form.flowchartData = (cs.flowchartData as GraphData) || null;
     }
@@ -333,6 +343,7 @@ const handleSave = async () => {
       payload = {
         name: form.name,
         description: form.description,
+        categoryId: form.categoryId,
         caseType: "flow",
         totalTimeoutS: form.totalTimeoutS,
         flowchartData: graphData,
@@ -341,6 +352,7 @@ const handleSave = async () => {
       payload = {
         name: form.name,
         description: form.description,
+        categoryId: form.categoryId,
         caseType: "linear",
         totalTimeoutS: form.totalTimeoutS,
         packageIds: form.packages.map((p) => p.packageId),

@@ -16,6 +16,7 @@
           @update:global-atom-ids="handleGlobalAtomsChange"
           @properties-change="handlePropertiesChange"
           @edit-atom="handleEditAtom"
+          @refresh-data="handleRefreshData"
       />
     </div>
   </div>
@@ -31,7 +32,7 @@ import "@logicflow/core/lib/style/index.css";
 import "@logicflow/extension/lib/style/index.css";
 
 import { FullScreen, Delete } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
 
 import StartNode from "./flowchart/StartNode";
 import StateNode from "./flowchart/StateNode";
@@ -39,6 +40,7 @@ import EndNode from "./flowchart/EndNode";
 import PropertiesPanel from "./flowchart/PropertiesPanel.vue";
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore"; // 新增引用
 import { useRouter } from "vue-router";
 
 // 全局静态注册插件
@@ -53,6 +55,7 @@ const props = defineProps<{
 
 const atomStore = useAtomStore();
 const packageStore = usePackageStore();
+const categoryStore = useAtomCategoryStore(); // 新增 Store
 const router = useRouter();
 
 const container = ref<HTMLElement | null>(null);
@@ -76,6 +79,34 @@ const toggleFullscreen = () => {
   }
 };
 
+// [新增] ID 生成器辅助函数
+const generateSequentialId = (type: string) => {
+  if (!lf) return uuidv4();
+  
+  const prefixMap: Record<string, string> = {
+    'StartNode': 'start',
+    'StateNode': 'state',
+    'EndNode': 'end'
+  };
+  const prefix = prefixMap[type] || 'node';
+  
+  // 获取当前画布所有节点
+  const nodes = lf.getGraphRawData().nodes;
+  let maxIndex = 0;
+  // 正则匹配 prefix_数字 格式
+  const regex = new RegExp(`^${prefix}_(\\d+)$`);
+
+  nodes.forEach((node: any) => {
+    const match = node.id.match(regex);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > maxIndex) maxIndex = num;
+    }
+  });
+
+  return `${prefix}_${maxIndex + 1}`;
+};
+
 const handleFullscreenChange = () => {
   isFullscreen.value = !!document.fullscreenElement;
 };
@@ -84,6 +115,7 @@ const handleFullscreenChange = () => {
 onMounted(async () => {
   atomStore.fetchAtoms({ skip: 0, limit: 2000 });
   packageStore.fetchPackages({ skip: 0, limit: 2000 });
+  categoryStore.fetchAllCategories(); // 确保分类也加载
 
   // === 核心修复：动态加载 LogicFlow 扩展，并隔离 AMD 环境 ===
   let DndPanel, SelectionSelect, Snapshot, Menu, Control;
@@ -168,6 +200,25 @@ onMounted(async () => {
           ]);
         }
 
+        // [新增] 监听拖拽添加事件，将 UUID 替换为顺序 ID
+        lf.on("node:dnd-add", ({ data }) => {
+          const { type, x, y, text, properties } = data;
+          const newId = generateSequentialId(type);
+          
+          // 1. 删除自动生成的 UUID 节点
+          lf?.deleteNode(data.id);
+          
+          // 2. 添加自定义 ID 的节点
+          lf?.addNode({
+            id: newId,
+            type,
+            x,
+            y,
+            text: typeof text === 'object' ? text.value : text,
+            properties
+          });
+        });
+
         // ... (lf.on 监听器等保持不变) ...
         lf.on("node:delete", ({ data }) => { handleConfirmAndDelete([data]); return false; });
         lf.on("edge:delete", ({ data }) => { handleConfirmAndDelete([data]); return false; });
@@ -222,6 +273,28 @@ watch(
     },
     { deep: true, immediate: true }
 );
+
+// 新增：手动刷新数据处理
+const handleRefreshData = async () => {
+  const loading = ElLoading.service({
+    target: '.properties-container',
+    text: '正在更新数据...',
+    background: 'rgba(255, 255, 255, 0.7)',
+  });
+
+  try {
+    await Promise.all([
+      atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
+      packageStore.fetchPackages({ skip: 0, limit: 2000 }),
+      categoryStore.fetchAllCategories() // 同时刷新分类数据
+    ]);
+    ElMessage.success("触发器数据已刷新");
+  } catch (error) {
+    ElMessage.error("刷新失败");
+  } finally {
+    loading.close();
+  }
+};
 
 const handlePropertiesChange = (id: string, newProps: any) => {
   const element = lf?.getModelById(id);

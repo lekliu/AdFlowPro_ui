@@ -750,6 +750,14 @@ const createDependencyProposals = (range: any, monaco: any) => {
       insertText: 'not_match(text="${1:text}")',
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       range: range
+    },
+    {
+      label: 'extract',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '数据提取',
+      insertText: 'extract(name="${1:varName}", regex="${2:(.*)}", scope="${3:matched_node}")',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
     }
   ];
 };

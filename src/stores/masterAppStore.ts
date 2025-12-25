@@ -20,7 +20,7 @@ export const useMasterAppStore = defineStore("masterApp", {
     error: null,
   }),
   actions: {
-    async fetchApps(params: { skip: number; limit: number; search?: string }) {
+    async fetchApps(params: { skip: number; limit: number; search?: string; suiteSearch?: string }) {
       this.isLoading = true;
       try {
         const response = await masterAppService.getMasterApps(params);

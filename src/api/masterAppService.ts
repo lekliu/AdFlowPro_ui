@@ -4,7 +4,7 @@ import apiClient from "./apiClient";
 import type { MasterAppPublic, MasterAppCreatePayload, MasterAppUpdatePayload, PaginatedResponse, DevicePublic } from "@/types/api";
 
 export const masterAppService = {
-  async getMasterApps(params?: { skip?: number; limit?: number; search?: string }): Promise<PaginatedResponse<MasterAppPublic>> {
+  async getMasterApps(params?: { skip?: number; limit?: number; search?: string; suiteSearch?: string }): Promise<PaginatedResponse<MasterAppPublic>> {
     return apiClient.get("/master-apps", { params });
   },
 

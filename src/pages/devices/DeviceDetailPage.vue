@@ -90,6 +90,7 @@
                 @refresh="fetchInstalledApps"
                 @uninstall="handleUninstall"
                 @add-to-master="handleAddToMaster"
+                @run-app="handleRunApp"
                 class="full-height-card"
             />
           </div>
@@ -122,6 +123,7 @@ import { commandService } from "@/api/commandService";
 import { wsService } from "@/services/wsService";
 import { deviceService } from "@/api/deviceService";
 import { FullScreen } from "@element-plus/icons-vue";
+import { jobService } from "@/api/jobService";
 
 import DeviceInfoCard from "@/components/DeviceInfoCard.vue";
 import QuickActionsCard from "@/components/QuickActionsCard.vue";
@@ -370,6 +372,26 @@ const handleAddToMaster = async (app: DeviceInstalledApp) => {
     }
   } catch (error) {
     if (error !== "cancel") ElMessage.info("已取消操作");
+  }
+};
+
+const handleRunApp = async (app: DeviceInstalledApp) => {
+  if (!app.defaultSuiteId) {
+    ElMessage.warning("该应用未配置默认测试套件，无法直接运行。");
+    return;
+  }
+  try {
+    ElMessage.info(`正在启动应用 "${app.appName}" 的测试任务...`);
+    const createdJob = await jobService.createJob({
+      suiteId: app.defaultSuiteId,
+      targetAppPackageName: app.packageName,
+      deviceId: props.deviceId
+    });
+    ElMessage.success(`任务 #${createdJob.jobId} 已启动，正在跳转监控页...`);
+    // 跳转到任务详情页
+    router.push({ name: "JobDetail", params: { jobId: createdJob.jobId } });
+  } catch (error) {
+    // Error handled by interceptor
   }
 };
 

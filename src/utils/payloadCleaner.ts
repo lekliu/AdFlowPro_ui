@@ -20,6 +20,7 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     tap: ["startX", "startY"],
     tap_relative: ["offsetX", "offsetY"],
     conditional_tap: ["startX", "startY", "comparisonOperator", "leftSource", "leftValue", "rightSource", "rightValue"],
+    conditional_tap_jump: ["startX", "startY", "comparisonOperator", "leftValue", "rightValue", "targetStateLabel"],
     swipe: ["startX", "startY", "endX", "endY", "duration"],
     swipe_gesture: ["direction"],
     wait: ["duration"],
@@ -70,9 +71,14 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
         let val = action.parameters[paramKey];
 
         // Fix: For 'tap' and 'swipe', ensure 0 is treated as a valid value
+        // [V15.1 Update]: Also allow 0 for conditional_tap_jump to support "logic only" mode
         // And critical fix: if value is missing for these actions, force a default 0 to prevent empty params
-        if ((action.action === 'tap' || action.action === 'swipe') && (val === null || val === undefined)) {
-             val = 0;
+        if ((action.action === 'tap' || action.action === 'swipe' || action.action === 'conditional_tap_jump') && (val === null || val === undefined)) {
+             if (paramKey === 'duration') {
+                 val = 1000; // Default duration for swipe
+             } else {
+                 val = 0;
+             }
         }
 
         if (val !== null && val !== undefined) {

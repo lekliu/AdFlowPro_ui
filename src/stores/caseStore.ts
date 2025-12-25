@@ -22,7 +22,7 @@ export const useCaseStore = defineStore("case", {
     setNeedsRefresh(status: boolean) {
       this.needsRefresh = status;
     },
-    async fetchCases(params: { skip: number; limit: number; search?: string }) {
+    async fetchCases(params: { skip: number; limit: number; search?: string; categoryId?: number }) {
       this.isLoading = true;
       try {
         const response = await caseService.getCases(params);

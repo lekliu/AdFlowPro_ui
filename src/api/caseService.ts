@@ -12,6 +12,7 @@ export const caseService = {
     skip?: number;
     limit?: number;
     search?: string;
+    categoryId?: number;
   }): Promise<PaginatedResponse<TestCaseListPublic>> {
     return apiClient.get("/cases", { params });
   },

@@ -31,6 +31,19 @@
         <el-col :span="12"><el-input-number v-model="editableAction.parameters.offsetY" placeholder="Y 偏移量" controls-position="right" /></el-col>
       </el-row>
 
+      <!-- Wait For Vanish (Duration) -->
+      <div v-if="editableAction.action === 'wait_for_vanish'" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 12px; color: #909399; white-space: nowrap;">超时(ms):</span>
+        <el-input-number
+          v-model="editableAction.parameters.duration"
+          :min="1000"
+          :step="1000"
+          placeholder="默认 5000"
+          controls-position="right"
+          style="flex-grow: 1;"
+        />
+      </div>
+
       <!-- Conditional Tap (Enhanced) -->
       <div v-if="editableAction.action === 'conditional_tap'" class="conditional-tap-container">
         <!-- Row 1: Left Side + Operator -->
@@ -71,6 +84,35 @@
         </div>
       </div>
 
+      <!-- Conditional Tap Jump (New) -->
+      <div v-if="editableAction.action === 'conditional_tap_jump'" class="conditional-tap-container">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">条件:</span>
+          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="flex-grow: 1" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 200px">
+            <el-option label=">" value=">" /> <el-option label=">=" value=">=" />
+            <el-option label="<" value="<" /> <el-option label="<=" value="<=" />
+            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
+            <el-option label="包含" value="contains" />
+          </el-select>
+          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="flex-grow: 1" />
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">点击坐标:</span>
+          <el-input-number v-model="editableAction.parameters.startX" placeholder="X" controls-position="right" style="width: 110px" />
+          <el-input-number v-model="editableAction.parameters.startY" placeholder="Y" controls-position="right" style="width: 110px" />
+          <span style="font-size: 11px; color: #C0C4CC;">(≤0则不点击)</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">跳转目标:</span>
+          <el-input
+              v-model="editableAction.parameters.targetStateLabel"
+              placeholder="目标 State 标签 (填'结束'则退出Case)"
+              style="flex-grow: 1"
+          />
+        </div>
+      </div>
+
       <!-- End Case (Enhanced with Condition) -->
       <div v-if="editableAction.action === 'end_case'" class="conditional-container">
         <!-- 默认无条件 -->
@@ -98,6 +140,7 @@
         <el-row :gutter="10">
           <el-col :span="12"><el-input-number v-model="editableAction.parameters.endX" placeholder="End X" controls-position="right" /></el-col>
           <el-col :span="12"><el-input-number v-model="editableAction.parameters.endY" placeholder="End Y" controls-position="right" /></el-col>
+          <el-col :span="24" style="margin-top: 5px"><el-input-number v-model="editableAction.parameters.duration" :min="100" :step="100" placeholder="滑动时长(ms)" controls-position="right" style="width: 100%" /></el-col>
         </el-row>
       </div>
       <el-select v-if="editableAction.action === 'swipe_gesture'" v-model="editableAction.parameters.direction" placeholder="选择滑动方向">
@@ -230,6 +273,7 @@ const cascaderOptions = [
       { value: "reopen_app", label: "Reopen App (by PackageName)" },
       { value: "return_to_entry_app", label: "Return to Entry App" },
       { value: "jump_to_state", label: "Jump to State (Flow)" },
+      { value: "conditional_tap_jump", label: "Conditional Tap & Jump" },
     ],
   },
   {
@@ -303,12 +347,20 @@ watch(
             newVal.parameters = { direction: 'UP' };
             break;
           case 'tap':
-            newVal.parameters = { startX: 0, startY: 0 };
+            newVal.parameters = { startX: 0, startY: 0, endX: 0, endY: 0, duration: 1000 };
             break;
           case 'conditional_tap':
             // Simplified initialization
             newVal.parameters = {
               comparisonOperator: '>',
+            };
+            break;
+          case 'conditional_tap_jump':
+            newVal.parameters = {
+              comparisonOperator: '==',
+              startX: 0,
+              startY: 0,
+              targetStateLabel: '结束'
             };
             break;
           case 'report_value':

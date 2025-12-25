@@ -16,7 +16,15 @@
 
           <!-- 搜索和筛选器 (推到最右侧) -->
           <div class="filter-group-auto">
-            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 300px; margin-right: 10px">
+            <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px; margin-right: 10px">
+              <el-option
+                  v-for="cat in categoryStore.allCategories"
+                  :key="cat.categoryId"
+                  :label="cat.name"
+                  :value="cat.categoryId"
+              />
+            </el-select>
+            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 200px; margin-right: 10px">
               <template #append>
                 <el-button :icon="Search" @click="handleSearch" />
               </template>
@@ -38,8 +46,14 @@
           ref="suiteTableRef"
       >
         <el-table-column type="selection" width="40" />
-        <el-table-column prop="suiteId" label="ID" width="90" sortable />
+        <el-table-column prop="suiteId" label="ID" width="80" sortable />
         <el-table-column prop="name" label="名称" width="180" sortable />
+        <el-table-column prop="categoryName" label="分类" width="120" sortable>
+          <template #default="scope">
+            <el-tag v-if="scope.row.categoryName" type="info">{{ scope.row.categoryName }}</el-tag>
+            <span v-else>--</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
         <el-table-column prop="targetAppPackage" label="目标App" min-width="180" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="160" sortable>
@@ -151,6 +165,7 @@ import { ref, onMounted, computed, reactive, onActivated, nextTick, onBeforeUnmo
 import { useRouter } from "vue-router";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { jobService } from "@/api/jobService";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type ElTree } from "element-plus";
@@ -166,11 +181,13 @@ dayjs.extend(utc);
 const router = useRouter();
 const suiteStore = useSuiteStore();
 const masterAppStore = useMasterAppStore();
+const categoryStore = useAtomCategoryStore();
 const deviceStore = useDeviceStore();
 
 const currentPage = ref(1);
 const pageSize = ref(10);
 const searchQuery = ref("");
+const categoryFilter = ref<number | "">("");
 const treeRef = ref<InstanceType<typeof ElTree>>();
 const suiteTableRef = ref<InstanceType<typeof ElTable>>();
 const selectedSuites = ref<TestSuiteListPublic[]>([]);
@@ -180,6 +197,7 @@ const fetchData = () => {
     skip: (currentPage.value - 1) * pageSize.value,
     limit: pageSize.value,
     search: searchQuery.value || undefined,
+    categoryId: categoryFilter.value || undefined,
   };
   suiteStore.fetchSuites(params);
 };
@@ -193,6 +211,7 @@ onActivated(() => {
 
 onMounted(() => {
   fetchData();
+  categoryStore.fetchAllCategories();
 });
 
 const handleSearch = () => {

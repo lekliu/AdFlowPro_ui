@@ -176,6 +176,13 @@ export interface TestPackageUpdatePayload {
 }
 
 // --- L3: Test Case ---
+export interface TestCaseBase {
+  name: string;
+  caseType: "linear" | "flow";
+  description?: string;
+  categoryId?: number | null; // [新增]
+}
+
 export interface TestCaseListPublic {
   caseId: number;
   name: string;
@@ -184,16 +191,19 @@ export interface TestCaseListPublic {
   totalTimeoutS?: number;
   createdAt: string;
   updatedAt: string;
+  categoryName?: string | null; // [新增]
 }
 
 export interface TestCasePublic extends TestCaseListPublic {
   packages: TestPackagePublic[];
   flowchartData?: GraphData | object | null;
+  categoryId?: number | null; // [新增] 详情页也需要
 }
 
 export interface TestCaseCreatePayload {
   name: string;
   description?: string;
+  categoryId?: number | null; // [新增]
   caseType: "linear" | "flow";
   totalTimeoutS?: number;
   packageIds?: number[];
@@ -203,6 +213,7 @@ export interface TestCaseCreatePayload {
 export interface TestCaseUpdatePayload {
   name?: string;
   description?: string;
+  categoryId?: number | null; // [新增]
   totalTimeoutS?: number;
   packageIds?: number[];
   flowchartData?: GraphData | object | null;
@@ -220,16 +231,19 @@ export interface TestSuiteListPublic {
   screenshotQuality?: number;
   createdAt: string;
   updatedAt: string;
+  categoryName?: string | null; // [新增]
 }
 
 export interface TestSuitePublic extends TestSuiteListPublic {
   cases: TestCaseListPublic[];
   flowchartData?: GraphData;
+  categoryId?: number | null; // [新增] 详情页也需要
 }
 
 export interface TestSuiteCreatePayload {
   name: string;
   description?: string;
+  categoryId?: number | null; // [新增]
   targetAppPackage?: string;
   defocusGuardTimeoutS?: number;
   noMatchDelayMs?: number;
@@ -242,6 +256,7 @@ export interface TestSuiteCreatePayload {
 export interface TestSuiteUpdatePayload {
   name?: string;
   description?: string;
+  categoryId?: number | null; // [新增]
   targetAppPackage?: string;
   defocusGuardTimeoutS?: number;
   noMatchDelayMs?: number;

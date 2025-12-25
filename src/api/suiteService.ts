@@ -7,7 +7,7 @@ export const suiteService = {
   /**
    * 获取线性测试套件列表
    */
-  async getSuites(params?: { skip?: number; limit?: number; search?: string }): Promise<PaginatedResponse<TestSuitePublic>> {
+  async getSuites(params?: { skip?: number; limit?: number; search?: string; categoryId?: number }): Promise<PaginatedResponse<TestSuitePublic>> {
     return apiClient.get("/suites", { params });
   },
 

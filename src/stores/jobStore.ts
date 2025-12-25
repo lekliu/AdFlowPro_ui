@@ -58,6 +58,13 @@ export const useJobStore = defineStore("job", {
       }
     },
 
+    updateJobStatusLocally(jobId: number, status: string) {
+      if (this.currentJobDetails?.jobDetails.jobId === jobId) {
+        this.currentJobDetails.jobDetails.status = status as any;
+        console.log(`[JobStore] Local status updated for Job ${jobId}: ${status}`);
+      }
+    },
+
     async cancelJob(jobId: number) {
       this.isCancelling = true;
       try {

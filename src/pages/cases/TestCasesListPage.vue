@@ -14,7 +14,15 @@
 
           <!-- 搜索和筛选器 (推到最右侧) -->
           <div class="filter-group-auto">
-            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 300px; margin-right: 10px">
+            <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px; margin-right: 10px">
+              <el-option
+                  v-for="cat in categoryStore.allCategories"
+                  :key="cat.categoryId"
+                  :label="cat.name"
+                  :value="cat.categoryId"
+              />
+            </el-select>
+            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 200px; margin-right: 10px">
               <template #append>
                 <el-button :icon="Search" @click="handleSearch" />
               </template>
@@ -33,7 +41,7 @@
           @row-dblclick="handleRowDblClick"
           ref="caseTableRef">
         <el-table-column type="selection" width="40" />
-        <el-table-column prop="caseId" label="ID" width="90" sortable />
+        <el-table-column prop="caseId" label="ID" width="80" sortable />
         <el-table-column prop="name" label="名称" width="200" sortable>
           <template #default="scope">
             <div style="display: flex; align-items: center; gap: 8px">
@@ -44,6 +52,13 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column prop="categoryName" label="分类" width="120" sortable>
+          <template #default="scope">
+            <el-tag v-if="scope.row.categoryName" type="info">{{ scope.row.categoryName }}</el-tag>
+            <span v-else>--</span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
           <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
@@ -74,6 +89,7 @@ import { ref, onMounted, onActivated } from "vue";
 import type { ElTable } from "element-plus";
 import { useRouter } from "vue-router";
 import { useCaseStore } from "@/stores/caseStore";
+import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import type { TestCaseListPublic } from "@/types/api";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
@@ -84,18 +100,21 @@ dayjs.extend(utc);
 
 const router = useRouter();
 const caseStore = useCaseStore();
+const categoryStore = useAtomCategoryStore();
 const caseTableRef = ref<InstanceType<typeof ElTable>>();
 const selectedCases = ref<TestCaseListPublic[]>([]);
 
 const currentPage = ref(1);
 const pageSize = ref(10);
 const searchQuery = ref("");
+const categoryFilter = ref<number | "">("");
 
 const fetchData = () => {
   const params = {
     skip: (currentPage.value - 1) * pageSize.value,
     limit: pageSize.value,
     search: searchQuery.value || undefined,
+    categoryId: categoryFilter.value || undefined,
   };
   caseStore.fetchCases(params);
 };
@@ -109,6 +128,7 @@ onActivated(() => {
 
 onMounted(() => {
   fetchData();
+  categoryStore.fetchAllCategories();
 });
 
 const handleSearch = () => {

@@ -67,7 +67,18 @@
               </div>
             </template>
             <div class="pool-content">
-              <el-input v-model="atomSearch" placeholder="搜索原子操作" clearable class="pool-search" />
+              <el-input
+                v-model="atomSearch"
+                placeholder="搜索原子操作"
+                clearable
+                class="pool-search"
+                @keyup.enter="handlePoolFilterChange"
+                @clear="handlePoolFilterChange"
+              >
+                <template #append>
+                  <el-button :icon="Search" @click="handlePoolFilterChange" />
+                </template>
+              </el-input>
               <draggable
                 class="draggable-list"
                 :list="availableAtoms"
@@ -105,7 +116,10 @@
         <el-col :span="14">
           <el-card class="build-card" body-style="padding: 0;">
             <template #header>
-              <span>测试包内容 (拖拽排序)</span>
+              <div class="pool-header">
+                <span>测试包内容 (拖拽排序)</span>
+                <el-button size="small" type="primary" plain :icon="Sort" @click="sortAtomsByName">按名称排序</el-button>
+              </div>
             </template>
             <div class="pool-content">
               <draggable class="draggable-list" v-model="form.atoms" group="atoms" item-key="atomId" handle=".drag-handle" tag="div">
@@ -192,7 +206,7 @@ import { ref, reactive, computed, onMounted, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search, Monitor } from "@element-plus/icons-vue";
+import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search, Monitor, Sort } from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
@@ -322,6 +336,16 @@ const handlePoolPageChange = (val: number) => {
 
 const removeAtom = (index: number) => {
   form.atoms.splice(index, 1);
+};
+
+// [新增] 按原子操作名称排序逻辑
+const sortAtomsByName = () => {
+  if (form.atoms.length <= 1) return;
+  
+  // 使用中文排序器，支持拼音排序
+  const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+  form.atoms.sort((a, b) => collator.compare(a.name, b.name));
+  ElMessage.success("已按原子操作名称完成排序");
 };
 
 const goBack = () => {

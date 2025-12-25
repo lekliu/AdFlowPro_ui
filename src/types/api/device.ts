@@ -60,6 +60,12 @@ export interface DeviceInstalledApp {
   isSystemApp: boolean;
   isInMaster: boolean;
   lastSyncedAt: string;
+  defaultSuiteId?: number | null;
+  defaultSuiteName?: string | null;
+  lastRunAt?: string;
+  lastStatus?: string;
+  lastFailReason?: string;
+  lastDurationS?: number;
 }
 
 /**

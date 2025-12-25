@@ -118,10 +118,12 @@
 defineOptions({
   name: "ScheduledTasks",
 });
-import { ref, onMounted, reactive } from "vue";
+import { ref, onMounted, reactive, onActivated, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useScheduledTaskStore } from "@/stores/scheduledTaskStore";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useDeviceStore } from "@/stores/deviceStore";
+import { usePrefillStore } from "@/stores/prefillStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
 import type { ScheduledTaskPublic } from "@/types/api";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
@@ -136,6 +138,9 @@ const taskStore = useScheduledTaskStore();
 const suiteStore = useSuiteStore();
 const deviceStore = useDeviceStore();
 const appStore = useMasterAppStore();
+const prefillStore = usePrefillStore();
+const route = useRoute();
+const router = useRouter();
 
 // --- Component State ---
 const currentPage = ref(1);
@@ -159,6 +164,37 @@ const form = reactive({
   cronExpression: "",
   isEnabled: true,
 });
+
+// --- 核心：处理来自其他页面的预填请求 ---
+const checkPrefill = () => {
+  // 从内存 Store 中消费数据
+  const data = prefillStore.consumeScheduledTask();
+  if (data) {
+    handleOpenDialog(null); // 打开新增弹窗
+    form.suiteId = data.suiteId;
+    form.targetAppPackageName = data.targetAppPackageName;
+    form.deviceId = data.deviceId;
+    form.name = data.name;
+  }
+};
+
+onMounted(() => {
+  fetchData();
+  suiteStore.fetchAllSuites();
+  deviceStore.fetchDevices({ limit: 1000 });
+  appStore.fetchApps({ skip: 0, limit: 1000 });
+  checkPrefill();
+});
+
+onActivated(checkPrefill);
+
+// 增加监听：处理标签页已打开时的再次跳转
+watch(
+  () => route.query,
+  (newQuery) => {
+    if (newQuery.prefillSuiteId) checkPrefill();
+  }
+);
 
 const rules = reactive<FormRules>({
   name: [{ required: true, message: "请输入任务名称", trigger: "blur" }],

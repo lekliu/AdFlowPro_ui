@@ -14,12 +14,7 @@
 
           <!-- 搜索和筛选器 (推到最右侧) -->
           <div class="filter-group-auto">
-            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 300px; margin-right: 10px">
-              <template #append>
-                <el-button :icon="Search" @click="handleSearch" />
-              </template>
-            </el-input>
-            <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 200px">
+            <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px">
               <el-option
                   v-for="category in categoryStore.allCategories"
                   :key="category.categoryId"
@@ -27,6 +22,11 @@
                   :value="category.categoryId"
               />
             </el-select>
+            <el-input v-model="searchQuery" placeholder="按名称或描述搜索" clearable @keyup.enter="handleSearch" style="width: 200px; margin-right: 10px">
+              <template #append>
+                <el-button :icon="Search" @click="handleSearch" />
+              </template>
+            </el-input>
           </div>
         </div>
       </template>
