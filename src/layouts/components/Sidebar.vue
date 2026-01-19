@@ -58,6 +58,10 @@
           <el-icon><Picture /></el-icon>
           <span>图元模板</span>
         </el-menu-item>
+        <el-menu-item index="/ai-models">
+          <el-icon><Cpu /></el-icon>
+          <span>AI 模型库</span>
+        </el-menu-item>
       </el-sub-menu>
 
       <el-sub-menu index="/automation">
@@ -75,11 +79,18 @@
         </el-menu-item>
       </el-sub-menu>
 
-      <el-sub-menu index="/platform-settings">
+      <el-sub-menu index="/platform-settings" v-if="userRole !== 'viewer'">
         <template #title>
           <el-icon><Setting /></el-icon>
           <span>平台设置</span>
         </template>
+        
+        <!-- 仅超管可见：租户管理 -->
+        <el-menu-item v-if="userRole === 'super_admin'" index="/platform-settings/tenants">
+          <el-icon><OfficeBuilding /></el-icon>
+          <span>租户管理</span>
+        </el-menu-item>
+
         <el-menu-item index="/global-variables">
           <el-icon><PriceTag /></el-icon>
           <span>全局变量</span>
@@ -88,6 +99,17 @@
           <el-icon><CollectionTag /></el-icon>
           <span>原子操作分类</span>
         </el-menu-item>
+        
+        <!-- 超管和租户管理员可见：成员管理与接入码 -->
+        <el-menu-item v-if="['super_admin', 'admin'].includes(userRole)" index="/platform-settings/users">
+          <el-icon><User /></el-icon>
+          <span>成员管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="['super_admin', 'admin'].includes(userRole)" index="/platform-settings/access-keys">
+          <el-icon><Key /></el-icon>
+          <span>接入码中心</span>
+        </el-menu-item>
+        
         <el-menu-item index="/platform-settings/import-export">
           <el-icon><UploadFilled /></el-icon>
           <span>数据导入导出</span>
@@ -100,6 +122,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
 import {
   House,
   Platform,
@@ -117,7 +140,10 @@ import {
   Management,
   Cpu,
   Share,
-  CollectionTag, UploadFilled,
+  CollectionTag, 
+  UploadFilled,
+  User, Key,
+  OfficeBuilding
 } from "@element-plus/icons-vue";
 
 defineProps<{
@@ -125,7 +151,9 @@ defineProps<{
 }>();
 
 const route = useRoute();
+const authStore = useAuthStore();
 const activeMenu = computed(() => route.path);
+const userRole = computed(() => authStore.user?.role);
 </script>
 
 <style scoped>

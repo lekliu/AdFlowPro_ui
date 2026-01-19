@@ -79,26 +79,22 @@ export default defineConfig(({ mode }) => {
       port: 5173, // Default Vite port, you can change it
       open: true, // Automatically open the app in the browser on server start
       proxy: {
-        // Proxy /api requests to your FastAPI backend
-        // Use a regex if your API prefix might vary or if you need more control
-        "^/api": {
-          // Using '^/api' to match paths starting with /api
-          target: viteApiBaseUrl, // Your FastAPI server URL from .env or default
-          changeOrigin: true, // Needed for virtual hosted sites
-          // rewrite: (path) => path.replace(/^\/api/, ''), // Uncomment if your FastAPI doesn't have /api prefix in its routes
-          // And you want to strip /api before forwarding to backend.
-          // For example, if UI calls /api/v1/devices and backend expects /v1/devices
+        // 转发 API 请求
+        "/api/v1": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          // rewrite: (path) => path.replace(/^\/api\/v1/, '/api/v1') // 如果路径完全一致，这行可选
         },
-        // Example for WebSocket proxy (if needed, though direct WS connection from client is also common)
-        // '/ws': {
-        //   target: 'ws://localhost:8000', // Your FastAPI WebSocket URL
-        //   ws: true,
-        //   changeOrigin: true,
-        // },
+        // 转发 WebSocket 请求 (核心：解决实时日志连接不上)
+        "/ws": {
+          target: "ws://127.0.0.1:8000",
+          ws: true,
+          changeOrigin: true,
+        },
       },
     },
     build: {
-      sourcemap: true, // Generate source maps for production build (can be 'hidden' or false)
+      sourcemap: false, // Generate source maps for production build (can be 'hidden' or false)
       rollupOptions: {
         output: {
           // Manual chunking for better caching (optional, Vite does a good job by default)

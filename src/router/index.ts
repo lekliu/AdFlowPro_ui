@@ -11,6 +11,7 @@ import masterAppRoutes from "./routes/masterApp";
 import assetRoutes from "./routes/assets";
 import jobRoutes from "./routes/job";
 import platformRoutes from "./routes/platform";
+import { useAuthStore } from "@/stores/authStore";
 
 // 为 meta.title 定义更具体的类型
 declare module "vue-router" {
@@ -23,6 +24,12 @@ declare module "vue-router" {
 
 // --- 重构路由定义 ---
 const routes: Array<RouteRecordRaw> = [
+  {
+    path: "/login",
+    name: "Login",
+    component: () => import("@/pages/LoginPage.vue"),
+    meta: { title: "登录", noCache: true },
+  },
   {
     path: "/",
     component: DefaultLayout,
@@ -41,14 +48,19 @@ router.afterEach((to) => {
   tabStore.addTab(to);
 });
 
+// 全局守卫逻辑
 router.beforeEach((to, from, next) => {
-  logger.log(`[Router] Navigating from: ${from.path} -> to: ${to.path}`);
-  if (to.name) {
-    logger.log(`[Router] Matched route name: ${String(to.name)}`);
+  const authStore = useAuthStore();
+
+  if (to.name !== 'Login' && !authStore.isAuthenticated) {
+    // 没登录且不是去登录页 -> 踢回登录页
+    next({ name: 'Login' });
+  } else if (to.name === 'Login' && authStore.isAuthenticated) {
+    // 已登录还想去登录页 -> 踢回首页
+    next({ name: 'Dashboard' });
   } else {
-    logger.warn(`[Router] No route name matched for path: ${to.path}`);
+    next();
   }
-  next();
 });
 
 router.onError((error) => {

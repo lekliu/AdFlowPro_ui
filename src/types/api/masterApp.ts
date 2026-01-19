@@ -12,6 +12,7 @@ export interface MasterAppPublic {
   versionName?: string;
   versionCode?: number;
   weight: number;
+  weightAdjustment: number;
   defaultSuiteId?: number | null;
   defaultSuiteName?: string | null;
   createdAt: string;
@@ -41,4 +42,5 @@ export interface MasterAppUpdatePayload {
   versionCode?: number;
   defaultSuiteId?: number | null;
   weight?: number;
+  weightAdjustment?: number;
 }

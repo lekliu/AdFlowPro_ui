@@ -1,2 +1,20 @@
 // 运行WEB UI
 npm run dev
+
+# 1. 构建后端镜像
+docker build -t adflowpro-server:1.0 ./AdFlowPro_server
+
+# 2. 构建前端镜像
+docker build -t adflowpro-ui:1.0 ./AdFlowPro_ui
+
+# 3. 将镜像保存为 tar 文件
+docker save -o adflowpro-server.tar adflowpro-server:1.0
+docker save -o adflowpro-ui.tar adflowpro-ui:1.0
+
+上传文件：将 adflowpro-server.tar、adflowpro-ui.tar 以及 docker-compose.yml 上传到 Ubuntu 的同一个文件夹（例如 ~/adflowpro）。
+导入镜像：
+在 Ubuntu 上执行：
+
+docker load -i adflowpro-server.tar
+docker load -i adflowpro-ui.tar
+

@@ -85,14 +85,26 @@
       >
         {{ isAdhocRunning ? '中止' : '重置' }}
       </el-button>
+      <el-button
+          type="warning"
+          :icon="Key"
+          :disabled="!isConnected"
+          @click="handleRemoteAuth"
+      >
+        远程授权
+      </el-button>
+
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { Sunny, Moon, HomeFilled, Back, Switch, CircleClose, Hide } from "@element-plus/icons-vue";
+import { Sunny, Moon, HomeFilled, Back, Switch, CircleClose, Hide, Key } from "@element-plus/icons-vue";
+import apiClient from "@/api/apiClient";
+import { ElMessageBox, ElMessage } from "element-plus";
 
-defineProps<{
+const props = defineProps<{
+  deviceId: string; // 确保这里定义了 deviceId
   isConnected: boolean;
   isSendingScreenPowerCmd: boolean;
   isSendingHotkey: boolean;
@@ -101,6 +113,21 @@ defineProps<{
 }>();
 
 defineEmits(["sendCommand", "abortAdhoc"]);
+
+const handleRemoteAuth = () => {
+  ElMessageBox.prompt('请输入新的接入码', '远程授权下发', {
+    confirmButtonText: '立即下发',
+    cancelButtonText: '取消',
+    inputPattern: /.+/,
+    inputErrorMessage: '接入码不能为空'
+  }).then(async ({ value }) => {
+    try {
+      await apiClient.post(`/devices/${props.deviceId}/command/access-code`, { accessCode: value });
+      ElMessage.success("下发成功，设备将自动重连并迁移租户。");
+    } catch (e) {}
+  });
+};
+
 </script>
 
 <style scoped>

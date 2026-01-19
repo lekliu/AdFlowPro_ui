@@ -7,7 +7,7 @@ export const globalVariableService = {
   },
 
   async createVariable(payload: GlobalVariableCreatePayload): Promise<GlobalVariablePublic> {
-    return apiClient.post("/global-variables/", payload);
+    return apiClient.post("/global-variables", payload);
   },
 
   async updateVariable(variableId: number, payload: GlobalVariableUpdatePayload): Promise<GlobalVariablePublic> {

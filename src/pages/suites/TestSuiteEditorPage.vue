@@ -361,7 +361,7 @@ const codeDialog = reactive({
 });
 
 const openCodeMode = () => {
-  codeDialog.code = generateSuiteCode(form);
+  codeDialog.code = generateSuiteCode(form, suiteId.value);
   codeDialog.visible = true;
 };
 

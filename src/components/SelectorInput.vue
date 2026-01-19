@@ -1,23 +1,28 @@
-// FILE: AdFlowPro_ui\src\components\SelectorInput.vue
+<!-- AdFlowPro_ui/src/components/SelectorInput.vue -->
 <template>
   <div class="selector-input-container">
     <el-row :gutter="10" align="middle">
-      <!-- Part 1: Selector Type Dropdown -->
       <el-col :span="9">
         <el-select v-model="selectorType" placeholder="类型" @change="onTypeChange">
-          <el-option label="Text" value="text" />
-          <el-option label="ID" value="resourceId" />
-          <el-option label="Desc" value="contentDesc" />
-          <el-option label="Class + Bounds" value="class_and_bounds" />
+          <el-option v-for="opt in filteredOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-col>
-      <!-- Part 2: Selector Value Input -->
       <el-col :span="15">
-        <!-- Standard Single Input -->
         <el-input v-model="selectorValue" :placeholder="`输入 ${selectorType} 值`" @input="onValueChange" clearable />
-        <!-- Now we use the same input for class_and_bounds, storing it in 'text' -->
       </el-col>
     </el-row>
+
+    <!-- [新业务逻辑] 仅在 PC 动作或文本模式下显示精确匹配切换 -->
+    <el-row style="margin-top: 8px" v-if="selectorType === 'text' || selectorType === 'resourceId'">
+      <el-radio-group v-model="matchMode" size="small" @change="onModeChange">
+        <el-radio-button value="fuzzy">模糊</el-radio-button>
+        <el-radio-button value="exact">精确</el-radio-button>
+      </el-radio-group>
+      <span class="mode-desc">
+        {{ matchMode === 'exact' ? '完全相等' : '包含即可' }}
+      </span>
+    </el-row>
+
     <el-row class="property-checks" :gutter="10">
       <el-checkbox v-model="checkedState" @change="onPropertyChange('checked', $event as boolean)" :indeterminate="checkedState === undefined">
         Checked
@@ -33,127 +38,116 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, reactive } from "vue";
+import { ref, computed, watch } from "vue";
 import type { Selector } from "@/types/api/common";
 
 const props = defineProps<{
   modelValue: Selector;
+  action?: string;
 }>();
 
 const emit = defineEmits(["update:modelValue"]);
 
-type SelectorType = "text" | "resourceId" | "contentDesc" | "class_and_bounds";
-const VALID_SELECTOR_TYPES: SelectorType[] = ["text", "resourceId", "contentDesc"];
+// 1. 配置常量
+const allOptions = [
+  { label: "Text", value: "text" },
+  { label: "ID", value: "resourceId" },
+  { label: "Desc", value: "contentDesc" },
+  { label: "Class + Bounds", value: "class_and_bounds" },
+];
 
-const selectorType = ref<SelectorType>("text");
+// 2. 内部响应式状态
+const selectorType = ref<"text" | "resourceId" | "contentDesc" | "class_and_bounds">("text");
 const selectorValue = ref("");
-const classNameValue = ref("");
-const boundsValue = ref("");
+const matchMode = ref("fuzzy");
 
 const checkedState = ref<boolean | undefined>(undefined);
 const enabledState = ref<boolean | undefined>(undefined);
 const selectedState = ref<boolean | undefined>(undefined);
 
-const onValueChange = (newValue: string) => {
-  const newSelector: Selector = {};
+// 3. 核心：统一的数据提交函数
+const emitUpdate = () => {
+  const newSelector: Selector = {
+    matchMode: matchMode.value
+  };
 
+  // 聚合配置属性
+  if (checkedState.value !== undefined) newSelector.checked = checkedState.value;
+  if (enabledState.value !== undefined) newSelector.enabled = enabledState.value;
+  if (selectedState.value !== undefined) newSelector.selected = selectedState.value;
+
+  // 聚合定位属性
   if (selectorType.value === 'class_and_bounds') {
-    // 核心修复: 无论输入内容是否合法，必须显式设置 bounds 字段。
-    // 只要 bounds !== undefined，watcher 就不会自动切回 text 类型。
-    newSelector.bounds = "";
-
-    if (newValue) {
-      const match = newValue.match(/^([\w\.]+)\s*(\[.+\])$/);
-      if (match) {
-        newSelector.className = match[1];
-        newSelector.bounds = match[2];
-      } else {
-        // 解析失败（例如正在输入中），将全部内容暂存到 className
-        newSelector.className = newValue;
-      }
+    const match = selectorValue.value.match(/^([\w\.]+)\s*(\[.+\])$/);
+    if (match) {
+      newSelector.className = match[1];
+      newSelector.bounds = match[2];
     } else {
-      newSelector.className = "";
+      newSelector.className = selectorValue.value;
+      newSelector.bounds = "";
     }
   } else {
-    if (newValue) {
-      (newSelector as any)[selectorType.value] = newValue;
-    } else {
-      (newSelector as any)[selectorType.value] = "";
-    }
+    // 仅设置当前激活的 key (text, resourceId, 或 contentDesc)
+    (newSelector as any)[selectorType.value] = selectorValue.value;
   }
+
   emit("update:modelValue", newSelector);
 };
 
-
-const onTypeChange = (newType: SelectorType) => {
-  selectorValue.value = "";
-  classNameValue.value = "";
-  boundsValue.value = "";
-  const newSelector: Selector = {};
-
-  // 核心修复：切换到 class_and_bounds 时，显式设置 bounds 字段
-  if (newType === 'class_and_bounds') {
-    newSelector.className = "";
-    newSelector.bounds = ""; // 这里的空字符串是关键，它让 watcher 识别为 class_and_bounds 模式
-  } else {
-    (newSelector as any)[newType] = "";
+// 4. 界面交互处理
+const filteredOptions = computed(() => {
+  const pcActions = ['hover', 'right_click', 'double_click'];
+  if (props.action && pcActions.includes(props.action)) {
+    return allOptions.filter(opt => opt.value === 'text');
   }
-  emit("update:modelValue", newSelector);
-};
+  return allOptions;
+});
 
+const onValueChange = (val: string) => { selectorValue.value = val; emitUpdate(); };
+const onTypeChange = (newType: any) => { selectorType.value = newType; selectorValue.value = ""; emitUpdate(); };
+const onModeChange = (val: any) => { matchMode.value = val; emitUpdate(); };
 const onPropertyChange = (prop: 'checked' | 'enabled' | 'selected', value: boolean | null) => {
-  const newSelector = { ...props.modelValue };
-  if (value === null || value === undefined) {
-    // If state becomes indeterminate (null), remove the property from the selector
-    delete (newSelector as any)[prop];
-  } else {
-    // Otherwise, set the boolean value
-    (newSelector as any)[prop] = value;
-  }
-  emit("update:modelValue", newSelector);
+  const val = value ?? undefined;
+  if (prop === 'checked') checkedState.value = val;
+  if (prop === 'enabled') enabledState.value = val;
+  if (prop === 'selected') selectedState.value = val;
+  emitUpdate();
 };
 
+// 5. 核心修复：数据回显逻辑 (Model -> UI)
 watch(
     () => props.modelValue,
-    (newVal, oldVal) => {
-      // Basic guard against self-triggering loops
-      if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
+    (newVal) => {
+      if (!newVal) return;
 
-      const model = newVal || {};
+      // A. 恢复配置字段
+      matchMode.value = newVal.matchMode || "fuzzy";
+      checkedState.value = newVal.checked;
+      enabledState.value = newVal.enabled;
+      selectedState.value = newVal.selected;
 
-      // Type-safe way to find the active key
-      const activeKey = VALID_SELECTOR_TYPES.find((key) => (model as any)[key] !== undefined && (model as any)[key] !== null);
-
-      if (model.bounds !== undefined) {
+      // B. 明确优先级判定类型和值
+      if (newVal.bounds !== undefined && newVal.bounds !== null) {
         selectorType.value = "class_and_bounds";
-        // Reconstruct the string for display
-        selectorValue.value = `${model.className || ""} ${model.bounds || ""}`.trim();
-      } else if (activeKey) {
-        selectorType.value = activeKey;
-        selectorValue.value = (model as any)[activeKey] || "";
+        selectorValue.value = `${newVal.className || ""} ${newVal.bounds || ""}`.trim();
+      } else if (newVal.resourceId !== undefined && newVal.resourceId !== null) {
+        selectorType.value = "resourceId";
+        selectorValue.value = newVal.resourceId;
+      } else if (newVal.contentDesc !== undefined && newVal.contentDesc !== null) {
+        selectorType.value = "contentDesc";
+        selectorValue.value = newVal.contentDesc;
       } else {
+        // 默认为 Text
         selectorType.value = "text";
-        selectorValue.value = "";
+        selectorValue.value = newVal.text || "";
       }
-
-      // Sync property checkboxes
-      checkedState.value = model.checked;
-      enabledState.value = model.enabled;
-      selectedState.value = model.selected;
     },
     { immediate: true, deep: true }
 );
 </script>
 
 <style scoped>
-.selector-input-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px; /* Space between the text input row and the checkbox row */
-}
-.property-checks {
-  margin-top: 5px; /* Add some space above the checkboxes */
-  display: flex;
-  gap: 15px;
-}
+.selector-input-container { display: flex; flex-direction: column; gap: 8px; }
+.property-checks { margin-top: 5px; display: flex; gap: 15px; }
+.mode-desc { font-size: 12px; color: #909399; margin-left: 10px; line-height: 24px; }
 </style>

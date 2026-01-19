@@ -7,35 +7,27 @@
     </template>
 
     <!-- Flex 布局保持单行结构 -->
-    <div v-loading="isLoading" class="compact-controls">
-
+    <div v-loading="isLoading" class="compact-controls" v-if="isControlled">
       <!-- 左侧：开关组 -->
-      <div class="control-group">
-        <span class="label">调试模式</span>
-        <el-tooltip content="开启后，App会根据右侧配置的TAG上报详细日志到服务器后台。" placement="top">
-          <el-icon class="help-icon"><QuestionFilled /></el-icon>
-        </el-tooltip>
-        <el-switch v-model="isEnabled" />
-      </div>
-
-      <!-- 分割线 -->
-      <div class="divider" v-if="isEnabled"></div>
+      <!-- 移除了调试模式开关，直接显示 TAG 过滤 -->
 
       <!-- 右侧：TAG 选择器 -->
-      <div class="control-group flex-expand" v-if="isEnabled">
+      <div class="control-group flex-expand" v-if="isControlled">
         <span class="label">TAG过滤:</span>
-        <!-- 移除了 collapse-tags 和 collapse-tags-tooltip -->
         <el-select
             v-model="selectedTags"
             multiple
             filterable
             placeholder="留空则上报全部"
             class="tag-select"
-            :disabled="!isEnabled"
+            :disabled="!isControlled"
         >
           <el-option v-for="tag in availableTags" :key="tag" :label="tag" :value="tag" />
         </el-select>
       </div>
+    </div>
+    <div v-else class="empty-tip">
+      请在右上角开启“受控模式”以启用远程调试日志。
     </div>
   </el-card>
 </template>
@@ -48,10 +40,10 @@ import { ElMessage } from "element-plus";
 
 const props = defineProps<{
   deviceId: string;
+  isControlled: boolean;
 }>();
 
 const isLoading = ref(true);
-const isEnabled = ref(false);
 const selectedTags = ref<string[]>([]);
 const availableTags = ref<string[]>([]);
 
@@ -64,7 +56,6 @@ onMounted(async () => {
       props.deviceId ? deviceService.getDebugConfig(props.deviceId) : Promise.resolve({ enabled: false, tags: [] }),
       deviceService.getAvailableDebugTags(),
     ]);
-    isEnabled.value = config.enabled;
     selectedTags.value = config.tags;
     availableTags.value = tags;
   } catch (error) {
@@ -77,23 +68,28 @@ onMounted(async () => {
   }
 });
 
-watch([isEnabled, selectedTags], async (newValue, oldValue) => {
-  if (isInitialLoad || !props.deviceId) return;
+watch(selectedTags, async (newTags) => {
+  if (isInitialLoad || !props.deviceId || !props.isControlled) return;
 
   try {
     await deviceService.setDebugConfig(props.deviceId, {
-      enabled: isEnabled.value,
-      tags: selectedTags.value,
+      enabled: true,
+      tags: newTags,
     });
   } catch (error) {
-    ElMessage.error("配置下发失败，设备可能已离线。");
-    isEnabled.value = oldValue[0];
-    selectedTags.value = oldValue[1];
+    ElMessage.error("标签同步失败");
   }
 });
 </script>
 
 <style scoped>
+
+.empty-tip {
+  color: #909399;
+  font-size: 13px;
+  text-align: center;
+  padding: 10px 0;
+}
 .card-header {
   display: flex;
   justify-content: space-between;

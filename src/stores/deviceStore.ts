@@ -85,6 +85,10 @@ export const useDeviceStore = defineStore("device", {
       if (deviceInList) {
         deviceInList.isConnectedWs = isOnline;
         if (isOnline) deviceInList.lastSeenAt = new Date().toISOString();
+      } else if (isOnline) {
+        // [核心修复] 如果收到上线通知但在本地列表中找不到（新设备），强制触发一次全量刷新
+        console.log(`[DeviceStore] Unknown device ${deviceId} connected, fetching list...`);
+        this.fetchDevices({ limit: 1000 });
       }
       // 2. 如果当前正查看该设备的详情，也同步更新
       if (this.selectedDevice?.deviceId === deviceId) {

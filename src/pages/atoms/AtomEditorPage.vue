@@ -6,7 +6,8 @@
           <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试原子操作 </el-button>
           <el-button type="warning" plain  :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button :icon="Close"  @click="goBack">取消</el-button>
-          <el-button type="primary" :icon="Select" @click="handleSave" :loading="isSaving">保存</el-button>
+          <el-button type="primary" plain @click="handleSave(false)" :loading="isSaving">仅保存</el-button>
+          <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving">保存并退出</el-button>
         </div>
       </template>
     </el-page-header>
@@ -133,9 +134,11 @@
                   <template #header>
                     <div class="card-header">
                       <span>主匹配器 (Primary)</span>
-                      <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="large" class="matcher-type-switch">
+                      <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="default" class="matcher-type-switch">
                         <el-radio-button value="text">文本</el-radio-button>
                         <el-radio-button value="image">图元</el-radio-button>
+                        <el-radio-button value="pixel">像素</el-radio-button>
+                        <el-radio-button value="ai_detect">AI检测</el-radio-button>
                       </el-radio-group>
                     </div>
                   </template>
@@ -318,6 +321,8 @@ import { useTabStore } from "@/stores/tabStore";
 import type { AtomicOperationCreatePayload, AtomicOperationUpdatePayload, Matcher, SecondaryMatcher, Extractor, PerformActionPayload, StateCondition } from "@/types/api";
 import TextMatcherEditor from "@/components/editors/TextMatcherEditor.vue";
 import ImageMatcherEditor from "@/components/editors/ImageMatcherEditor.vue";
+import PixelMatcherEditor from "@/components/editors/PixelMatcherEditor.vue";
+import AiMatcherEditor from "@/components/editors/AiMatcherEditor.vue";
 import { useDeviceStore } from "@/stores/deviceStore";
 import AtomUsagePanel from "@/components/AtomUsagePanel.vue";
 import { wsService } from "@/services/wsService";
@@ -357,6 +362,9 @@ const createNewPrimaryMatcher = (): Matcher => ({
   publicUrl: "",
   matchThreshold: 0.8,
   imageMatchStrategy: "best",
+  modelId: "",
+  targetLabel: "",
+  minConfidence: 0.5,
 });
 const createNewSecondaryMatcher = (): SecondaryMatcher => ({ text: [], isExclusion: false });
 const createNewExtractor = (): Extractor => ({ name: "", regex: "", scope: "matched_node" });
@@ -381,7 +389,12 @@ const rules = reactive<FormRules>({ name: [{ required: true, message: "请输入
 const dialogTitle = computed(() => (liveTestDialog.testType === "matcher" ? "实时匹配验证" : "测试完整原子操作"));
 
 const primaryMatcherComponent = computed(() => {
-  return form.sceneSnapshotJson.primaryMatcher.matchTargetType === "text" ? TextMatcherEditor : ImageMatcherEditor;
+  const type = form.sceneSnapshotJson.primaryMatcher.matchTargetType;
+  if (type === "text") return TextMatcherEditor;
+  if (type === "image") return ImageMatcherEditor;
+  if (type === "pixel") return PixelMatcherEditor;
+  if (type === "ai_detect") return AiMatcherEditor;
+  return TextMatcherEditor;
 });
 
 watch(
@@ -597,7 +610,7 @@ const handleCategoryChange = async (value: number | string) => {
   }
 };
 
-const handleSave = async () => {
+const handleSave = async (shouldExit = true) => {
   if (!formRef.value) return;
   await formRef.value.validate();
 
@@ -651,7 +664,11 @@ const handleSave = async () => {
     }
     atomStore.setNeedsRefresh(true);
     ElMessage.success("保存成功！");
-    goBack();
+
+    if (shouldExit) {
+      goBack();
+    }
+
   } catch (error) {
   } finally {
     isSaving.value = false;
@@ -666,7 +683,7 @@ const codeDialog = reactive({
 
 const openCodeMode = () => {
   // 1. 生成代码
-  codeDialog.code = generateCode(form);
+  codeDialog.code = generateCode(form, atomIdNum.value);
   codeDialog.visible = true;
 };
 
@@ -936,7 +953,9 @@ const handleEditorMount = (editor: any, monacoInstance: any) => {
   gap: 8px;
 }
 :deep(.matcher-type-switch .el-radio-button__inner) {
-  width: 80px;
+  min-width: 55px;
+  padding: 8px 8px;
+  font-size: 13px;
   text-align: center;
 }
 .extractor-row {

@@ -66,6 +66,17 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="totalScans" label="扫描" width="80" align="center" />
+        <el-table-column prop="totalMatches" label="命中" width="80" align="center" />
+        <el-table-column label="健康度" width="100" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="getAtomHealthDesc(row)" placement="top">
+              <el-tag :type="getAtomHealthColor(row)">
+                {{ row.hitRate ? (row.hitRate * 100).toFixed(1) + '%' : '0%' }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="95" sortable align="center" />
         <el-table-column prop="description" label="描述" min-width="100" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
@@ -289,6 +300,19 @@ const getHitRateColor = (row: any) => {
 const formatDate = (dateString: string | Date): string => {
   if (!dateString) return "N/A";
   return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
+};
+
+const getAtomHealthColor = (row: any) => {
+  if (row.totalScans > 500 && (row.totalMatches || 0) === 0) return 'danger'; // 僵尸
+  if (row.totalScans === 0) return 'info'; // 被遮蔽
+  if ((row.hitRate || 0) < 0.01) return 'warning'; // 低效
+  return 'success';
+};
+
+const getAtomHealthDesc = (row: any) => {
+  if (row.totalScans > 500 && (row.totalMatches || 0) === 0) return '僵尸原子：扫描多次从未命中，建议清理';
+  if (row.totalScans === 0) return '被遮蔽原子：从未被引擎扫描，请检查优先级';
+  return `命中率：${((row.hitRate || 0) * 100).toFixed(2)}%`;
 };
 </script>
 

@@ -55,8 +55,9 @@ const parseParams = (paramStr: string): Record<string, any> => {
 /**
  * 生成测试用例代码
  */
-export const generateCaseCode = (form: any): string => {
-    let code = `# AdFlowPro Case DSL\n\n`;
+export const generateCaseCode = (form: any, id?: number | string | null): string => {
+    const displayId = id || 'NEW';
+    let code = `# AdFlowPro Case DSL id: ${displayId}\n\n`;
 
     // 1. Config
     let configParams = [`name="${form.name}"`, `type="${form.caseType}"`];
@@ -83,7 +84,23 @@ export const generateCaseCode = (form: any): string => {
             else if (node.type === 'EndNode') nodeType = 'end';
 
             let text = typeof node.text === 'object' ? node.text.value : node.text;
-            code += `node.${nodeType}(id="${node.id}", text="${text}", x=${node.x}, y=${node.y})\n`;
+            if (node.type === 'LogicNode') {
+                let logicParams = `id="${node.id}", text="${text}", x=${node.x}, y=${node.y}`;
+                if (node.properties.branches?.length > 0) {
+                    const branchesStr = JSON.stringify(node.properties.branches.map((b:any) => ({
+                        if: `${b.leftValue}${b.operator}${b.rightValue}`,
+                        goto: getNodeTextById(nodes, b.targetNodeId) || b.targetNodeId
+                    })));
+                    logicParams += `, branches=${branchesStr}`;
+                }
+                if (node.properties.defaultTargetId) logicParams += `, default="${getNodeTextById(nodes, node.properties.defaultTargetId) || node.properties.defaultTargetId}"`;
+                code += `node.logic(${logicParams})\n`;
+            } else if (node.type === 'SubflowNode') {
+                code += `node.subflow(id="${node.id}", text="${text}", case_id=${node.properties.subCaseId}, x=${node.x}, y=${node.y})\n`;
+            } else {
+                // 仅在非 Logic、非 Subflow 时，才执行 Start/End/State 的通用生成
+                code += `node.${nodeType}(id="${node.id}", text="${text}", x=${node.x}, y=${node.y})\n`;
+            }
         });
 
         code += `\n# [Flowchart Edges]\n`;
@@ -120,6 +137,10 @@ export const generateCaseCode = (form: any): string => {
                 // [新增] 触发器（测试包）
                 if (edge.properties.actionPackageId) {
                     params += `, pkg_id=${edge.properties.actionPackageId}`;
+                }
+                // [新增] 生成第二个包 ID
+                if (edge.properties.secondaryPackageId) {
+                    params += `, pkg_id2=${edge.properties.secondaryPackageId}`;
                 }
             }
 
@@ -208,6 +229,25 @@ export const parseCaseCode = (code: string, originalForm: any, allPackages: any[
                 }
                 break;
 
+            case 'node.subflow':
+                if (newForm.caseType === 'flow') {
+                    const nodeX = params.x || 100;
+                    const nodeY = params.y || 100;
+                    newForm.flowchartData.nodes.push({
+                        id: params.id || uuidv4(),
+                        type: 'SubflowNode',
+                        x: nodeX,
+                        y: nodeY,
+                        text: { 
+                            value: params.text || '子流程',
+                            x: nodeX,
+                            y: nodeY
+                        },
+                        properties: { subCaseId: params.case_id }
+                    });
+                }
+                break;
+
             // --- Flow Mode: Edges ---
             case 'edge':
                 if (newForm.caseType === 'flow' && params.src && params.tgt) {
@@ -237,7 +277,8 @@ export const parseCaseCode = (code: string, originalForm: any, allPackages: any[
                             text: { value: params.text || '' },
                             properties: {
                                 conditionAtomIds: params.atoms || [],
-                                actionPackageId: params.pkg_id || null
+                                actionPackageId: params.pkg_id || null,
+                                secondaryPackageId: params.pkg_id2 || null
                             }
                         };
 

@@ -39,15 +39,33 @@
         <el-table-column type="index" width="50" label="序号" />
         <el-table-column prop="deviceId" label="设备ID" min-width="200" sortable show-overflow-tooltip />
         <el-table-column prop="deviceName" label="设备名称" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="osVersion" label="系统版本" width="100" />
-        <el-table-column prop="appVersion" label="App版本" width="100" />
-        <el-table-column prop="status" label="数据库状态" width="100">
+        <el-table-column prop="deviceModel" label="设备型号" width="130" sortable>
           <template #default="scope">
-            <el-tag :type="scope.row.status === 'online' ? 'success' : scope.row.status === 'offline' ? 'info' : 'warning'">
-              {{ scope.row.status }}
+            <el-tag v-if="scope.row.deviceModel === 'Windows_PC'" type="warning" effect="light">
+              🖥️ {{ scope.row.deviceModel }}
             </el-tag>
+            <el-tag v-else type="success" effect="plain">📱 {{ scope.row.deviceModel || 'Unknown' }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="osVersion" label="系统版本" width="100" />
+        <el-table-column prop="appVersion" label="App版本" width="100" />
+        <el-table-column label="并发插槽" width="150" align="center">
+          <template #default="scope">
+            <el-tooltip :content="scope.row.isActiveSlot ? '已占用并发名额' : '名额不足，已挂起'" placement="top">
+              <el-switch
+                  v-model="scope.row.isActiveSlot"
+                  active-color="#13ce66"
+                  inactive-color="#ff4949"
+                  @change="handleToggleSlot(scope.row)"
+                  :disabled="!scope.row.is_connected_ws"
+              />
+            </el-tooltip>
+            <div v-if="scope.row.validUntil" style="font-size: 10px; color: #909399">
+              到期: {{ formatDateShort(scope.row.validUntil) }}
+            </div>
+          </template>
+        </el-table-column>
+          
         <el-table-column label="WebSocket" width="120">
           <template #default="scope">
             <el-tag :type="scope.row.isConnectedWs ? 'success' : 'danger'">
@@ -105,6 +123,10 @@
       <div class="menu-item" @click="handleEditFromMenu">
         <el-icon><Edit /></el-icon> 编辑名称
       </div>
+      <div class="menu-divider"></div>
+      <div class="menu-item danger" @click="handleDeleteFromMenu">
+        <el-icon><Delete /></el-icon> 删除并清除数据
+      </div>
     </div>
   </div>
 </template>
@@ -118,7 +140,7 @@ import { useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { deviceService } from "@/api/deviceService";
 import type { DevicePublic, DeviceUpdatePayload } from "@/types/api";
-import { Plus, Search, Refresh, View, SuccessFilled, CircleCloseFilled, Edit } from "@element-plus/icons-vue";
+import { Plus, Search, Refresh, View, SuccessFilled, CircleCloseFilled, Edit, Delete } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { ElMessage } from "element-plus";
@@ -163,6 +185,20 @@ const fetchData = () => {
   };
   deviceStore.fetchDevices(params);
 };
+
+const handleToggleSlot = async (row: DevicePublic) => {
+  try {
+    // 调用后端新写的切换接口 (假设在 deviceService 中已注册)
+    await deviceService.toggleSlotStatus(row.deviceId, row.isActiveSlot);
+    ElMessage.success(`设备 ${row.deviceName} 状态已更新`);
+  } catch (error: any) {
+    // 恢复 UI 状态
+    row.isActiveSlot = !row.isActiveSlot;
+    // 拦截器会报错，这里不需要额外处理
+  }
+};
+
+const formatDateShort = (d: string) => dayjs.utc(d).local().format("MM-DD HH:mm");
 
 onMounted(() => {
   fetchData();
@@ -221,6 +257,37 @@ const closeContextMenu = () => {
 const handleViewDetailsFromMenu = () => {
   if (contextMenu.row) {
     viewDetails(contextMenu.row.deviceId);
+  }
+  closeContextMenu();
+};
+
+const handleDeleteFromMenu = async () => {
+  if (!contextMenu.row) return;
+  const target = contextMenu.row;
+
+  try {
+    await ElMessageBox.confirm(
+        `警告：确定要删除设备 "${target.deviceName || target.deviceId}" 吗？\n` +
+        `此操作将永久清除该设备的所有任务历史、上报数据及缓存，不可恢复！`,
+        "彻底清除设备数据",
+        {
+          confirmButtonText: "确定清除",
+          cancelButtonText: "取消",
+          confirmButtonClass: "el-button--danger",
+          type: "warning",
+        }
+    );
+
+    // 调用 API
+    await deviceService.deleteDevice(target.deviceId);
+    ElMessage.success("设备数据已全部清空");
+
+    // 刷新列表
+    fetchData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error("Purge failed:", error);
+    }
   }
   closeContextMenu();
 };

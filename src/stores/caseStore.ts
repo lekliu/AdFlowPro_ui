@@ -51,7 +51,8 @@ export const useCaseStore = defineStore("case", {
     async addCase(payload: TestCaseCreatePayload) {
       this.isLoading = true;
       try {
-        await caseService.createCase(payload);
+        const res = await caseService.createCase(payload);
+        return res; // [关键修复] 返回 API 结果
       } finally {
         this.isLoading = false;
       }
@@ -60,7 +61,8 @@ export const useCaseStore = defineStore("case", {
     async updateCase(caseId: number, payload: TestCaseUpdatePayload) {
       this.isLoading = true;
       try {
-        await caseService.updateCase(caseId, payload);
+        const res = await caseService.updateCase(caseId, payload);
+        return res; // [关键修复] 返回 API 结果
       } finally {
         this.isLoading = false;
       }

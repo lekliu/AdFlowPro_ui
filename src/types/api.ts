@@ -10,3 +10,4 @@ export * from "./api/globalVariable";
 export * from "./api/scheduledTask";
 export * from "./api/atomCategory";
 export * from "./api/importExport";
+export * from "./api/aiModel";

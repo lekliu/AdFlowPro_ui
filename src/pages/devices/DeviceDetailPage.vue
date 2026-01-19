@@ -4,6 +4,17 @@
     <el-page-header @back="goBack" :content="`设备详情 - ${device.deviceName || device.deviceId}`" class="header-bar">
       <template #extra>
         <div class="header-actions">
+          <!-- [核心新增] 受控模式切换 -->
+          <div class="mode-switch-wrapper" style="margin-right: 20px; display: inline-flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px; color: var(--el-text-color-regular)">受控/调试模式</span>
+            <el-tooltip :content="device.isControlled ? '已开启受控模式：全量应用清单已落库，支持离线查看。' : '当前为标准模式：应用清单仅在内存比对，不占用数据库空间。'" placement="bottom">
+              <el-switch v-model="device.isControlled" @change="handleToggleControlledMode" :loading="isTogglingMode" />
+            </el-tooltip>
+          </div>
+          <el-button-group style="margin-right: 15px">
+            <el-button :type="!isLandscape ? 'primary' : ''" @click="isLandscape = false">手机模式</el-button>
+            <el-button :type="isLandscape ? 'primary' : ''" @click="isLandscape = true">横屏模式</el-button>
+          </el-button-group>
           <el-tooltip content="切换全屏" placement="bottom">
             <el-button :icon="FullScreen" circle @click="toggleFullscreen" />
           </el-tooltip>
@@ -18,16 +29,19 @@
           <div class="tab-content-scroll">
             <!-- 移除 el-row/el-col，改为垂直堆叠 -->
             <DeviceInfoCard :device="device" style="margin-bottom: 20px;" />
-            <DebugControlCard :device-id="props.deviceId || ''" />
+            <DebugControlCard
+                :device-id="props.deviceId || ''"
+                :is-controlled="device.isControlled"
+            />
           </div>
         </el-tab-pane>
 
         <!-- Tab 2: 远程操控 (核心页) -->
         <el-tab-pane label="远程操控" name="control">
           <div class="tab-content-scroll">
-            <el-row :gutter="15">
+            <el-row :gutter="15" :class="{ 'landscape-layout': isLandscape }">
               <!-- 左侧: 屏幕预览与OCR (较窄，适合竖屏截图) -->
-              <el-col :span="9">
+              <el-col :span="isLandscape ? 24 : 9">
                 <ScreenshotCard
                     :device-id="props.deviceId || ''"
                     :screenshot-url="screenshotUrl"
@@ -39,9 +53,10 @@
               </el-col>
 
               <!-- 右侧: 控制区 (较宽，适合编辑器) -->
-              <el-col :span="15">
+              <el-col :span="isLandscape ? 24 : 15" :style="isLandscape ? 'margin-top: 15px' : ''">
                 <!-- 1. 快捷操作 -->
                 <QuickActionsCard
+                    :device-id="props.deviceId"
                     :is-connected="device?.isConnectedWs || false"
                     :is-sending-screen-power-cmd="isSendingScreenPowerCmd"
                     :is-sending-hotkey="isSendingHotkey"
@@ -145,8 +160,10 @@ const deviceStore = useDeviceStore();
 const tabStore = useTabStore();
 const masterAppStore = useMasterAppStore();
 const wsStore = useWebSocketStore();
+const isLandscape = ref(false); // 新增横屏模式状态
 const pageRef = ref<HTMLElement | null>(null);
 const isFullscreen = ref(false);
+const isTogglingMode = ref(false); // 切换状态锁
 
 const activeTab = ref("control"); // 默认打开“远程操控”页
 
@@ -178,6 +195,11 @@ const fetchDetails = async () => {
     await deviceStore.fetchDeviceDetails(props.deviceId);
     // 从 store 获取更新后的设备信息
     device.value = deviceStore.selectedDevice;
+
+    if (device.value?.deviceModel === "Windows_PC") {
+      isLandscape.value = true;
+    }
+
     if (device.value) {
       const newTitle = `设备 - ${device.value.deviceName || device.value.deviceId}`;
       tabStore.updateTabTitle(route.fullPath, newTitle);
@@ -187,6 +209,28 @@ const fetchDetails = async () => {
     device.value = null;
   } finally {
     isLoading.value = false;
+  }
+};
+
+// [核心新增] 切换受控模式的 API 调用
+const handleToggleControlledMode = async (val: string | number | boolean) => {
+  // 显式转为 boolean 以匹配业务逻辑
+  const isEnabled = !!val;
+  isTogglingMode.value = true;
+  try {
+    await deviceService.toggleControlledMode(props.deviceId, isEnabled);
+    ElMessage.success(`受控模式已${isEnabled ? '开启' : '关闭'}`);
+
+    device.value!.isControlled = isEnabled;
+
+    // 如果开启了受控模式，主动触发一次应用刷新，以便让后端执行 Mark-and-Sweep 入库
+    if (isEnabled) {
+      fetchInstalledApps(true);
+    }
+  } catch (error) {
+    device.value!.isControlled = !isEnabled; // 失败则回滚 UI
+  } finally {
+    isTogglingMode.value = false;
   }
 };
 
@@ -363,7 +407,7 @@ const handleAddToMaster = async (app: DeviceInstalledApp) => {
     await masterAppStore.addApp({
       appName: app.appName,
       packageName: app.packageName,
-      weight: 10000
+      weight: 0
     });
 
     const appInList = installedApps.value.find((a) => a.packageName === app.packageName);

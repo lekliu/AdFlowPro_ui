@@ -38,6 +38,10 @@ export const deviceService = {
   async updateDevice(deviceId: string, payload: DeviceUpdatePayload): Promise<DevicePublic> {
     return apiClient.put(`/devices/${deviceId}`, payload);
   },
+
+  async deleteDevice(deviceId: string): Promise<void> {
+    return apiClient.delete(`/devices/${deviceId}`);
+  },
   // 获取设备已安装应用列表 <<
   async getInstalledApps(deviceId: string): Promise<DeviceInstalledApp[]> {
     return apiClient.get(`/devices/${deviceId}/installed-apps`, {
@@ -121,5 +125,15 @@ export const deviceService = {
     return apiClient.post(`/devices/${deviceId}/debug-mode`, payload);
   },
 
+  async toggleSlotStatus(deviceId: string, active: boolean): Promise<any> {
+    return apiClient.put(`/devices/${deviceId}/slot-status`, null, {
+      params: { active }
+    });
+  },
 
+  async toggleControlledMode(deviceId: string, enabled: boolean): Promise<any> {
+      return apiClient.put(`/devices/${deviceId}/controlled-mode`, null, {
+          params: { enabled }
+      });
+  },
 };

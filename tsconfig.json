@@ -14,11 +14,9 @@
     "skipLibCheck": true,
     "noEmit": true,
     "composite": true,
-
-    // --- 明确设置 baseUrl 和 paths ---
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "vite.config.ts"]

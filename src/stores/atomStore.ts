@@ -53,7 +53,7 @@ export const useAtomStore = defineStore("atom", {
     async addAtom(payload: AtomicOperationCreatePayload) {
       this.isLoading = true;
       try {
-        await atomService.createAtom(payload);
+        return await atomService.createAtom(payload);
       } finally {
         this.isLoading = false;
       }
@@ -62,7 +62,8 @@ export const useAtomStore = defineStore("atom", {
     async updateAtom(atomId: number, payload: AtomicOperationUpdatePayload) {
       this.isLoading = true;
       try {
-        await atomService.updateAtom(atomId, payload);
+          const res = await atomService.updateAtom(atomId, payload);
+          return res; // 确保返回 res 以对齐类型
       } finally {
         this.isLoading = false;
       }

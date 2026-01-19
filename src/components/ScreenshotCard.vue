@@ -3,9 +3,14 @@
     <template #header>
       <div class="card-header">
         <span>屏幕预览</span>
-        <el-tooltip content="显示/隐藏九宫格参考线">
+        <!-- 新增的 header-modes 布局 -->
+        <div class="header-modes">
+          <el-tooltip content="开启吸管: 点击屏幕采集比例坐标和颜色并复制到剪切板">
+            <el-switch v-model="isDropperActive" active-text="吸管" inline-prompt :active-icon="Pointer" />
+          </el-tooltip>
+          <el-divider direction="vertical" />
           <el-switch v-model="showGrid" inline-prompt :active-icon="Grid" :inactive-icon="Grid" />
-        </el-tooltip>
+        </div>
         <div class="header-actions">
           <el-tooltip content="保存截图" v-if="screenshotUrl">
             <el-button :icon="Download" circle @click="handleSaveImage" />
@@ -20,14 +25,16 @@
 
     <div class="screenshot-wrapper" ref="screenshotWrapperRef">
       <div
-        class="screenshot-container"
-        v-loading="isCapturing"
-        @mousedown="handleMouseDown"
-        @mouseup="handleMouseUp"
-        @mousemove="handleMouseMove"
-        @mouseleave="handleMouseLeave"
+          class="screenshot-container"
+          :class="{ 'dropper-mode': isDropperActive }"
+          v-loading="isCapturing"
+          @mousedown="handleMouseDown"
+          @mouseup="handleMouseUp"
+          @mousemove="handleMouseMove"
+          @mouseleave="handleMouseLeave"
       >
-        <el-image v-if="screenshotUrl" :src="screenshotUrl" fit="contain" ref="imageRef" @load="onImageLoad">
+        <!-- 修正：添加 crossOrigin 处理跨域采样 -->
+        <el-image v-if="screenshotUrl" :src="screenshotUrl" fit="contain" ref="imageRef" @load="onImageLoad" crossOrigin="anonymous">
           <template #error>
             <div class="image-slot">
               <el-icon><Picture /></el-icon><span>加载失败</span>
@@ -37,11 +44,21 @@
         <el-empty v-else description="暂无截图，请点击“手动截图”获取" />
         <GridOverlay v-if="showGrid && screenshotUrl" />
       </div>
-      <div v-if="mousePosition.visible" class="coords-tooltip" :style="tooltipStyle">
+
+      <!-- 传统坐标浮层 -->
+      <div v-if="mousePosition.visible && !isDropperActive" class="coords-tooltip" :style="tooltipStyle">
         {{ `(x: ${mousePosition.imageX}, y: ${mousePosition.imageY})` }}
+      </div>
+
+      <!-- 吸管放大镜 -->
+      <div v-if="isDropperActive && mousePosition.visible" class="magnifier" :style="magnifierStyle">
+        <canvas ref="magnifierCanvasRef" width="100" height="100"></canvas>
+        <div class="crosshair"></div>
+        <div class="magnifier-info">{{ currentHexColor }}</div>
       </div>
     </div>
 
+    <!-- OCR 区域保持不变 -->
     <div class="ocr-result-container">
       <h4>OCR 识别结果 ({{ ocrElementCount }} 项)</h4>
       <div v-if="ocrResult && ocrResult.fullText" class="ocr-full-text">
@@ -61,14 +78,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from "vue";
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { OcrPayload } from "@/types/api";
-import { Camera, Picture, Grid, Download } from "@element-plus/icons-vue";
-import GridOverlay from "./GridOverlay.vue"; // 导入新组件
+import { Camera, Picture, Grid, Download, Pointer } from "@element-plus/icons-vue";
+import GridOverlay from "./GridOverlay.vue";
 import { wsService } from "@/services/wsService";
 import { ElMessage } from "element-plus";
 import { useWebSocketStore } from "@/stores/webSocketStore";
-import { onBeforeUnmount, onMounted } from "vue";
+
+// --- 1. 定义 Props 和 Emits (必须置顶) ---
 const props = defineProps<{
   deviceId: string;
   screenshotUrl: string | null;
@@ -79,23 +97,16 @@ const props = defineProps<{
 
 defineEmits(["capture"]);
 
+// --- 2. 响应式状态定义 ---
+const wsStore = useWebSocketStore();
 const imageRef = ref();
 const screenshotWrapperRef = ref<HTMLElement | null>(null);
-const wsStore = useWebSocketStore();
+const magnifierCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+const isDropperActive = ref(false);
 const showGrid = ref(false);
-
 const showPreview = ref(false);
-const previewUrlList = computed(() => (props.screenshotUrl ? [props.screenshotUrl] : []));
-
-// --- Click vs. Long Press State ---
-let pressTimer: number | null = null;
-let isDragging = false;
-let startX = 0;
-let startY = 0;
-const LONG_PRESS_DURATION = 350; // ms
-const DRAG_THRESHOLD = 5; // pixels
-
-const ocrElementCount = computed(() => props.ocrResult?.elements?.length || 0);
+const currentHexColor = ref("#FFFFFF");
 
 const mousePosition = reactive({
   visible: false,
@@ -115,29 +126,61 @@ const imageInfo = reactive({
   offsetY: 0,
 });
 
-let resizeObserver: ResizeObserver | null = null;
+let pressTimer: number | null = null;
+let isDragging = false;
+let startX = 0;
+let startY = 0;
+const LONG_PRESS_DURATION = 350;
+const DRAG_THRESHOLD = 5;
 
-watch(
-  () => props.screenshotUrl,
-  () => {
-    // 当截图URL变化时，重置尺寸信息，以便 onImageLoad 重新计算
-    Object.assign(imageInfo, {
-      naturalWidth: 0,
-      naturalHeight: 0,
-      renderWidth: 0,
-      renderHeight: 0,
-      scale: 1,
-      offsetX: 0,
-      offsetY: 0,
-    });
+// --- 3. 计算属性 ---
+const previewUrlList = computed(() => (props.screenshotUrl ? [props.screenshotUrl] : []));
+const ocrElementCount = computed(() => props.ocrResult?.elements?.length || 0);
+
+const tooltipStyle = computed(() => {
+  if (!screenshotWrapperRef.value) return {};
+  const offset = 15;
+  return {
+    left: `${mousePosition.x + offset}px`,
+    top: `${mousePosition.y + offset}px`
+  };
+});
+
+const magnifierStyle = computed(() => ({
+  left: `${mousePosition.x + 20}px`,
+  top: `${mousePosition.y - 120}px`
+}));
+
+// --- 4. 侦听器 ---
+watch(() => props.screenshotUrl, () => {
+  Object.assign(imageInfo, { naturalWidth: 0, naturalHeight: 0, renderWidth: 0, renderHeight: 0, scale: 1, offsetX: 0, offsetY: 0 });
+});
+
+// 放大镜实时渲染核心逻辑
+watch([() => mousePosition.imageX, () => mousePosition.imageY], ([ix, iy]) => {
+  if (!isDropperActive.value || !magnifierCanvasRef.value) return;
+  const img = imageRef.value?.$el?.querySelector("img");
+  const ctx = magnifierCanvasRef.value.getContext("2d", { willReadFrequently: true });
+  if (!img || !ctx) return;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, 100, 100);
+  // 采样原图鼠标周围 11x11 像素区域并放大到 100x100
+  ctx.drawImage(img, ix - 5, iy - 5, 11, 11, 0, 0, 100, 100);
+
+  // 采样中心点颜色
+  try {
+    const pixel = ctx.getImageData(50, 50, 1, 1).data;
+    currentHexColor.value = "#" + ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase();
+  } catch (e) {
+    console.warn("Canvas context is tainted, check CORS settings of MinIO.");
   }
-);
+});
 
+// --- 5. 方法定义 ---
 const recalculateImageDimensions = () => {
   const imgElement = imageRef.value?.$el?.querySelector("img");
-  if (!imgElement || !screenshotWrapperRef.value) {
-    return;
-  }
+  if (!imgElement || !screenshotWrapperRef.value) return;
 
   imageInfo.naturalWidth = imgElement.naturalWidth;
   imageInfo.naturalHeight = imgElement.naturalHeight;
@@ -148,46 +191,18 @@ const recalculateImageDimensions = () => {
   imageInfo.offsetY = (screenshotWrapperRef.value.offsetHeight - imageInfo.renderHeight) / 2;
 };
 
-const onImageLoad = () => {
-  // Call the recalculation function on initial load
-  recalculateImageDimensions();
-};
-
-const tooltipStyle = computed(() => {
-  const style: { [key: string]: string } = {};
-  const tooltipWidth = 120,
-    tooltipHeight = 30,
-    offset = 15;
-  if (!screenshotWrapperRef.value) return {};
-
-  if (mousePosition.x + tooltipWidth + offset > screenshotWrapperRef.value.offsetWidth) {
-    style.left = mousePosition.x - tooltipWidth - offset + "px";
-  } else {
-    style.left = mousePosition.x + offset + "px";
-  }
-  if (mousePosition.y + tooltipHeight + offset > screenshotWrapperRef.value.offsetHeight) {
-    style.top = mousePosition.y - tooltipHeight - offset + "px";
-  } else {
-    style.top = mousePosition.y + offset + "px";
-  }
-  return style;
-});
+const onImageLoad = () => recalculateImageDimensions();
 
 const handleMouseMove = (event: MouseEvent) => {
   if (pressTimer !== null) {
-    // Check if the mouse has moved beyond the drag threshold
     if (Math.abs(event.clientX - startX) > DRAG_THRESHOLD || Math.abs(event.clientY - startY) > DRAG_THRESHOLD) {
       isDragging = true;
-      // If dragging starts, it can't be a click or long press anymore
       clearPressTimer();
     }
   }
 
   if (!screenshotWrapperRef.value || imageInfo.naturalWidth === 0) return;
-  const rect = screenshotWrapperRef.value.getBoundingClientRect();
-  // We need the coordinates relative to the container div, not the image
-  const containerEl = event.currentTarget as HTMLElement;
-  const containerRect = containerEl.getBoundingClientRect();
+  const containerRect = screenshotWrapperRef.value.getBoundingClientRect();
   const containerX = event.clientX - containerRect.left;
   const containerY = event.clientY - containerRect.top;
 
@@ -195,10 +210,10 @@ const handleMouseMove = (event: MouseEvent) => {
   mousePosition.y = containerY;
 
   const isInImage =
-    containerX >= imageInfo.offsetX &&
-    containerX <= imageInfo.offsetX + imageInfo.renderWidth &&
-    containerY >= imageInfo.offsetY &&
-    containerY <= imageInfo.offsetY + imageInfo.renderHeight;
+      containerX >= imageInfo.offsetX &&
+      containerX <= imageInfo.offsetX + imageInfo.renderWidth &&
+      containerY >= imageInfo.offsetY &&
+      containerY <= imageInfo.offsetY + imageInfo.renderHeight;
 
   if (isInImage) {
     mousePosition.visible = true;
@@ -210,191 +225,97 @@ const handleMouseMove = (event: MouseEvent) => {
 };
 
 const handleMouseLeave = () => {
-  clearPressTimer(); // Clear timer if mouse leaves the area
+  clearPressTimer();
   mousePosition.visible = false;
 };
 
-// 完整的点击/长按处理逻辑
 const handleMouseDown = (event: MouseEvent) => {
-  if (event.button !== 0) return; // Only handle left clicks
-  if (!props.screenshotUrl) return; // Don't do anything if there's no image
-
+  if (event.button !== 0 || !props.screenshotUrl) return;
   isDragging = false;
   startX = event.clientX;
   startY = event.clientY;
-
   pressTimer = window.setTimeout(() => {
-    // If timer fires and we haven't started dragging, it's a long press
-    if (!isDragging) {
-      triggerPreview();
-    }
+    if (!isDragging) showPreview.value = true;
     clearPressTimer();
   }, LONG_PRESS_DURATION);
 };
 
 const handleMouseUp = (event: MouseEvent) => {
-  // Check if it was a valid click (timer was active, not a drag)
+  // 吸管逻辑优先
+  if (isDropperActive.value && !isDragging) {
+    if (imageInfo.naturalWidth > 0) {
+      const rx = (mousePosition.imageX / imageInfo.naturalWidth).toFixed(4);
+      const ry = (mousePosition.imageY / imageInfo.naturalHeight).toFixed(4);
+      const copyText = `${rx}, ${ry}, ${currentHexColor.value}`;
+      navigator.clipboard.writeText(copyText).then(() => {
+        ElMessage.success(`采样成功: ${copyText}`);
+      });
+    }
+    clearPressTimer();
+    return;
+  }
+
   if (pressTimer !== null && !isDragging) {
-    sendTapCommand();
+    if (!props.isConnected) {
+      ElMessage.error("设备未连接");
+    } else {
+      if (!wsStore.isLogPanelVisible) wsStore.toggleLogPanel();
+      wsService.sendExecuteActionSequence(props.deviceId, [{
+        action: "tap",
+        parameters: { startX: mousePosition.imageX, startY: mousePosition.imageY },
+      }]);
+      ElMessage.info(`Tap (${mousePosition.imageX}, ${mousePosition.imageY})`);
+    }
   }
   clearPressTimer();
 };
 
 const clearPressTimer = () => {
-  if (pressTimer) {
-    clearTimeout(pressTimer);
-    pressTimer = null;
-  }
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
 };
 
-const triggerPreview = () => {
-  if (previewUrlList.value.length > 0) {
-    showPreview.value = true;
-  }
-};
-
-const sendTapCommand = () => {
-  if (!props.isConnected) {
-    ElMessage.error("设备未连接，无法发送点击指令。");
-    return;
-  }
-  if (!wsStore.isLogPanelVisible) {
-    wsStore.toggleLogPanel();
-  }
-
-  const { imageX, imageY } = mousePosition;
-  wsService.sendExecuteActionSequence(props.deviceId, [
-    {
-      action: "tap",
-      parameters: { startX: imageX, startY: imageY },
-    },
-  ]);
-
-  ElMessage.info(`Tap 指令已发送至 (${imageX}, ${imageY})`);
-};
 const handleSaveImage = () => {
   if (!props.screenshotUrl) return;
-
-  // Create a temporary anchor element
   const link = document.createElement("a");
   link.href = props.screenshotUrl;
-
-  // Suggest a filename for the user
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  link.download = `screenshot-${props.deviceId}-${timestamp}.jpg`;
-
-  // Programmatically click the link to trigger the download
-  document.body.appendChild(link);
+  link.download = `screenshot-${props.deviceId}-${Date.now()}.jpg`;
   link.click();
-  document.body.removeChild(link);
 };
 
+let resizeObserver: ResizeObserver | null = null;
 onMounted(() => {
   if (screenshotWrapperRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      // This callback is triggered whenever the container size changes.
-      recalculateImageDimensions();
-    });
+    resizeObserver = new ResizeObserver(() => recalculateImageDimensions());
     resizeObserver.observe(screenshotWrapperRef.value);
   }
 });
-
-onBeforeUnmount(() => {
-  if (resizeObserver) resizeObserver.disconnect();
-});
+onBeforeUnmount(() => resizeObserver?.disconnect());
 </script>
 
 <style scoped>
-/* 粘贴 ScreenshotCard 需要的所有样式 */
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.screenshot-wrapper {
-  position: relative;
-  width: 100%;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  overflow: hidden;
-}
-.screenshot-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  min-height: 720px;
-  height: auto;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-.screenshot-container .el-image {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 4px;
-}
-.image-slot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: #909399;
-  font-size: 14px;
-}
-.image-slot .el-icon {
-  font-size: 30px;
-  margin-bottom: 8px;
-}
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.header-modes { display: flex; align-items: center; gap: 8px; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.screenshot-wrapper { position: relative; width: 100%; border: 1px solid #dcdfe6; border-radius: 4px; overflow: hidden; }
+.screenshot-container { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 400px; background-color: #f5f7fa; }
+.screenshot-container .el-image { max-width: 100%; max-height: 100%; }
+
 .coords-tooltip {
-  position: absolute;
-  padding: 4px 8px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 10;
-  transition: opacity 0.2s;
+  position: absolute; padding: 4px 8px; background: rgba(0, 0, 0, 0.7);
+  color: white; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 10;
 }
-.ocr-result-container {
-  margin-top: 20px;
-  border-top: 1px solid #ebeef5;
-  padding-top: 15px;
+
+.dropper-mode { cursor: crosshair !important; }
+.magnifier {
+  position: absolute; width: 100px; height: 130px; pointer-events: none;
+  z-index: 2000; border: 2px solid var(--el-color-primary); background: #000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-.ocr-result-container h4 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  color: #303133;
-}
-.ocr-text-box {
-  background-color: #fafafa;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  padding: 10px 15px;
-  max-height: 250px;
-  overflow-y: auto;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 13px;
-  color: #606266;
-}
-.ocr-element-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 2px 0;
-  border-bottom: 1px solid #f0f2f5;
-}
-.ocr-element-text {
-  flex-grow: 1;
-  margin-right: 15px;
-  word-break: break-all;
-}
-.ocr-element-coords {
-  flex-shrink: 0;
-  color: #909399;
-  font-size: 12px;
-}
+.magnifier canvas { width: 100px; height: 100px; }
+.crosshair { position: absolute; top: 50px; left: 50px; width: 10px; height: 10px; border: 1px solid red; transform: translate(-50%, -50%); }
+.magnifier-info { background: #333; color: #0f0; font-family: monospace; font-size: 11px; text-align: center; line-height: 30px; }
+
+.ocr-result-container { margin-top: 20px; border-top: 1px solid #ebeef5; padding-top: 15px; }
+.ocr-text-box { background-color: #fafafa; border: 1px solid #e4e7ed; border-radius: 4px; padding: 10px; max-height: 200px; overflow-y: auto; font-family: monospace; }
+.ocr-element-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
 </style>

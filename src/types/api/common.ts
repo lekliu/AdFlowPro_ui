@@ -13,6 +13,7 @@ export interface Selector {
   xpath?: string;
   bounds?: string; // Format: "[left, top, right, bottom]"
   index?: number;
+  matchMode?: string;
   checked?: boolean;
   enabled?: boolean;
   selected?: boolean;
@@ -73,7 +74,12 @@ export interface PerformActionPayload {
       | "set_brightness_auto"
       | "set_brightness_min"
       | "assert_text_equals"
-      | "assert_element_count";
+      | "hover"
+      | "right_click"
+      | "double_click"
+      | "assert_element_count"
+      | "key_down"
+      | "key_up";
   selector?: Selector;
   parameters?: PerformActionParameters;
 }

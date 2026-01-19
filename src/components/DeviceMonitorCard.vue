@@ -6,6 +6,7 @@
     </div>
     <div class="card-body">
       <div class="info-row">ID: ...{{ shortId }}</div>
+      <div class="info-row">型号: {{ device.deviceModel || 'N/A' }}</div>
       <div class="info-row">IP: {{ device.ipAddress || 'N/A' }}</div>
       <div class="info-row status-text">{{ statusText }}</div>
     </div>

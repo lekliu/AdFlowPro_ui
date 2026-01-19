@@ -66,6 +66,12 @@ const assetRoutes: Array<RouteRecordRaw> = [
     component: () => import("@/pages/assets/ImageTemplatesPage.vue"),
     meta: { title: "图元模板" },
   },
+  {
+    path: "ai-models",
+    name: "AiModelList",
+    component: () => import("@/pages/assets/AiModelsPage.vue"),
+    meta: { title: "AI 模型库" },
+  },
 ];
 
 export default assetRoutes;

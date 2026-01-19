@@ -67,7 +67,14 @@
         <el-table-column prop="appName" label="应用名称" width="120" sortable show-overflow-tooltip />
         <el-table-column prop="packageName" label="应用包名" min-width="180" sortable show-overflow-tooltip />
         <el-table-column prop="versionName" label="版本" width="80" show-overflow-tooltip />
-        <el-table-column prop="weight" label="权重" width="80" sortable align="center" />
+        <el-table-column label="推荐权重" width="150" align="center">
+          <template #default="scope">
+            <el-tag effect="dark" :type="scope.row.weight + scope.row.weightAdjustment > 0 ? 'success' : 'info'">
+              {{ scope.row.weight + scope.row.weightAdjustment }}
+            </el-tag>
+            <div style="font-size: 10px; color: #909399">({{ scope.row.weight }} + {{ scope.row.weightAdjustment }})</div>
+          </template>
+        </el-table-column>
         <el-table-column prop="defaultSuiteName" label="默认测试套件" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             <el-tag v-if="scope.row.defaultSuiteName" type="info" size="small">{{ scope.row.defaultSuiteName }}</el-tag>
@@ -112,8 +119,11 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="权重" prop="weight">
-          <el-input-number v-model="form.weight" :min="0" :max="100000" :step="100" controls-position="right" style="width: 100%" />
+        <el-form-item label="权重修正" prop="weightAdjustment">
+          <el-input-number v-model="form.weightAdjustment" :step="100" controls-position="right" style="width: 100%" />
+          <div style="font-size: 12px; color: #909399; line-height: 1.4; margin-top: 4px;">
+            正数增加推荐优先级，负数降低。最终分 = 全网平均分 + 修正分。
+          </div>
         </el-form-item>
 
         <el-form-item label="默认测试套件" prop="defaultSuiteId">
@@ -297,7 +307,8 @@ const form = reactive({
   description: "",
   versionName: "",
   versionCode: undefined as number | undefined,
-  weight: 10000,
+  weight: 0,
+  weightAdjustment: 0,
   apkUrl: "",
   defaultSuiteId: undefined as number | undefined,
 });
@@ -438,7 +449,7 @@ const resetForm = () => {
   form.description = "";
   form.versionName = "";
   form.versionCode = undefined;
-  form.weight = 10000;
+  form.weight = 0;
   form.apkUrl = "";
   form.defaultSuiteId = undefined;
   formRef.value?.clearValidate();
@@ -454,6 +465,7 @@ const handleOpenDialog = (app: MasterAppPublic | null) => {
     form.versionName = app.versionName || "";
     form.versionCode = app.versionCode;
     form.weight = app.weight;
+    form.weightAdjustment = app.weightAdjustment || 0;
     form.apkUrl = app.apkUrl || "";
     form.defaultSuiteId = app.defaultSuiteId || undefined;
   }
@@ -477,6 +489,7 @@ const handleSubmit = async () => {
         versionName: form.versionName,
         versionCode: form.versionCode,
         weight: form.weight,
+        weightAdjustment: form.weightAdjustment,
         apkUrl: form.apkUrl,
         defaultSuiteId: form.defaultSuiteId || null,
       };

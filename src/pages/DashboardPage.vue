@@ -5,24 +5,22 @@
       <el-row :gutter="20">
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <el-statistic title="在线设备" :value="onlineCount" value-style="color: #67c23a" />
+            <el-statistic title="在线设备 (本租户)" :value="stats.onlineDevices" value-style="color: #67c23a" />
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <el-statistic title="忙碌中" :value="0" value-style="color: #409eff">
-              <template #suffix><span style="font-size: 12px; color: #909399">(暂未对接)</span></template>
-            </el-statistic>
+            <el-statistic title="今日任务数" :value="stats.todayJobs" value-style="color: #409eff" />
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <el-statistic title="离线设备" :value="offlineCount" value-style="color: #909399" />
+            <el-statistic title="原子操作总数" :value="stats.totalAtoms" value-style="color: #e6a23c" />
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <el-statistic title="总设备数" :value="deviceStore.totalDevices" />
+            <el-statistic title="总设备数 (本租户)" :value="stats.totalDevices" />
           </el-card>
         </el-col>
       </el-row>
@@ -61,20 +59,53 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
 import { useDeviceStore } from "@/stores/deviceStore";
+import apiClient from "@/api/apiClient";
 import DeviceMonitorCard from "@/components/DeviceMonitorCard.vue";
 import axios from "axios";
-import logger from "@/utils/logger"; // <-- 修复: 导入 logger
+import logger from "@/utils/logger";
 
 // 移除了不正确的 defineComponent
 
 const deviceStore = useDeviceStore();
 const gridColumns = ref(6);
 const filterStatus = ref("all");
+
+// 1. 定义基础配置变量，解决 template 报错
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const serverIp = ref("");
 
+// 2. 租户统计状态
+const stats = ref({
+  totalDevices: 0,
+  onlineDevices: 0,
+  todayJobs: 0,
+  totalAtoms: 0
+});
+
+// 3. 获取租户统计
+const fetchStats = async () => {
+  try {
+    // 解决 res redundant 警告：直接赋值
+    stats.value = await apiClient.get('/dashboard/stats') as any;
+  } catch (e) {
+    logger.error("Failed to fetch dashboard stats", e);
+  }
+};
+
+// 4. 获取服务器健康信息（用于显示 Server IP）
+const fetchServerHealth = async () => {
+  const healthUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, "") + "/health";
+  try {
+    const response = await axios.get(healthUrl);
+    if (response.data && response.data.server_ip) {
+      serverIp.value = response.data.server_ip;
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch server health info:", err);
+  }
+}
+
 const onlineCount = computed(() => deviceStore.devices.filter(d => d.isConnectedWs).length);
-const offlineCount = computed(() => deviceStore.devices.length - onlineCount.value);
 
 const filteredDevices = computed(() => {
   if (filterStatus.value === "all") {
@@ -88,19 +119,12 @@ const filteredDevices = computed(() => {
 });
 
 onMounted(() => {
-  if (deviceStore.devices.length === 0) {
-    deviceStore.fetchDevices({ limit: 2000 });
-  }
+  fetchStats();
+  fetchServerHealth();
 
-  const healthUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, "") + "/health";
-  axios.get(healthUrl).then((res) => {
-    if (res.data && res.data.server_ip) {
-      serverIp.value = res.data.server_ip;
-    }
-  }).catch((err) => {
-    // 修复: 移除不正确的 ElMessage，改为 logger.warn
-    logger.warn("Failed to fetch server health info:", err);
-  });
+  if (deviceStore.devices.length === 0) {
+    deviceStore.fetchDevices({ limit: 1000 });
+  }
 });
 
 watch(filterStatus, () => {

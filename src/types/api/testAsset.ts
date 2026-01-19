@@ -87,6 +87,10 @@ export interface Matcher {
   // 4. Common filters
   screenRegion: ScreenRegion[];
   spatialRelation?: SpatialRelation | null;
+  // 5. AI Detection (New Phase 9)
+  modelId?: string;
+  targetLabel?: string;
+  minConfidence?: number;
 }
 
 export interface SceneSnapshot {

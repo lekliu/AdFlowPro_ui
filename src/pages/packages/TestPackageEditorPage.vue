@@ -406,7 +406,7 @@ const codeDialog = reactive({
 });
 
 const openCodeMode = () => {
-  codeDialog.code = generatePackageCode(form);
+  codeDialog.code = generatePackageCode(form, packageId.value);
   codeDialog.visible = true;
 };
 

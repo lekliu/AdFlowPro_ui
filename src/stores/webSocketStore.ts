@@ -5,6 +5,7 @@ import logger from "@/utils/logger";
 import { ElNotification } from "element-plus";
 import { wsService } from "@/services/wsService";
 import { useDeviceStore } from "@/stores/deviceStore";
+import {useAuthStore} from "./authStore";
 
 // Define a type for our log entries for better structure
 export interface LogEntry {
@@ -24,9 +25,11 @@ interface AdhocTaskInfo {
 
 // Function to get the base WebSocket URL from the HTTP base URL
 const getWebSocketBaseUrl = (): string => {
-  const httpUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-  const wsUrl = httpUrl.replace(/^http/, "ws").replace("/api/v1", "");
-  return `${wsUrl}/ws/ui-notifications`;
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = window.location.host; // 这里在开发环境下会拿到 localhost:5173
+
+  // 这里必须要以 /ws 开头，才能被 vite.config.ts 中的代理捕获
+  return `${protocol}://${host}/ws/ui-notifications`;
 };
 
 export const useWebSocketStore = defineStore("uiWebSocket", () => {
@@ -61,12 +64,13 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
       reconnectTimer = null;
     }
 
+    const authStore = useAuthStore();
     const wsUrl = getWebSocketBaseUrl();
-    logger.info(`[WS-UI] Connecting to ${wsUrl}...`);
+    logger.info(`[WS-UI] Connecting to ${wsUrl} with token...`);
     addLog(`正在连接到服务器实时通知服务...`, "info");
     connectionStatus.value = "connecting"; // Set state to connecting
-
-    ws = new WebSocket(wsUrl);
+    // 核心修正：连接时携带 Token
+    ws = new WebSocket(`${wsUrl}?token=${authStore.token}`);
 
     ws.onopen = () => {
       connectionStatus.value = "connected"; // Set state to connected

@@ -45,7 +45,7 @@
       </el-card>
 
       <!-- 实时日志表格 -->
-      <div class="log-table-wrapper">
+      <div class="log-table-wrapper" ref="logTableWrapper">
         <el-table
             :data="results"
             style="width: 100%"
@@ -175,13 +175,13 @@ const results = computed({
 
 const scrollToBottom = async () => {
   await nextTick();
-  // 这里我们针对 el-table 的 body wrapper 进行滚动
-  const wrapper = document.querySelector('.log-table-wrapper .el-table__body-wrapper .el-scrollbar__wrap');
-  if (wrapper) {
-    wrapper.scrollTop = wrapper.scrollHeight;
+  if (logTableWrapper.value) {
+    logTableWrapper.value.scrollTo({
+      top: logTableWrapper.value.scrollHeight,
+      behavior: 'smooth'
+    });
   }
 };
-
 const goToAtom = (atomId: number) => {
   router.push({ name: "AtomEditor", params: { atomId } });
 };
@@ -194,10 +194,9 @@ const handleJobStepUpdate = (event: Event) => {
     // 避免重复添加 (基于 resultId)
     const exists = results.value.some(r => r.resultId === newStep.resultId);
     if (!exists) {
-      // 直接修改 Store 中的数据 (虽然直接改 Store 状态不是最佳实践，但在这种高性能场景下是允许的，或者可以在 Store 中加一个 addResult action)
       if (jobStore.currentJobDetails) {
         jobStore.currentJobDetails.results.push(newStep);
-        scrollToBottom();
+        scrollToBottom(); // 确保收到新步骤时触发滚动
       }
     }
   }

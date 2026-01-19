@@ -48,6 +48,11 @@
         </template>
       </el-table-column>
       <el-table-column label="包名" prop="packageName" min-width="160" show-overflow-tooltip />
+      <el-table-column label="本地权重" prop="weight" width="90" align="center">
+        <template #default="{ row }">
+          <span :class="{'text-bold': row.weight > 0}">{{ row.weight }}</span>
+        </template>
+      </el-table-column>
       <!-- 新增：默认套件 -->
       <el-table-column label="默认套件" min-width="90" show-overflow-tooltip>
         <template #default="{ row }">

@@ -14,6 +14,9 @@ export interface DevicePublic {
   registeredAt: string;
   lastSeenAt: string;
   isConnectedWs?: boolean;
+  isActiveSlot: boolean;
+  validUntil?: string;
+  isControlled: boolean;
 }
 
 /**

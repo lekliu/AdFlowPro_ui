@@ -17,25 +17,37 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
 
   const validParamsByAction: Record<string, string[]> = {
     input_text: ["text"],
-    tap: ["startX", "startY"],
+    tap: ["startX", "startY", "duration"],
+    hover: ["startX", "startY"],
+    right_click: ["startX", "startY"],
+    double_click: ["startX", "startY"],
+    key_down: ["keyCode"],
+    key_up: ["keyCode"],
     tap_relative: ["offsetX", "offsetY"],
-    conditional_tap: ["startX", "startY", "comparisonOperator", "leftSource", "leftValue", "rightSource", "rightValue"],
+    conditional_tap: ["startX", "startY", "elseX", "elseY", "comparisonOperator", "leftSource", "leftValue", "rightSource", "rightValue"],
     conditional_tap_jump: ["startX", "startY", "comparisonOperator", "leftValue", "rightValue", "targetStateLabel"],
     swipe: ["startX", "startY", "endX", "endY", "duration"],
     swipe_gesture: ["direction"],
     wait: ["duration"],
+    wait_random: ["minDuration", "maxDuration"],
     wait_dynamic: ["leftSource", "leftValue"],
+    scroll_until: ["direction", "text", "expectedCount"],
+    data_generator: ["genType", "reportLabel"],
+    shell_execute: ["command", "reportLabel"],
     press_key: ["keyCode"],
     report_value: ["reportLabel", "leftSource", "leftValue"],
     calculate_value: ["reportLabel", "leftSource", "leftValue"],
     end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
     assert_text_equals: ["text"],
     jump_to_state: ["targetStateLabel"],
+    clean_app_data: ["packageName", "scope"],
+    registry_reset: ["path", "key", "value"],
+    force_kill_family: [],
   };
 
   actionsCopy.forEach((action: any) => {
     // --- Selector Cleanup ---
-    const needsSelector = ["click", "long_click", "input_text", "assert_element_exists", "assert_text_equals"].includes(action.action);
+    const needsSelector = ["click", "long_click", "input_text", "assert_element_exists", "assert_text_equals", "hover", "right_click", "double_click"].includes(action.action);
     if (!needsSelector) {
       delete action.selector;
     } else if (action.selector) {
@@ -73,7 +85,7 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
         // Fix: For 'tap' and 'swipe', ensure 0 is treated as a valid value
         // [V15.1 Update]: Also allow 0 for conditional_tap_jump to support "logic only" mode
         // And critical fix: if value is missing for these actions, force a default 0 to prevent empty params
-        if ((action.action === 'tap' || action.action === 'swipe' || action.action === 'conditional_tap_jump') && (val === null || val === undefined)) {
+        if (['tap', 'swipe', 'conditional_tap_jump', 'hover', 'right_click', 'double_click'].includes(action.action) && (val === null || val === undefined)) {
              if (paramKey === 'duration') {
                  val = 1000; // Default duration for swipe
              } else {
@@ -146,6 +158,26 @@ export const cleanupSceneSnapshot = (sceneSnapshot: any) => {
       if (primaryMatcher.matchMode !== "fuzzy_with_coords") {
         delete primaryMatcher.coordinates;
       }
+    }
+
+    if (primaryMatcher.matchTargetType === "pixel") {
+      delete primaryMatcher.sceneType;
+      delete primaryMatcher.text;
+      delete primaryMatcher.matchMode;
+      delete primaryMatcher.coordinates;
+      delete primaryMatcher.templateId;
+      delete primaryMatcher.matchThreshold;
+      delete primaryMatcher.imageMatchStrategy;
+    } else {
+      delete snapshotCopy.primaryMatcher.pixelPoints;
+    }
+
+    if (primaryMatcher.matchTargetType === "ai_detect") {
+      delete primaryMatcher.text;
+      delete primaryMatcher.templateId;
+      delete primaryMatcher.pixelPoints;
+      delete primaryMatcher.sceneType;
+      delete primaryMatcher.matchMode;
     }
 
     // --- General Cleanup for Primary Matcher ---

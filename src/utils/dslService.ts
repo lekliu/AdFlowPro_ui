@@ -13,6 +13,11 @@ const ACTION_PARAM_MAP: Record<string, string> = {
     offset_y: "offsetY",
     ms: "duration",
     duration: "duration",
+    min: "minDuration",
+    max: "maxDuration",
+    dir: "direction",
+    type: "genType",
+    cmd: "command",
     var: "leftValue",
     val: "rightValue",
     op: "comparisonOperator",
@@ -27,6 +32,7 @@ const SELECTOR_PARAM_MAP: Record<string, string> = {
     text: "text",
     id: "resourceId",
     desc: "contentDesc",
+    mode: "matchMode",
     cls: "className",
     bounds: "bounds",
     // 状态
@@ -44,6 +50,8 @@ const REVERSE_ACTION_MAP: Record<string, string> = {
     offsetX: "offset_x",
     offsetY: "offset_y",
     duration: "ms",
+    minDuration: "min",
+    maxDuration: "max",
     leftValue: "var",
     rightValue: "val",
     comparisonOperator: "op",
@@ -56,6 +64,7 @@ const REVERSE_ACTION_MAP: Record<string, string> = {
 const REVERSE_SELECTOR_MAP: Record<string, string> = {
     resourceId: "id",
     contentDesc: "desc",
+    matchMode: "mode",
     className: "cls",
     bounds: "bounds",
     checked: "checked",
@@ -90,8 +99,9 @@ const parseParams = (paramStr: string): Record<string, any> => {
 /**
  * 生成器：Form -> Code
  */
-export const generateCode = (form: any): string => {
-    let code = `# AdFlowPro DSL\n`;
+export const generateCode = (form: any, id?: number | string | null): string => {
+    const displayId = id || 'NEW';
+    let code = `# AdFlowPro DSL id: ${displayId}\n`;
 
     // [Basic]
     code += `\n# [Basic]\n`;
@@ -118,9 +128,20 @@ export const generateCode = (form: any): string => {
             if (pm.coordinates) paramsStr += `, left=${pm.coordinates.left}, top=${pm.coordinates.top}`;
             const funcName = pm.sceneType === 'ocr' ? 'match.ocr' : 'match.ui';
             code += `${funcName}(${paramsStr})\n`;
-        } else {
+        } else if (pm.matchTargetType === 'image') {
             code += `match.image(id="${pm.templateId}")\n`;
+        } else if (pm.matchTargetType === 'pixel' && pm.pixelPoints) {
+            pm.pixelPoints.forEach((pt: any) => {
+                code += `match.pixel(x=${pt.x}, y=${pt.y}, color="${pt.color}", tol=${pt.tolerance})\n`;
+            });
+        } else if (pm.matchTargetType === 'ai_detect') {
+            // 增加兜底保护
+            const mId = pm.modelId || 'undefined';
+            const label = pm.targetLabel || 'none';
+            const conf = pm.minConfidence || 0.5;
+            code += `match.ai(model="${mId}", label="${label}", conf=${conf})\n`;
         }
+
         if (pm.screenRegion && pm.screenRegion.length > 0) {
             code += `filter.region("${pm.screenRegion.join('|')}")\n`;
         }
@@ -160,6 +181,8 @@ export const generateCode = (form: any): string => {
                     if (value === null || value === undefined || value === "") return;
                     // 过滤掉 index=0 这种默认值，让代码更简洁
                     if (key === 'index' && value === 0) return;
+                    // matchMode 只有在非默认值(exact)时才生成代码，保持简洁
+                    if (key === 'matchMode' && value === 'fuzzy') return;
 
                     // 核心：只生成映射表中存在的 key
                     const dslKey = REVERSE_SELECTOR_MAP[key];
@@ -195,7 +218,13 @@ export const generateCode = (form: any): string => {
                 });
             }
 
-            code += `action.${act.action}(${paramList.join(', ')})\n`;
+            // 特殊处理 KeyDown/KeyUp 的参数名简化，保持代码整洁
+            if (act.action === 'key_down' || act.action === 'key_up') {
+                const key = act.parameters?.keyCode || '';
+                code += `action.${act.action}(key="${key}")\n`;
+            } else {
+                code += `action.${act.action}(${paramList.join(', ')})\n`;
+            }
         });
     }
 
@@ -218,6 +247,10 @@ export const parseCode = (code: string, originalForm: any): any => {
     }
     newForm.sceneSnapshotJson.secondaryMatchers = [];
     newForm.sceneSnapshotJson.extractors = [];
+
+    if (newForm.sceneSnapshotJson.primaryMatcher) {
+        newForm.sceneSnapshotJson.primaryMatcher.pixelPoints = [];
+    }
 
     if (!newForm.sceneSnapshotJson.primaryMatcher) {
         newForm.sceneSnapshotJson.primaryMatcher = { matchTargetType: 'text' };
@@ -259,6 +292,26 @@ export const parseCode = (code: string, originalForm: any): any => {
                 } else if (newForm.sceneSnapshotJson.primaryMatcher.matchMode === 'fuzzy') {
                     delete newForm.sceneSnapshotJson.primaryMatcher.coordinates;
                 }
+                break;
+            case 'match.pixel':
+                newForm.triggerType = 'scene';
+                newForm.sceneSnapshotJson.primaryMatcher.matchTargetType = 'pixel';
+                if (!newForm.sceneSnapshotJson.primaryMatcher.pixelPoints) {
+                    newForm.sceneSnapshotJson.primaryMatcher.pixelPoints = [];
+                }
+                newForm.sceneSnapshotJson.primaryMatcher.pixelPoints.push({
+                    x: params.x || 0,
+                    y: params.y || 0,
+                    color: params.color || '#FFFFFF',
+                    tolerance: params.tol || 15
+                });
+                break;
+            case 'match.ai':
+                newForm.triggerType = 'scene';
+                newForm.sceneSnapshotJson.primaryMatcher.matchTargetType = 'ai_detect';
+                newForm.sceneSnapshotJson.primaryMatcher.modelId = params.model;
+                newForm.sceneSnapshotJson.primaryMatcher.targetLabel = params.label;
+                newForm.sceneSnapshotJson.primaryMatcher.minConfidence = params.conf || 0.5;
                 break;
             case 'match.image':
                 newForm.triggerType = 'scene';
@@ -329,8 +382,9 @@ export const parseCode = (code: string, originalForm: any): any => {
  * 生成测试包代码
  * Package Form -> DSL Code
  */
-export const generatePackageCode = (form: any): string => {
-    let code = `# AdFlowPro Package DSL\n\n`;
+export const generatePackageCode = (form: any, id?: number | string | null): string => {
+    const displayId = id || 'NEW';
+    let code = `# AdFlowPro Package DSL id: ${displayId}\n\n`;
 
     // 1. Basic Config
     code += `# [Basic]\n`;
@@ -423,8 +477,9 @@ export const parsePackageCode = (code: string, originalForm: any, allAtoms: any[
  * 生成测试套件代码
  * Suite Form -> DSL Code
  */
-export const generateSuiteCode = (form: any): string => {
-    let code = `# AdFlowPro Suite DSL\n\n`;
+export const generateSuiteCode = (form: any, id?: number | string | null): string => {
+    const displayId = id || 'NEW';
+    let code = `# AdFlowPro Suite DSL id: ${displayId}\n\n`;
 
     // 1. Basic Config
     code += `# [Basic]\n`;

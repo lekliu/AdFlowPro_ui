@@ -6,7 +6,9 @@
           <el-button v-if="isEditMode" type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此用例 </el-button>
           <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button @click="goBack">取消</el-button>
-          <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
+          <!-- 拆分为两个按钮 -->
+          <el-button type="primary" plain @click="handleSave(false)" :loading="isSaving">仅保存</el-button>
+          <el-button type="primary" @click="handleSave(true)" :loading="isSaving">保存并退出</el-button>
         </div>
       </template>
     </el-page-header>
@@ -329,7 +331,7 @@ const handleTestLinearCase = () => {
   testDialog.visible = false;
 };
 
-const handleSave = async () => {
+const handleSave = async (shouldExit = true) => {
   if (!formRef.value) return;
   await formRef.value.validate();
 
@@ -362,12 +364,22 @@ const handleSave = async () => {
     // 2. 在调用 store 之前，打印这个 payload 的最终形态
     if (isEditMode.value) {
       await caseStore.updateCase(caseId.value!, payload as TestCaseUpdatePayload);
+      ElMessage.success("已保存更新");
     } else {
-      await caseStore.addCase(payload as TestCaseCreatePayload);
+      const res = await caseStore.addCase(payload as TestCaseCreatePayload);
+      ElMessage.success("创建成功");
+      //# [核心修复] 如果是新建，保存后将路由切换到编辑模式，防止重复创建
+      //# [核心修复] 增加空值检查，且 res 现在有了正确的类型
+      if (res && res.caseId) {
+        router.replace({ name: 'TestCaseEditor', params: { caseId: res.caseId } });
+      }
     }
+
     caseStore.setNeedsRefresh(true);
-    ElMessage.success("保存成功！");
-    goBack();
+
+    if (shouldExit) {
+      goBack();
+    }
   } catch (error) {
     // API client interceptor handles the message
   } finally {
@@ -385,7 +397,7 @@ const openCodeMode = () => {
   if (form.caseType === 'flow' && flowchartEditorRef.value) {
     form.flowchartData = flowchartEditorRef.value.getData();
   }
-  codeDialog.code = generateCaseCode(form);
+  codeDialog.code = generateCaseCode(form, caseId.value);
   codeDialog.visible = true;
 };
 
