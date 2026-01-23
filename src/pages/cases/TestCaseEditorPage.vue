@@ -366,12 +366,16 @@ const handleSave = async (shouldExit = true) => {
       await caseStore.updateCase(caseId.value!, payload as TestCaseUpdatePayload);
       ElMessage.success("已保存更新");
     } else {
+      const oldPath = route.fullPath;
       const res = await caseStore.addCase(payload as TestCaseCreatePayload);
       ElMessage.success("创建成功");
       //# [核心修复] 如果是新建，保存后将路由切换到编辑模式，防止重复创建
       //# [核心修复] 增加空值检查，且 res 现在有了正确的类型
-      if (res && res.caseId) {
-        router.replace({ name: 'TestCaseEditor', params: { caseId: res.caseId } });
+      if (!shouldExit && res && res.caseId) {
+        // 仅在不退出时执行标签变身
+        const newPath = router.resolve({ name: 'TestCaseEditor', params: { caseId: res.caseId } }).fullPath;
+        tabStore.morphTab(oldPath, newPath, `编辑 - ${form.name}`);
+        router.replace(newPath);
       }
     }
 

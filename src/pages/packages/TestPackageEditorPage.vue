@@ -1,212 +1,186 @@
-<!-- AdFlowPro_ui\src\pages\packages\TestPackageEditorPage.vue (最终修正版 V3.2.3.8) -->
 <template>
-  <div class="package-editor-page" style="padding: 0px">
-    <el-page-header @back="goBack" :content="isEditMode ? '编辑测试包' : '新建测试包'" class="sticky-header">
-      <template #extra>
-        <div class="header-actions">
-          <el-button type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此包 </el-button>
-          <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
-          <el-button @click="goBack">取消</el-button>
-          <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
-        </div>
-      </template>
-    </el-page-header>
-
-    <div v-loading="isLoading" class="editor-content-wrapper">
-      <el-card class="box-card">
-        <template #header>
-          <span>基础信息</span>
+  <div class="package-editor-root">
+    <div class="package-editor-page" v-loading="isLoading">
+      <el-page-header @back="goBack" :content="isEditMode ? '编辑测试包' : '新建测试包'" class="sticky-header">
+        <template #extra>
+          <div class="header-actions">
+            <el-button type="success" :icon="MagicStick" plain @click="openTestDialog"> 测试此包 </el-button>
+            <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
+            <el-button @click="goBack">取消</el-button>
+            <el-button type="primary" plain @click="handleSave(false)" :loading="isSaving">仅保存</el-button>
+            <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving">保存并退出</el-button>
+          </div>
         </template>
-        <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
-          <el-row :gutter="15">
-            <el-col :span="8">
-              <el-form-item label="名称" prop="name">
-                <el-input v-model="form.name" placeholder="为测试包起一个明确的名称"></el-input>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="所属分类" prop="categoryId">
-                <el-select v-model="form.categoryId" placeholder="选择一个分类" clearable filterable style="width: 100%">
-                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="公共包">
-                <div style="display: flex; align-items: center; height: 32px">
+      </el-page-header>
+
+      <div class="editor-content-wrapper">
+        <el-card class="box-card" style="margin-bottom: 10px;">
+          <template #header><span>基础信息</span></template>
+          <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
+            <el-row :gutter="15">
+              <el-col :span="8">
+                <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="输入测试包名称" /></el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="所属分类" prop="categoryId">
+                  <el-select
+                    v-model="form.categoryId"
+                    placeholder="选择或创建一个分类"
+                    clearable
+                    filterable
+                    allow-create
+                    default-first-option
+                    @change="handleCategoryChange"
+                    style="width: 100%"
+                  >
+                    <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="公共包">
                   <el-switch v-model="form.isCommon" />
                   <el-tooltip content="公共包在所有项目中都可见并可被引用" placement="top">
                     <el-icon style="margin-left: 8px; color: #909399"><QuestionFilled /></el-icon>
                   </el-tooltip>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="描述"><el-input v-model="form.description" type="textarea" placeholder="描述此测试包流程" /></el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-row :gutter="6">
+          <el-col :span="10">
+            <el-card class="pool-card" body-style="padding: 0;">
+              <template #header>
+                <div class="pool-header">
+                  <el-radio-group v-model="resourceType" size="small" style="margin-bottom: 10px">
+                    <el-radio-button value="atom">原子操作</el-radio-button>
+                    <el-radio-button value="package">子测试包</el-radio-button>
+                  </el-radio-group>
+                  <div style="display:flex; justify-content:space-between; align-items:center">
+                    <span>{{ resourceType === 'atom' ? '原子池' : '可用子包' }}</span>
+                    <el-select v-model="atomCategoryFilter" placeholder="分类筛选" clearable size="small" @change="handlePoolFilterChange" style="width: 130px">
+                      <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                    </el-select>
+                  </div>
                 </div>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="描述" prop="description">
-            <el-input v-model="form.description" type="textarea" placeholder="描述此测试包封装的流程"></el-input>
-          </el-form-item>
-        </el-form>
-      </el-card>
-
-      <el-row :gutter="6" style="margin-top: 6px">
-        <!-- 左侧: 原子操作池 -->
-        <el-col :span="10">
-          <el-card class="pool-card" body-style="padding: 0;">
-            <template #header>
-              <div class="pool-header">
-                <span>原子操作池</span>
-                <el-select
-                    v-model="atomCategoryFilter"
-                    placeholder="按分类筛选"
-                    clearable
-                    size="small"
-                    @change="handlePoolFilterChange"
-                    style="width: 150px">
-                  <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
-                </el-select>
-              </div>
-            </template>
-            <div class="pool-content">
-              <el-input
-                v-model="atomSearch"
-                placeholder="搜索原子操作"
-                clearable
-                class="pool-search"
-                @keyup.enter="handlePoolFilterChange"
-                @clear="handlePoolFilterChange"
-              >
-                <template #append>
-                  <el-button :icon="Search" @click="handlePoolFilterChange" />
-                </template>
-              </el-input>
-              <draggable
-                class="draggable-list"
-                :list="availableAtoms"
-                :group="{ name: 'atoms', pull: 'clone', put: false }"
-                :sort="false"
-                item-key="atomId"
-                :clone="cloneAtom"
-                tag="div"
-              >
-                <template #item="{ element }">
-                  <div class="draggable-item" :class="{ 'is-disabled': element.disabled }">
-                    <el-icon><Operation /></el-icon>
-                    <span class="item-text">{{ element.name }}</span>
-                    <el-tag v-if="element.categoryName" type="info" size="small">{{ element.categoryName }}</el-tag>
+              </template>
+              <div class="pool-content">
+                <div v-if="resourceType === 'atom'" class="pool-inner">
+                  <el-input v-model="atomSearch" placeholder="搜索原子..." clearable class="pool-search" @keyup.enter="handlePoolFilterChange" />
+                  <draggable class="draggable-list" :list="availableAtoms" :group="{ name: 'mixed', pull: 'clone', put: false }" :sort="false" item-key="atomId" :clone="cloneAtom" tag="div">
+                    <template #item="{ element }">
+                      <div class="draggable-item" :class="{ 'is-disabled': element.disabled }">
+                        <el-icon><Operation /></el-icon><span class="item-text">{{ element.name }}</span>
+                        <el-tag v-if="element.categoryName" type="info" size="small">{{ element.categoryName }}</el-tag>
+                      </div>
+                    </template>
+                  </draggable>
+                  <div class="pool-pagination">
+                    <el-pagination v-model:current-page="poolCurrentPage" :page-size="poolPageSize" layout="total, prev, next" :total="atomStore.totalAtoms" size="small" @current-change="handlePoolPageChange" />
                   </div>
-                </template>
-              </draggable>
-              <div class="pool-pagination">
-                <el-pagination
-                  v-model:current-page="poolCurrentPage"
-                  v-model:page-size="poolPageSize"
-                  :page-sizes="[10, 20, 50]"
-                  layout="total, sizes, prev, next"
-                  :total="atomStore.totalAtoms"
-                  small
-                  @size-change="handlePoolSizeChange"
-                  @current-change="handlePoolPageChange"
-                />
+                </div>
+                <div v-else class="pool-inner">
+                  <el-input v-model="packageSearch" placeholder="搜索包名..." clearable class="pool-search" />
+                  <draggable class="draggable-list" :list="filteredSafePackages" :group="{ name: 'mixed', pull: 'clone', put: false }" :sort="false" item-key="packageId" :clone="clonePackage" tag="div">
+                    <template #item="{ element }">
+                      <div class="draggable-item" :class="{ 'is-disabled': element.disabled }">
+                        <el-icon><TakeawayBox /></el-icon><span class="item-text">{{ element.name }}</span>
+                      </div>
+                    </template>
+                  </draggable>
+                </div>
               </div>
-            </div>
-          </el-card>
-        </el-col>
+            </el-card>
+          </el-col>
 
-        <!-- 右侧: 测试包构建区 -->
-        <el-col :span="14">
-          <el-card class="build-card" body-style="padding: 0;">
-            <template #header>
-              <div class="pool-header">
-                <span>测试包内容 (拖拽排序)</span>
-                <el-button size="small" type="primary" plain :icon="Sort" @click="sortAtomsByName">按名称排序</el-button>
-              </div>
-            </template>
-            <div class="pool-content">
-              <draggable class="draggable-list" v-model="form.atoms" group="atoms" item-key="atomId" handle=".drag-handle" tag="div">
-                <template #item="{ element, index }">
-                  <div class="draggable-item-selected">
-                    <el-icon class="drag-handle"><Rank /></el-icon>
-                    <span class="item-text">{{ element.name }}</span>
-                    <el-tag v-if="element.categoryName" type="info" size="small">{{ element.categoryName }}</el-tag>
-                    <div>
-                      <el-button type="primary" :icon="Edit" circle plain size="small" @click="handleEditAtom(element.atomId)" />
-                      <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeAtom(index)" />
+          <el-col :span="14">
+            <el-card class="build-card" body-style="padding: 0;">
+              <template #header>
+                <div style="display:flex; justify-content:space-between">
+                  <span>编排内容 (拖拽排序)</span>
+                  <el-button size="small" type="primary" plain :icon="Sort" @click="sortAtomsByName">按名排序</el-button>
+                </div>
+              </template>
+              <div class="pool-content">
+                <draggable class="draggable-list" v-model="form.mixedContent" group="mixed" item-key="uniqueId" handle=".drag-handle" tag="div">
+                  <template #item="{ element, index }">
+                    <div class="mixed-item-group">
+                      <div class="draggable-item-selected" :class="{'sub-pkg-card': element.type === 'package'}">
+                        <el-icon class="drag-handle"><Rank /></el-icon>
+                        <el-icon v-if="element.type === 'atom'"><Operation /></el-icon>
+                        <el-icon v-else><TakeawayBox /></el-icon>
+                        <span class="item-text">{{ element.name }}</span>
+                        
+                        <!-- [新增] 原子操作跳转按钮 -->
+                        <el-button
+                          v-if="element.type === 'atom'"
+                          type="primary"
+                          :icon="Edit"
+                          circle
+                          plain
+                          size="small"
+                          @click="handleEditAtom(element.id)"
+                          title="跳转至原子操作详情"
+                          style="margin-right: 8px"
+                        />
+                        
+                        <!-- 亮点功能：透视按钮 -->
+                        <el-button v-if="element.type === 'package'" link type="primary" @click="togglePreview(element)" :loading="element.loading">
+                          <el-icon><ViewIcon /></el-icon>{{ element.showPreview ? '收起' : '透视' }}
+                        </el-button>
+
+                        <el-tag v-if="element.categoryName" type="info" size="small" style="margin-right: 8px">{{ element.categoryName }}</el-tag>
+                        <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeMixedItem(index)" />
+                      </div>
+                      <!-- 透视展开区 -->
+                      <el-collapse-transition>
+                        <NestedPreview v-if="element.showPreview" :children="element.childrenData" @toggle="togglePreview" />
+                      </el-collapse-transition>
                     </div>
-                  </div>
-                </template>
-              </draggable>
-              <el-empty v-if="form.atoms.length === 0" description="从左侧拖拽原子操作到此处" :image-size="80" />
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-    </div>
-
-    <!-- Live Test Dialog -->
-    <el-dialog v-model="testDialog.visible" title="测试此测试包" width="400px">
-      <el-form label-position="top">
-        <el-form-item label="选择一个在线设备执行">
-          <el-select
-            v-model="testDialog.targetDeviceId"
-            placeholder="请选择设备"
-            style="width: 100%"
-            :loading="deviceStore.isLoading"
-          >
-            <el-option
-              v-for="device in onlineDevices"
-              :key="device.deviceId"
-              :label="`${device.deviceName} (${device.deviceId})`"
-              :value="device.deviceId" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="testDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="handleTestPackage" :disabled="!testDialog.targetDeviceId"> 开始执行 </el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 弹窗 (放在最外层 div 内) -->
-    <el-dialog
-        v-model="codeDialog.visible"
-        title="编程式配置 (Package DSL)"
-        width="800px"
-        top="5vh"
-        :close-on-click-modal="false"
-    >
-      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
-        <vue-monaco-editor
-            v-model:value="codeDialog.code"
-            theme="vs"
-            language="python"
-            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
-            @mount="handleEditorMount"
-        />
+                  </template>
+                </draggable>
+                <el-empty v-if="form.mixedContent.length === 0" description="拖拽资源到此处" :image-size="80" />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
       </div>
-      <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-      <span style="color: #909399; font-size: 12px">
-        提示：原子操作的 ID 必须真实存在。name 仅用于展示，不影响逻辑。
-      </span>
-          <div>
-            <el-button @click="codeDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
-          </div>
+      <!-- 弹窗组件 -->
+      <el-dialog v-model="testDialog.visible" title="测试此测试包" width="400px" append-to-body>
+        <el-select v-model="testDialog.targetDeviceId" placeholder="请选择设备" style="width: 100%">
+          <el-option v-for="d in onlineDevices" :key="d.deviceId" :label="d.deviceName || d.deviceId" :value="d.deviceId" />
+        </el-select>
+        <template #footer>
+          <el-button @click="testDialog.visible = false">取消</el-button>
+          <el-button type="primary" @click="handleTestPackage" :disabled="!testDialog.targetDeviceId">开始执行</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="codeDialog.visible" title="编程式配置 (Package DSL)" width="800px" top="5vh" append-to-body>
+        <div style="height: 60vh; border: 1px solid #dcdfe6">
+          <vue-monaco-editor v-model:value="codeDialog.code" theme="vs" language="python" @mount="handleEditorMount" />
         </div>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="codeDialog.visible = false">取消</el-button>
+          <el-button type="primary" @click="handleApplyCode">应用并生成界面</el-button>
+        </template>
+      </el-dialog>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineOptions({
-  name: "TestPackageEditor",
-});
-import { ref, reactive, computed, onMounted, defineProps } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ElMessage, type FormInstance, type FormRules } from "element-plus";
+import { ElMessage } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Search, Monitor, Sort } from "@element-plus/icons-vue";
+import {
+  Delete, Rank, Operation, QuestionFilled, Edit, MagicStick,
+  Search, Monitor, Sort, TakeawayBox, Select, View as ViewIcon
+} from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
 import { usePackageStore } from "@/stores/packageStore";
@@ -215,12 +189,12 @@ import { useTabStore } from "@/stores/tabStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { useWebSocketStore } from "@/stores/webSocketStore";
 import { wsService } from "@/services/wsService";
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import { generatePackageCode, parsePackageCode } from "@/utils/dslService";
-import type { TestPackageCreatePayload, TestPackageUpdatePayload, AtomicOperationPublic } from "@/types/api";
+import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import NestedPreview from "@/components/NestedPreview.vue"; // 核心修复：引入递归组件
+import { v4 as uuidv4 } from "uuid";
 
 const props = defineProps<{ packageId?: string | number }>();
-
 const route = useRoute();
 const router = useRouter();
 const atomStore = useAtomStore();
@@ -230,326 +204,270 @@ const categoryStore = useAtomCategoryStore();
 const deviceStore = useDeviceStore();
 const wsStore = useWebSocketStore();
 
-const packageId = computed(() => (props.packageId ? Number(props.packageId) : null));
-const isEditMode = computed(() => !!packageId.value);
-const isLoading = ref(false);
+const formRef = ref<any>(null);
+const packageIdNum = computed(() => (props.packageId ? Number(props.packageId) : null));
+const isEditMode = computed(() => !!packageIdNum.value);
+const isLoading = ref(true);
 const isSaving = ref(false);
-
-const formRef = ref<FormInstance>();
-const form = reactive<{
-  name: string;
-  description: string;
-  isCommon: boolean;
-  categoryId: number | null;
-  atoms: AtomicOperationPublic[];
-}>({
-  name: "",
-  description: "",
-  isCommon: false,
-  categoryId: null,
-  atoms: [],
-});
-
-const rules = reactive<FormRules>({
-  name: [{ required: true, message: "请输入测试包名称", trigger: "blur" }],
-});
-
+const resourceType = ref('atom');
+const packageSearch = ref('');
 const atomSearch = ref("");
 const atomCategoryFilter = ref<number | "">("");
-// Pagination state for Atom Pool
 const poolCurrentPage = ref(1);
 const poolPageSize = ref(10);
 
-const testDialog = reactive({
-  visible: false,
-  targetDeviceId: "",
+const form = reactive({
+  name: "", description: "", isCommon: false, categoryId: null as number | null,
+  mixedContent: [] as any[],
 });
-const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
 
-const selectedAtomIds = computed(() => new Set(form.atoms.map((a) => a.atomId)));
+const rules = { name: [{ required: true, message: "请输入名称", trigger: "blur" }] };
+const testDialog = reactive({ visible: false, targetDeviceId: "" });
+const codeDialog = reactive({ visible: false, code: "" });
+const onlineDevices = computed(() => deviceStore.devices.filter(d => d.isConnectedWs));
 
-// Fetch atoms from server based on pagination and filters
-const fetchAtomPool = async () => {
-  await atomStore.fetchAtoms({
-    skip: (poolCurrentPage.value - 1) * poolPageSize.value,
-    limit: poolPageSize.value,
-    search: atomSearch.value || undefined,
-    categoryId: atomCategoryFilter.value || undefined,
-  });
-};
+// --- 补回业务逻辑：重复检查 ---
 
 const availableAtoms = computed(() => {
-  // Since atomStore.atoms is now paginated and filtered by server,
-  // we just map it to add the 'disabled' state.
-  return atomStore.atoms.map((atom) => ({
-    ...atom,
-    disabled: selectedAtomIds.value.has(atom.atomId),
-  }));
+  const selectedIds = new Set(form.mixedContent.filter(i => i.type === 'atom').map(i => i.id));
+  return atomStore.atoms.map(a => ({ ...a, disabled: selectedIds.has(a.atomId) }));
 });
 
-const cloneAtom = (original: AtomicOperationPublic & { disabled: boolean }) => {
-  if (original.disabled) {
-    ElMessage.warning(`原子操作 "${original.name}" 已存在于测试包中。`);
-    return undefined;
-  }
-  const { disabled, ...atomToClone } = original;
-  return atomToClone;
-};
-
-onMounted(async () => {
-  isLoading.value = true;
-  // Fetch all atoms and categories for the editor
-  await Promise.all([
-    atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
-    categoryStore.fetchAllCategories(),
-    deviceStore.fetchDevices({ limit: 1000 }), // Pre-fetch devices for test dialog
-  ]);
-
-  if (isEditMode.value) {
-    const pkg = await packageStore.fetchPackageById(packageId.value!);
-    if (pkg) {
-      form.name = pkg.name;
-      form.description = pkg.description || "";
-      form.isCommon = pkg.isCommon;
-      form.categoryId = pkg.category?.categoryId || null;
-      form.atoms = pkg.atoms || [];
-    }
-  }
-  isLoading.value = false;
+const filteredSafePackages = computed(() => {
+  const selectedIds = new Set(form.mixedContent.filter(i => i.type === 'package').map(i => i.id));
+  return packageStore.packages.map(p => ({
+    ...p,
+    disabled: packageStore.forbiddenIds.includes(p.packageId) || (form.isCommon && !p.isCommon) || selectedIds.has(p.packageId)
+  })).filter(p => {
+    // 1. 关键词搜索过滤
+    const matchesSearch = p.name.toLowerCase().includes(packageSearch.value.toLowerCase());
+    // 2. 分类筛选过滤 (核心修复)
+    const matchesCategory = !atomCategoryFilter.value || p.categoryId === atomCategoryFilter.value;
+    return matchesSearch && matchesCategory;
+  });
 });
 
-const handlePoolFilterChange = () => {
-  poolCurrentPage.value = 1; // Reset to first page on filter change
-  fetchAtomPool();
-};
+// --- 补回业务逻辑：保存与测试 ---
 
-const handlePoolSizeChange = (val: number) => {
-  poolPageSize.value = val;
-  poolCurrentPage.value = 1;
-  fetchAtomPool();
-};
-
-const handlePoolPageChange = (val: number) => {
-  poolCurrentPage.value = val;
-  fetchAtomPool();
-};
-
-const removeAtom = (index: number) => {
-  form.atoms.splice(index, 1);
-};
-
-// [新增] 按原子操作名称排序逻辑
-const sortAtomsByName = () => {
-  if (form.atoms.length <= 1) return;
-  
-  // 使用中文排序器，支持拼音排序
-  const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
-  form.atoms.sort((a, b) => collator.compare(a.name, b.name));
-  ElMessage.success("已按原子操作名称完成排序");
-};
-
-const goBack = () => {
-  tabStore.removeTab(route.fullPath);
-};
-
-const handleEditAtom = (atomId: number) => {
-  router.push({ name: "AtomEditor", params: { atomId } });
-};
-
-const handleSave = async () => {
-  await formRef.value?.validate();
+const handleSave = async (shouldExit = true) => {
+  if (formRef.value) {
+    try { await formRef.value.validate(); } catch (e) { return; }
+  }
   isSaving.value = true;
   try {
+    // 核心修复：对所有 ID 进行严格的整数转换，并过滤掉无效条目
+    const safeMixedContent = form.mixedContent.map(i => ({
+      id: Number(i.id),
+      type: i.type
+    })).filter(i => !isNaN(i.id));
+
     const payload = {
-      name: form.name,
-      description: form.description,
-      isCommon: form.isCommon,
-      categoryId: form.categoryId,
-      atomIds: form.atoms.map((a) => a.atomId),
+      name: form.name, description: form.description, isCommon: form.isCommon, categoryId: form.categoryId,
+      orderedContent: safeMixedContent,
+      // 后端期望 atom_ids 是 List[int]
+      atomIds: safeMixedContent.filter(i => i.type === 'atom').map(i => i.id),
+      includedPackageIds: safeMixedContent.filter(i => i.type === 'package').map(i => i.id)
     };
     if (isEditMode.value) {
-      await packageStore.updatePackage(packageId.value!, payload as TestPackageUpdatePayload);
-    } else {
-      await packageStore.addPackage(payload as TestPackageCreatePayload);
+      await packageStore.updatePackage(packageIdNum.value!, payload as any);
+      ElMessage.success("已保存更新");
+    }
+    else {
+      const oldPath = route.fullPath;
+      const res = await packageStore.addPackage(payload as any);
+      ElMessage.success("创建成功");
+      if (!shouldExit && res?.packageId) {
+        const newPath = router.resolve({ name: 'TestPackageEditor', params: { packageId: res.packageId } }).fullPath;
+        tabStore.morphTab(oldPath, newPath, `编辑 - ${form.name}`);
+        router.replace(newPath);
+      }
     }
     packageStore.setNeedsRefresh(true);
-    ElMessage.success("保存成功！");
-    goBack();
-  } catch (error) {
-  } finally {
-    isSaving.value = false;
-  }
+    if (shouldExit) goBack();
+  } finally { isSaving.value = false; }
 };
 
 const openTestDialog = () => {
-  if (!isEditMode.value) {
-    ElMessage.warning("请先保存测试包，然后再进行测试。");
-    return;
-  }
+  if (!isEditMode.value) return ElMessage.warning("请先保存后再测试");
   testDialog.targetDeviceId = "";
   testDialog.visible = true;
 };
 
 const handleTestPackage = () => {
-  if (!wsStore.isLogPanelVisible) {
-    wsStore.toggleLogPanel();
-  }
-  wsService.sendValidateTestPackage(packageId.value!, testDialog.targetDeviceId);
-  ElMessage.info("测试包验证请求已发送，请在底部状态栏查看结果。");
+  if (!wsStore.isLogPanelVisible) wsStore.toggleLogPanel();
+  wsService.sendValidateTestPackage(packageIdNum.value!, testDialog.targetDeviceId);
+  ElMessage.info("测试请求已发送");
   testDialog.visible = false;
 };
 
-// --- Code Mode ---
-const codeDialog = reactive({
-  visible: false,
-  code: "",
-});
+// --- 亮点逻辑：透视与代码模式 ---
+
+const togglePreview = async (element: any) => {
+  if (element.showPreview) {
+    element.showPreview = false;
+    return;
+  }
+  if (!element.childrenData) {
+    if (!element.id || isNaN(Number(element.id))) {
+      console.error("Invalid Package ID for peeking:", element.id);
+      return;
+    }
+    element.loading = true;
+    try {
+      const pkg = await packageStore.fetchPackageById(element.id);
+      // 核心修复：使用 API 返回的驼峰命名字段 (atomId, childPackageId, executionOrder)
+      const combined = [
+        ...((pkg as any).atoms || []).map((a:any) => ({ id: a.atomId, name: a.name, type: 'atom', order: a.executionOrder })),
+        ...((pkg as any).includedPackages || []).map((s:any) => ({ id: s.childPackageId, name: s.childPackage?.name, type: 'package', order: s.executionOrder }))
+      ];
+      element.childrenData = combined.sort((a, b) => a.order - b.order);
+    } finally { element.loading = false; }
+  }
+  element.showPreview = true;
+};
 
 const openCodeMode = () => {
-  codeDialog.code = generatePackageCode(form, packageId.value);
+  const tempForm = { ...form, atoms: form.mixedContent.map(i => ({ id: Number(i.id), name: i.name, type: i.type })) };
+  codeDialog.code = generatePackageCode(tempForm, packageIdNum.value);
   codeDialog.visible = true;
 };
 
 const handleApplyCode = () => {
   try {
-    // 解析代码时需要传入所有可用的原子操作列表，以便根据 ID 恢复对象引用
-    const updatedForm = parsePackageCode(codeDialog.code, form, atomStore.atoms);
+    const updated = parsePackageCode(codeDialog.code, form, atomStore.atoms, packageStore.packages);
+    
+    // [核心修复] 将 DSL 解析出的基础字段同步到 UI 表单
+    form.name = updated.name;
+    form.categoryId = updated.categoryId;
+    form.isCommon = updated.isCommon;
+    form.description = updated.description;
 
-    Object.assign(form, updatedForm);
-
-    ElMessage.success("代码配置已应用！");
+    // 处理复杂的混合内容映射
+    form.mixedContent = updated.atoms.map((a:any) => ({
+      id: Number(a.id || a.atomId || a.packageId), name: a.name, type: a.type || 'atom',
+      categoryName: a.categoryName, uniqueId: uuidv4()
+    }));
     codeDialog.visible = false;
-  } catch (error) {
-    console.error(error);
-    ElMessage.error("代码解析失败，请检查语法。");
+  } catch (e) { ElMessage.error("DSL 解析失败"); }
+};
+
+const handleEditorMount = (editor: any, monaco: any) => {
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => handleApplyCode());
+};
+
+const sortAtomsByName = () => {
+  const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+  form.mixedContent.sort((a, b) => collator.compare(a.name, b.name));
+};
+
+// --- 通用辅助 ---
+
+const cloneAtom = (atom: any) => ({ id: atom.atomId, name: atom.name, type: 'atom', categoryName: atom.categoryName, uniqueId: uuidv4() });
+const clonePackage = (pkg: any) => pkg.disabled ? undefined : { id: pkg.packageId, name: pkg.name, type: 'package', uniqueId: uuidv4() };
+const handlePoolFilterChange = () => { poolCurrentPage.value = 1; fetchAtomPool(); };
+const handlePoolPageChange = (val: number) => { poolCurrentPage.value = val; fetchAtomPool(); };
+const fetchAtomPool = () => atomStore.fetchAtoms({
+  skip: (poolCurrentPage.value - 1) * poolPageSize.value,
+  limit: poolPageSize.value,
+  search: atomSearch.value || undefined,
+  categoryId: atomCategoryFilter.value || undefined
+});
+const goBack = () => tabStore.removeTab(route.fullPath);
+const removeMixedItem = (index: number) => form.mixedContent.splice(index, 1);
+
+const handleCategoryChange = async (value: number | string) => {
+  if (typeof value === "string") {
+    // 用户输入了不存在的名称并回车
+    try {
+      const newCategory = await categoryStore.addCategory({ name: value });
+      form.categoryId = newCategory.categoryId; // 自动选中新生成的 ID
+      ElMessage.success(`新分类 "${value}" 已创建！`);
+    } catch (error) {
+      form.categoryId = null;
+    }
+  }
+};
+const handleEditAtom = (id: number) => router.push({ name: "AtomEditor", params: { atomId: id } });
+
+// 核心修复：监听 ID 变化。解决 keep-alive 缓存组件后，切换不同测试包不刷新的问题
+watch(() => props.packageId, (newId) => {
+  if (newId) {
+    const idNum = Number(newId);
+    if (!isNaN(idNum)) {
+      loadPackageData(idNum);
+    }
+  } else {
+    // 如果没有 ID，重置为新建模式
+    Object.assign(form, {
+      name: "", description: "", isCommon: false, categoryId: null,
+      mixedContent: []
+    });
+  }
+}, { deep: true });
+
+// 核心修复：提取独立的加载函数，供 onMounted 和 watch 复用
+const loadPackageData = async (id: number) => {
+  isLoading.value = true;
+  try {
+    await packageStore.fetchForbiddenAncestors(id);
+    const pkg = await packageStore.fetchPackageById(id);
+    if (pkg) {
+      form.name = pkg.name; form.description = pkg.description || "";
+      form.isCommon = pkg.isCommon; form.categoryId = pkg.categoryId || null;
+      const combined = [
+        ...((pkg as any).atoms || []).map((a:any) => ({ id: a.atomId, name: a.name, type: 'atom', order: a.executionOrder, categoryName: a.categoryName, uniqueId: uuidv4() })),
+        ...((pkg as any).includedPackages || []).map((s:any) => ({ id: s.childPackageId, name: s.childPackage?.name, type: 'package', order: s.executionOrder, uniqueId: uuidv4() }))
+      ];
+      form.mixedContent = combined.sort((a, b) => (a.order || 0) - (b.order || 0));
+      // 更新标签页标题
+      tabStore.updateTabTitle(route.fullPath, `编辑 - ${pkg.name}`);
+    }
+  } finally {
+    isLoading.value = false;
   }
 };
 
-// Monaco 提示配置 (可选，简单点可以不做)
-const handleEditorMount = (editor: any, monacoInstance: any) => {
-  monacoInstance.languages.registerCompletionItemProvider('python', {
-    triggerCharacters: ['.', '('],
-    provideCompletionItems: function (model: any, position: any) {
-      // 简单提示
-      const suggestions = [
-        { label: 'config', insertText: 'config(name="${1:Name}", common=False)', kind: monacoInstance.languages.CompletionItemKind.Function },
-        { label: 'atom.call', insertText: 'atom.call(id=${1:ID}, name="${2:Name}")', kind: monacoInstance.languages.CompletionItemKind.Function },
-      ];
-      return { suggestions };
-    }
-  });
-
-  editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
-    handleApplyCode();
-  });
-};
+onMounted(async () => {
+  await Promise.all([
+    fetchAtomPool(),
+    packageStore.fetchPackages({ skip: 0, limit: 1000 }),
+    categoryStore.fetchAllCategories(),
+    deviceStore.fetchDevices({ limit: 1000 })
+  ]);
+  if (isEditMode.value) {
+    await loadPackageData(packageIdNum.value!);
+  } else {
+    isLoading.value = false; // [核心修复] 新建模式下手动关闭加载遮罩
+  }
+});
 </script>
 
 <style scoped>
+.package-editor-root { height: 100%; width: 100%; }
 .sticky-header {
-  position: sticky;
-  top: -10px; /* Counteract layout padding from parent */
-  background-color: var(--el-bg-color-page, #f0f2f5);
-  padding: 6px 20px;
-  z-index: 10;
-  margin: -10px -10px 0 -10px; /* Counteract padding and set bottom margin to 0 */
-  border-bottom: 1px solid var(--el-border-color-light);
+  position: sticky; top: -10px; background-color: #f0f2f5; padding: 6px 20px; z-index: 10;
+  margin: -10px -10px 0 -10px; border-bottom: 1px solid var(--el-border-color-light);
 }
-
-/* Adjust the font size of the page header content to be more compact */
-:deep(.sticky-header .el-page-header__content) {
-  margin-top: 5px;
-  font-size: 14px;
+.sub-pkg-card { background-color: #f9f0ff !important; border: 1px dashed #b37feb !important; }
+.pool-card, .build-card { height: 600px; display: flex; flex-direction: column; }
+.pool-content { flex-grow: 1; overflow: hidden; padding: 10px; display: flex; flex-direction: column; }
+.pool-inner { height: 100%; display: flex; flex-direction: column; }
+.pool-search { margin-bottom: 10px; }
+.draggable-list { flex-grow: 1; overflow-y: auto; min-height: 100px; }
+.draggable-item, .draggable-item-selected {
+  padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; margin-bottom: 8px;
+  background-color: #fff; display: flex; align-items: center; gap: 8px;
 }
-/* Reduce header height */
-:deep(.sticky-header .el-page-header__header) {
-  height: 32px;
-  line-height: 32px;
+.draggable-item { cursor: grab; }
+.draggable-item.is-disabled { opacity: 0.5; cursor: not-allowed; background-color: #f5f7fa; }
+.item-text { flex-grow: 1; font-size: 13px; }
+.drag-handle { cursor: grab; color: #909399; }
+.pool-pagination { margin-top: 10px; text-align: center; }
+.nested-preview-area {
+  margin: 2px 0 8px 24px; padding: 4px 0 4px 12px; background: transparent;
+  border-left: 2px solid #d3adf7; border-bottom-right-radius: 4px; border-bottom-left-radius: 4px;
 }
-.package-editor-page {
-  padding: 0; /* REMOVE PADDING FROM ROOT */
-}
-.editor-content-wrapper {
-  padding: 0px;
-}
-.pool-card,
-.build-card {
-  height: 600px;
-  display: flex;
-  flex-direction: column;
-}
-:deep(.pool-card .el-card__body),
-:deep(.build-card .el-card__body) {
-  flex-grow: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.pool-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.pool-content {
-  flex-grow: 1;
-  overflow: hidden;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-}
-.pool-search {
-  margin: 0 10px 10px 10px;
-  width: calc(100% - 20px);
-  flex-shrink: 0;
-}
-.draggable-list {
-  min-height: 0;
-  flex-grow: 1; /* Allow list to take available space */
-  overflow-y: auto;
-}
-.draggable-item,
-.draggable-item-selected {
-  padding: 8px 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.draggable-item {
-  cursor: grab;
-}
-.draggable-item-selected {
-  gap: 8px;
-}
-
-.draggable-item-selected div {
-  display: flex;
-  justify-content: space-between;
-}
-.item-text {
-  flex-grow: 1;
-  font-size: 13px; /* 调小字体 */
-}
-.drag-handle {
-  cursor: grab;
-}
-.draggable-item.is-disabled {
-  cursor: not-allowed;
-  background-color: #f5f7fa;
-  color: #c0c4cc;
-  border-color: #e4e7ed;
-}
-.el-tag {
-  margin-left: 8px;
-}
-.pool-pagination {
-  margin-top: 10px;
-  display: flex;
-  justify-content: center;
-  flex-shrink: 0;
-}
+.preview-line { display: flex; align-items: center; font-size: 12px; color: #722ed1; padding: 2px 0; }
+.preview-item { margin-bottom: 2px; }
+.line-dot { width: 4px; height: 4px; background: #b37feb; border-radius: 50%; margin-right: 8px; }
 </style>

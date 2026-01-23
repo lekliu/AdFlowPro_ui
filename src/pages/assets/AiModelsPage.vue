@@ -90,7 +90,7 @@ const handleUpload = async () => {
 };
 
 const handleDelete = (row: any) => {
-  ElMessageBox.confirm(`确定删除模型 ${row.name} 吗？`).then(() => store.removeModel(row.model_id));
+  ElMessageBox.confirm(`确定删除模型 ${row.name} 吗？`).then(() => store.removeModel(row.modelId));
 };
 
 const openUploadDialog = () => { dialogVisible.value = true; };

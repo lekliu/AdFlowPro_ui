@@ -72,88 +72,86 @@ export const generateCaseCode = (form: any, id?: number | string | null): string
             code += `package.call(id=${pkg.packageId}, name="${pkg.name}")\n`;
         });
     }
-    // 3. Flow Mode (Graph Data)
+    // 3. Flow Mode
     else if (form.caseType === 'flow' && form.flowchartData) {
-        code += `\n# [Flowchart Nodes]\n`;
         const nodes = form.flowchartData.nodes || [];
         const edges = form.flowchartData.edges || [];
 
+        code += `\n# [Flowchart Nodes]\n`;
         nodes.forEach((node: any) => {
-            let nodeType = 'state';
-            if (node.type === 'StartNode') nodeType = 'start';
-            else if (node.type === 'EndNode') nodeType = 'end';
-
             let text = typeof node.text === 'object' ? node.text.value : node.text;
+
+            // --- 还原逻辑节点专用生成逻辑 ---
             if (node.type === 'LogicNode') {
                 let logicParams = `id="${node.id}", text="${text}", x=${node.x}, y=${node.y}`;
                 if (node.properties.branches?.length > 0) {
-                    const branchesStr = JSON.stringify(node.properties.branches.map((b:any) => ({
+                    const branchesStr = JSON.stringify(node.properties.branches.map((b: any) => ({
                         if: `${b.leftValue}${b.operator}${b.rightValue}`,
                         goto: getNodeTextById(nodes, b.targetNodeId) || b.targetNodeId
                     })));
                     logicParams += `, branches=${branchesStr}`;
                 }
-                if (node.properties.defaultTargetId) logicParams += `, default="${getNodeTextById(nodes, node.properties.defaultTargetId) || node.properties.defaultTargetId}"`;
+                if (node.properties.defaultTargetId) {
+                    logicParams += `, default="${getNodeTextById(nodes, node.properties.defaultTargetId) || node.properties.defaultTargetId}"`;
+                }
+                // [优化] 对坐标进行取整处理，防止生成 289.666... 这样的小数
                 code += `node.logic(${logicParams})\n`;
-            } else if (node.type === 'SubflowNode') {
+            }
+            // --- 还原子流程节点专用生成逻辑 ---
+            else if (node.type === 'SubflowNode') {
                 code += `node.subflow(id="${node.id}", text="${text}", case_id=${node.properties.subCaseId}, x=${node.x}, y=${node.y})\n`;
-            } else {
-                // 仅在非 Logic、非 Subflow 时，才执行 Start/End/State 的通用生成
+            }
+            // --- 普通节点 (Start/End/State) ---
+            else {
+                let nodeType = 'state';
+                if (node.type === 'StartNode') nodeType = 'start';
+                else if (node.type === 'EndNode') nodeType = 'end';
                 code += `node.${nodeType}(id="${node.id}", text="${text}", x=${node.x}, y=${node.y})\n`;
             }
         });
 
         code += `\n# [Flowchart Edges]\n`;
         edges.forEach((edge: any) => {
-            // 1. 获取源节点和目标节点的文本
             const srcText = getNodeTextById(nodes, edge.sourceNodeId);
             const tgtText = getNodeTextById(nodes, edge.targetNodeId);
-
-            // 2. 决定使用 Text 还是 ID
-            // 规则：如果不为空且在整个图中唯一，则使用 Text，否则使用 ID
             const srcVal = (srcText && isNodeTextUnique(nodes, srcText)) ? srcText : edge.sourceNodeId;
             const tgtVal = (tgtText && isNodeTextUnique(nodes, tgtText)) ? tgtText : edge.targetNodeId;
 
             let params = `src="${srcVal}", tgt="${tgtVal}"`;
 
-            // [新增] 提取并生成锚点方位
+            // --- 还原迁移描述 (Text) ---
+            const edgeText = typeof edge.text === 'object' ? edge.text.value : edge.text;
+            if (edgeText) {
+                params += `, text="${edgeText}"`;
+            }
+
+            // 还原锚点
             const startPos = getAnchorPosition(edge.sourceNodeId, edge.sourceAnchorId);
             const endPos = getAnchorPosition(edge.targetNodeId, edge.targetAnchorId);
-
             if (startPos) params += `, start="${startPos}"`;
             if (endPos) params += `, end="${endPos}"`;
 
-            // [新增/修改] 迁移描述 (Text)
-            if (edge.text && (typeof edge.text === 'string' ? edge.text : edge.text.value)) {
-                params += `, text="${typeof edge.text === 'string' ? edge.text : edge.text.value}"`;
-            }
-
-            // 属性处理
+            // 触发器处理 (修复后的数组逻辑)
             if (edge.properties) {
-                // 触发器（原子操作）
-                if (edge.properties.conditionAtomIds && edge.properties.conditionAtomIds.length > 0) {
+                if (edge.properties.conditionAtomIds?.length > 0) {
                     params += `, atoms=[${edge.properties.conditionAtomIds.join(', ')}]`;
                 }
-                // [新增] 触发器（测试包）
-                if (edge.properties.actionPackageId) {
-                    params += `, pkg_id=${edge.properties.actionPackageId}`;
-                }
-                // [新增] 生成第二个包 ID
-                if (edge.properties.secondaryPackageId) {
-                    params += `, pkg_id2=${edge.properties.secondaryPackageId}`;
-                }
+                // 仅导出 packageIds 数组
+                const pkgs = edge.properties.packageIds || [];
+                if (pkgs.length > 0) params += `, pkgs=[${pkgs.join(', ')}]`;
             }
-
             code += `edge(${params})\n`;
         });
 
-        // 全局触发器
-        if (form.flowchartData.globalAtomIds && form.flowchartData.globalAtomIds.length > 0) {
-            code += `\n# [Global Triggers]\n`;
+        // 4. 全局触发器 (确保只生成一次)
+        code += `\n# [Global Triggers]\n`;
+        if (form.flowchartData.globalAtomIds?.length > 0) {
             code += `global.atoms([${form.flowchartData.globalAtomIds.join(', ')}])\n`;
         }
+        if (form.flowchartData.globalPackageIds?.length > 0) {
+            code += `global.packages([${form.flowchartData.globalPackageIds.join(', ')}])\n`;
+        }
     }
-
     return code;
 };
 
@@ -185,11 +183,20 @@ export const parseCaseCode = (code: string, originalForm: any, allPackages: any[
             case 'config':
                 if (params.name) newForm.name = params.name;
                 if (params.type) newForm.caseType = params.type;
+                if (params.category_id !== undefined) newForm.categoryId = params.category_id;
                 if (params.timeout) newForm.totalTimeoutS = params.timeout;
 
                 // 切换类型时初始化数据结构
                 if (newForm.caseType === 'flow' && !newForm.flowchartData) {
                     newForm.flowchartData = { nodes: [], edges: [], globalAtomIds: [] };
+                }
+                break;
+
+            case 'global.packages':
+                // [核心修复] 解析 global.packages([1, 2])
+                const pkgArrayMatch = match[2].match(/\[(.*?)\]/);
+                if (pkgArrayMatch && newForm.caseType === 'flow') {
+                    newForm.flowchartData.globalPackageIds = pkgArrayMatch[1].split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
                 }
                 break;
 
@@ -210,8 +217,12 @@ export const parseCaseCode = (code: string, originalForm: any, allPackages: any[
             case 'node.start':
             case 'node.end':
             case 'node.state':
+            // 警示：新增 node.logic 分支。
+            // 理由：修正原代码漏掉此类型导致逻辑节点在“代码模式”应用后从画布消失的问题。
+            case 'node.logic':
                 if (newForm.caseType === 'flow') {
-                    const typeMap: Record<string, string> = { 'node.start': 'StartNode', 'node.end': 'EndNode', 'node.state': 'StateNode' };
+                    // 补全 LogicNode 映射
+                    const typeMap: Record<string, string> = { 'node.start': 'StartNode', 'node.end': 'EndNode', 'node.state': 'StateNode', 'node.logic': 'LogicNode' };
                     const nodeX = params.x || 100;
                     const nodeY = params.y || 100;
 
@@ -277,8 +288,7 @@ export const parseCaseCode = (code: string, originalForm: any, allPackages: any[
                             text: { value: params.text || '' },
                             properties: {
                                 conditionAtomIds: params.atoms || [],
-                                actionPackageId: params.pkg_id || null,
-                                secondaryPackageId: params.pkg_id2 || null
+                                packageIds: params.pkgs || []
                             }
                         };
 

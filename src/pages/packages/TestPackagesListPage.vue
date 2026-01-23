@@ -10,6 +10,7 @@
             <el-button :icon="Plus" type="primary" @click="handleCreate">新建测试包</el-button>
             <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedPackages.length !== 1">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedPackages.length === 0">删除</el-button>
+
           </el-button-group>
 
           <!-- 搜索和筛选器 (推到最右侧) -->
@@ -37,6 +38,7 @@
           style="width: 100%"
           border
           stripe
+          row-key="packageId"
           @selection-change="handleSelectionChange"
           @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
@@ -50,7 +52,19 @@
             <span v-else>--</span>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip>
+             <template #default="scope">
+               <el-button
+                   size="small"
+                   type="warning"
+                   circle
+                   :icon="Compass"
+                   @click="openLineage(scope.row.packageId)"
+                   title="血缘分析"
+               />
+               <span>{{ scope.row.description || '--' }}</span>
+             </template>
+        </el-table-column>
         <el-table-column label="是否公共" width="100" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.isCommon ? 'success' : 'info'">{{ scope.row.isCommon ? "是" : "否" }}</el-tag>
@@ -73,6 +87,8 @@
           @current-change="handleCurrentChange"
       />
     </el-card>
+    <!-- 在模板底部引入组件 -->
+    <PackageLineageDrawer ref="lineageDrawer" />
   </div>
 </template>
 
@@ -87,9 +103,22 @@ import { usePackageStore } from "@/stores/packageStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessage, ElMessageBox } from "element-plus";
 import type { ElTable } from "element-plus";
-import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search,Compass } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+// 1. 确保导入了组件，以便获取其类型
+import PackageLineageDrawer from "@/components/PackageLineageDrawer.vue";
+
+// 2. 为 ref 显式定义类型，告知编译器它具有 .open 方法
+const lineageDrawer = ref<InstanceType<typeof PackageLineageDrawer> | null>(null);
+
+// 3. 为 id 增加类型定义，并增加空值保护
+const openLineage = (id: number) => {
+  // 使用 ?. 可选链或 if 判断，确保组件已挂载
+  lineageDrawer.value?.open(id);
+};
+
+
 
 dayjs.extend(utc);
 
@@ -103,6 +132,7 @@ const searchQuery = ref("");
 const packageTableRef = ref<InstanceType<typeof ElTable>>();
 const selectedPackages = ref<any[]>([]);
 const categoryFilter = ref<number | "">("");
+
 
 const fetchData = () => {
   const params = {
@@ -128,6 +158,10 @@ onMounted(() => {
 
 const handleSearch = () => {
   currentPage.value = 1;
+  // 核心修复：搜索前清空表格选中状态，防止 ID 错位
+  if (packageTableRef.value) {
+    packageTableRef.value.clearSelection();
+  }
   fetchData();
 };
 

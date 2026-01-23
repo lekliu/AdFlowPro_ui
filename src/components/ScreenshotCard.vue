@@ -140,9 +140,25 @@ const ocrElementCount = computed(() => props.ocrResult?.elements?.length || 0);
 const tooltipStyle = computed(() => {
   if (!screenshotWrapperRef.value) return {};
   const offset = 15;
+  const tooltipWidth = 100; // 预估坐标浮层的宽度
+  const containerWidth = screenshotWrapperRef.value.offsetWidth;
+  const containerHeight = screenshotWrapperRef.value.offsetHeight;
+
+  // 1. 横向边界处理：如果右边挤不下了，就反向显示到左边
+  let left = mousePosition.x + offset;
+  if (left + tooltipWidth > containerWidth) {
+    left = mousePosition.x - tooltipWidth - offset;
+  }
+
+  // 2. 纵向边界处理：如果底部挤不下了，就向上显示
+  let top = mousePosition.y + offset;
+  if (top + 40 > containerHeight) { // 40 为预估高度
+    top = mousePosition.y - 40;
+  }
+
   return {
-    left: `${mousePosition.x + offset}px`,
-    top: `${mousePosition.y + offset}px`
+    left: `${left}px`,
+    top: `${top}px`
   };
 });
 

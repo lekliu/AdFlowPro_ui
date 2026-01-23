@@ -38,6 +38,7 @@ export const useAiModelStore = defineStore("aiModel", () => {
 
     async function removeModel(modelId: string) {
         await aiModelService.deleteModel(modelId);
+        // 核心修复：确保本地状态同步删除成功
         models.value = models.value.filter(m => m.modelId !== modelId);
     }
 

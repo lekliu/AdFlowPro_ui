@@ -3,6 +3,7 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑原子操作' : '新建原子操作'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
+          <el-button v-if="isEditMode" type="primary" plain :icon="FolderAdd" @click="openAddToPkg"> 归属到包 </el-button>
           <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试原子操作 </el-button>
           <el-button type="warning" plain  :icon="Monitor" @click="openCodeMode">代码模式</el-button>
           <el-button :icon="Close"  @click="goBack">取消</el-button>
@@ -249,6 +250,7 @@
         </el-col>
       </el-row>
     </div>
+    <AddToPackageDialog ref="addToPkgDialog" />
     <el-dialog v-model="liveTestDialog.visible" :title="dialogTitle" width="400px">
       <el-form label-position="top">
         <el-form-item label="选择一个在线设备进行验证">
@@ -307,11 +309,12 @@
 <script setup lang="ts">
 defineOptions({ name: "AtomEditor" });
 import { ref, reactive, computed, onMounted, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import { v4 as uuidv4 } from "uuid";
 import StateConditionEditor from "@/components/editors/StateConditionEditor.vue";
-import { Delete, Plus, QuestionFilled, MagicStick,Select,Close } from "@element-plus/icons-vue";
+import { Delete, Plus, QuestionFilled, MagicStick, Select, Close, FolderAdd } from "@element-plus/icons-vue";
+import AddToPackageDialog from "@/components/dialogs/AddToPackageDialog.vue";
 import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
 import MultiTextInput from "@/components/MultiTextInput.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
@@ -335,9 +338,11 @@ import { Monitor } from "@element-plus/icons-vue"; // 引入一个图标
 
 const props = defineProps<{ atomId?: string | number }>();
 const route = useRoute();
+const router = useRouter();
 const atomStore = useAtomStore();
 const tabStore = useTabStore();
 const deviceStore = useDeviceStore();
+const addToPkgDialog = ref<InstanceType<typeof AddToPackageDialog> | null>(null);
 const wsStore = useWebSocketStore();
 const categoryStore = useAtomCategoryStore();
 const formRef = ref<FormInstance>();
@@ -522,6 +527,12 @@ const loadAtomData = async (id: number) => {
   }
 };
 
+const openAddToPkg = () => {
+  if (atomIdNum.value) {
+    addToPkgDialog.value?.open(atomIdNum.value);
+  }
+};
+
 onMounted(() => {
   if (isEditMode.value) {
     loadAtomData(atomIdNum.value!);
@@ -659,11 +670,19 @@ const handleSave = async (shouldExit = true) => {
     payload.actionsJson = cleanupActionSequence(payload.actionsJson);
     if (isEditMode.value) {
       await atomStore.updateAtom(atomIdNum.value!, payload as AtomicOperationUpdatePayload);
+      ElMessage.success("已保存更新");
     } else {
-      await atomStore.addAtom(payload as AtomicOperationCreatePayload);
+      const oldPath = route.fullPath;
+      const res = await atomStore.addAtom(payload as AtomicOperationCreatePayload);
+      ElMessage.success("创建成功");
+      if (!shouldExit && res && res.atomId) {
+        // 仅在不退出时执行标签变身
+        const newPath = router.resolve({ name: 'AtomEditor', params: { atomId: res.atomId } }).fullPath;
+        tabStore.morphTab(oldPath, newPath, `编辑 - ${form.name}`);
+        router.replace(newPath);
+      }
     }
     atomStore.setNeedsRefresh(true);
-    ElMessage.success("保存成功！");
 
     if (shouldExit) {
       goBack();

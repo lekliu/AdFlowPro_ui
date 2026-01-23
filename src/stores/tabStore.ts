@@ -101,6 +101,18 @@ export const useTabStore = defineStore("tabs", {
     },
 
     /**
+     * 原地更新标签信息（用于从新建跳转到编辑，防止标签闪烁或跳回列表）
+     */
+    morphTab(oldPath: string, newPath: string, newTitle: string) {
+      const tab = this.tabs.find((t) => t.path === oldPath);
+      if (tab) {
+        tab.path = newPath;
+        tab.title = newTitle;
+        this.activeTabPath = newPath;
+      }
+    },
+
+    /**
      * 根据路径更新一个已存在标签页的标题。
      * @param path - 标签页的路径
      * @param title - 新的标题

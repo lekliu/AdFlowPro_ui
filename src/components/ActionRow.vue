@@ -146,20 +146,22 @@
       </div>
 
       <!-- End Case (Enhanced with Condition) -->
-      <div v-if="editableAction.action === 'end_case'" class="conditional-container">
-        <!-- 默认无条件 -->
-        <div style="display: flex; ">
-          <span style="font-size: 12px; color: #909399; width: 60px;">条件(可选):</span>
+      <!-- 优化后的 end_case -->
+      <div v-if="editableAction.action === 'end_case'">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+          <el-switch v-model="editableAction.parameters.isSuccess" active-text="用例结束: 成功" inactive-text="用例结束: 失败" />
+          <el-button link type="info" @click="editableAction._showCond = !editableAction._showCond">
+            {{ editableAction.parameters.leftValue ? '编辑条件' : '+ 执行条件' }}
+          </el-button>
         </div>
-        <div style="display: flex; gap: 8px; margin-bottom: 4px; align-items: center;">
-          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值 (如 {count})" style="flex-grow: 1" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 100px">
+        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
+          <el-tag size="small" type="info" effect="plain">判定条件</el-tag>
+          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 100px" size="small" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 70px" size="small">
             <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" /> <el-option label="<" value="<" />
           </el-select>
-        </div>
-        <div v-if="editableAction.parameters.leftValue" style="display: flex; gap: 8px; align-items: center;">
-          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值 (如 0)" style="flex-grow: 1" />
+          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 100px" size="small" />
+          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
         </div>
       </div>
 
@@ -283,23 +285,27 @@
         style="width: 100%"
       />
 
-      <!-- Report Value (Enhanced) -->
-      <div v-if="editableAction.action === 'report_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
-        <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名/标签" style="width: 150px" />
-        <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-input v-model="editableAction.parameters.leftValue" placeholder="值或公式 (如 {price} * 0.8)" style="flex-grow: 1" />
-      </div>
-
       <!-- Calculate Value (New) -->
-      <div v-if="editableAction.action === 'calculate_value'" style="display: flex; gap: 8px; align-items: center; width: 100%">
-        <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 150px" />
-        <span style="color: var(--el-text-color-regular); font-weight: bold">=</span>
-        <el-input v-model="editableAction.parameters.leftValue" placeholder="公式 (如 {index} + 1)" style="flex-grow: 1" />
-        <el-tooltip content="计算结果仅保存到内存变量，不上报。" placement="top">
-          <el-icon style="color: #909399; cursor: help"><InfoFilled /></el-icon>
-        </el-tooltip>
+      <!-- 优化后的计算/上报：默认隐藏条件 -->
+      <div v-if="['calculate_value', 'report_value'].includes(editableAction.action)">
+        <div style="display: flex; gap: 8px; align-items: center; width: 100%">
+          <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 140px" />
+          <span style="font-weight: bold; color: #409EFF">=</span>
+          <el-input v-model="editableAction.parameters.text" placeholder="公式 (如 {count}+1)" style="flex-grow: 1" />
+          <el-button link :type="editableAction.parameters.leftValue ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
+            <el-icon><Filter /></el-icon>
+          </el-button>
+        </div>
+        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
+          <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
+          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 90px" size="small" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 70px" size="small">
+            <el-option label="!=" value="!=" /> <el-option label="==" value="==" /> <el-option label=">" value=">" />
+          </el-select>
+          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 90px" size="small" />
+          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
+        </div>
       </div>
-
       <!-- Assert Element Count -->
       <div v-if="editableAction.action === 'assert_element_count'" class="comparison-row">
         <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="操作符" style="width: 120px">
@@ -322,8 +328,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch, ref } from "vue";
-import { Delete, Rank, InfoFilled } from "@element-plus/icons-vue";
+import { computed, reactive, watch } from "vue";
+import {Delete, Rank, InfoFilled, Filter, CircleClose} from "@element-plus/icons-vue";
 import type { PerformActionPayload, Selector } from "@/types/api/common";
 import SelectorInput from "@/components/SelectorInput.vue";
 
@@ -457,6 +463,14 @@ const handleCascaderChange = (val: string[]) => {
     // 取数组的最后一项作为实际的 action 值
     editableAction.action = val[val.length - 1];
   }
+};
+
+// 清理动作内部的执行条件
+const clearActionCondition = (act: any) => {
+  act.parameters.leftValue = undefined;
+  act.parameters.rightValue = undefined;
+  act.parameters.comparisonOperator = "==";
+  act._showCond = false;
 };
 
 // --- [新增] 处理按键级联选择器回显与变更 ---
@@ -608,12 +622,7 @@ if (!editableAction.parameters) {
   cursor: grab;
   color: var(--el-text-color-placeholder);
 }
-.el-row {
-  width: 100%;
-}
-.el-input-number {
-  width: 100%;
-}
+
 .swipe-coords-container {
   display: flex;
   flex-direction: column;
@@ -637,23 +646,6 @@ if (!editableAction.parameters) {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-bottom: 4px;
-}
-</style>
-
-<!-- 新增一个不带 scoped 的 style 块，专门处理全局弹窗 -->
-<style>
-.action-cascader-popper .el-cascader-menu {
-  height: 500px !important; /* 强制高度 */
-  min-width: 220px;
-}
-
-.action-cascader-popper .el-cascader-menu__list {
-  height: 100%;
-}
-
-.action-cascader-popper .el-cascader-node {
-  height: 34px;
-  line-height: 34px;
 }
 </style>
 
@@ -689,5 +681,16 @@ if (!editableAction.parameters) {
 /* 5. 鼠标悬停时的背景色，增强反馈 */
 .action-cascader-popper .el-cascader-node:hover {
   background-color: #f5f7fa;
+}
+
+.sub-condition-box {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background-color: #fdf6ec; /* 浅橙色背景提醒 */
+  border: 1px dashed #e6a23c;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

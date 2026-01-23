@@ -401,8 +401,10 @@ export const generatePackageCode = (form: any, id?: number | string | null): str
     if (form.atoms && form.atoms.length > 0) {
         code += `\n# [Atoms Sequence]\n`;
         form.atoms.forEach((atom: any) => {
-            // name 是为了可读性，解析时主要看 id
-            code += `atom.call(id=${atom.atomId}, name="${atom.name}")\n`;
+            // 核心修复：根据类型区分指令，并统一使用 id 字段
+            const actualId = atom.id || atom.atomId || atom.packageId;
+            const method = atom.type === 'package' ? 'package.call' : 'atom.call';
+            code += `${method}(id=${actualId}, name="${atom.name}")\n`;
         });
     }
 
@@ -415,8 +417,9 @@ export const generatePackageCode = (form: any, id?: number | string | null): str
  * @param code 代码字符串
  * @param originalForm 原始表单（用于保留引用）
  * @param allAtoms 所有可用的原子操作列表（用于根据 ID 查找完整对象）
+ * @param allPackages 所有可用的测试包列表
  */
-export const parsePackageCode = (code: string, originalForm: any, allAtoms: any[]): any => {
+export const parsePackageCode = (code: string, originalForm: any, allAtoms: any[], allPackages: any[]): any => {
     const newForm = JSON.parse(JSON.stringify(originalForm));
 
     // 重置默认值
@@ -452,13 +455,19 @@ export const parsePackageCode = (code: string, originalForm: any, allAtoms: any[
                 if (params.id) {
                     // 关键：根据 ID 从全量池中找到对应的 atom 对象
                     const atomObj = allAtoms.find(a => a.atomId === params.id);
-                    if (atomObj) {
-                        newForm.atoms.push(atomObj);
-                    } else {
-                        console.warn(`[DSL] Atom ID ${params.id} not found in available pool.`);
-                        // 可选：创建一个占位对象，防止数据彻底丢失，虽然 UI 上可能显示不全
-                        // newForm.atoms.push({ atomId: params.id, name: params.name || `Unknown Atom ${params.id}` });
-                    }
+                    // 核心修复：池子里找不到也必须保留 ID (虚拟占位)，防止数据丢失
+                    const result = atomObj ? { ...atomObj, type: 'atom' } : { id: params.id, name: params.name || 'Unknown Atom', type: 'atom' };
+                    newForm.atoms.push(result);
+                }
+                break;
+
+            case 'package.call':
+                if (params.id) {
+                    // 核心修复：从测试包池中查找对象
+                    const pkgObj = allPackages.find(p => p.packageId === params.id);
+                    // 核心修复：池子里找不到也必须保留 ID
+                    const result = pkgObj ? { ...pkgObj, type: 'package' } : { id: params.id, name: params.name || 'Unknown Pkg', type: 'package' };
+                    newForm.atoms.push(result);
                 }
                 break;
         }
@@ -484,14 +493,20 @@ export const generateSuiteCode = (form: any, id?: number | string | null): strin
     // 1. Basic Config
     code += `# [Basic]\n`;
     let configParams = [`name="${form.name}"`];
+
+    // [补全] 写入分类 ID
+    if (form.categoryId) configParams.push(`category_id=${form.categoryId}`);
+
+    // [补全] 写入目标 App 包名
     if (form.targetAppPackage) configParams.push(`app="${form.targetAppPackage}"`);
+
     code += `config(${configParams.join(', ')})\n`;
 
     if (form.description) {
         code += `description("${form.description}")\n`;
     }
 
-    // 2. Execution Params (Only generate if non-default or present)
+    // 2. Execution Params
     code += `\n# [Execution Parameters]\n`;
     let execParams = [];
     if (form.defocusGuardTimeoutS !== undefined) execParams.push(`timeout=${form.defocusGuardTimeoutS}`);
@@ -507,7 +522,6 @@ export const generateSuiteCode = (form: any, id?: number | string | null): strin
     if (form.cases && form.cases.length > 0) {
         code += `\n# [Test Cases]\n`;
         form.cases.forEach((c: any) => {
-            // 区分线性用例和流程图用例，仅作为注释或标记
             const typeLabel = c.caseType === 'flow' ? 'flow' : 'linear';
             code += `case.call(id=${c.caseId}, name="${c.name}", type="${typeLabel}")\n`;
         });
@@ -526,14 +540,15 @@ export const generateSuiteCode = (form: any, id?: number | string | null): strin
 export const parseSuiteCode = (code: string, originalForm: any, allCases: any[]): any => {
     const newForm = JSON.parse(JSON.stringify(originalForm));
 
-    // 重置
+    // 重置列表，防止叠加
     newForm.cases = [];
 
-    // 恢复默认参数，防止代码中删除了参数但表单还残留旧值
+    // 设置默认值，防止代码删除参数后界面还残留旧值
     newForm.defocusGuardTimeoutS = 30;
     newForm.noMatchDelayMs = 1000;
     newForm.postActionDelayMs = 500;
     newForm.screenshotQuality = 70;
+    newForm.categoryId = null;
 
     const lines = code.split('\n');
 
@@ -550,10 +565,14 @@ export const parseSuiteCode = (code: string, originalForm: any, allCases: any[])
         switch (method) {
             case 'config':
                 if (params.name) newForm.name = params.name;
+                // [补全] 解析分类 ID
+                if (params.category_id !== undefined) newForm.categoryId = params.category_id;
+                // [补全] 解析 App 包名
                 if (params.app) newForm.targetAppPackage = params.app;
                 break;
 
             case 'description':
+                // 使用更稳健的引号内容匹配
                 const descMatch = match[2].match(/"([^"]*)"/);
                 if (descMatch) newForm.description = descMatch[1];
                 break;
@@ -571,7 +590,8 @@ export const parseSuiteCode = (code: string, originalForm: any, allCases: any[])
                     if (caseObj) {
                         newForm.cases.push(caseObj);
                     } else {
-                        console.warn(`[DSL] Case ID ${params.id} not found.`);
+                        // 即使池子里找不到，也保留基础信息防止 ID 丢失
+                        newForm.cases.push({ caseId: params.id, name: params.name || 'Unknown Case' });
                     }
                 }
                 break;
