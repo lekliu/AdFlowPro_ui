@@ -79,9 +79,12 @@ export interface PerformActionPayload {
       | "double_click"
       | "assert_element_count"
       | "key_down"
-      | "key_up";
+      | "key_up"
+      | "logic_if";
   selector?: Selector;
   parameters?: PerformActionParameters;
+  thenActions?: PerformActionPayload[];
+  elseActions?: PerformActionPayload[];
 }
 
 /**

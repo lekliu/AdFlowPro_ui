@@ -5,6 +5,9 @@ import apiClient from "../api/apiClient";
 
 interface PackageState {
   packages: TestPackagePublic[];
+    // 【核心隔离】编辑器资源池专用状态
+    poolPackages: TestPackagePublic[];
+    totalPoolPackages: number;
   totalPackages: number;
   isLoading: boolean;
   error: string | null;
@@ -15,6 +18,8 @@ interface PackageState {
 export const usePackageStore = defineStore("package", {
   state: (): PackageState => ({
     packages: [],
+      poolPackages: [],
+      totalPoolPackages: 0,
     totalPackages: 0,
     isLoading: false,
     error: null,
@@ -33,7 +38,8 @@ export const usePackageStore = defineStore("package", {
     setNeedsRefresh(status: boolean) {
       this.needsRefresh = status;
     },
-    async fetchPackages(params: { skip: number; limit: number; search?: string }) {
+    // 专门给列表管理页用
+    async fetchPackages(params: { skip: number; limit: number; search?: string; categoryId?: number }) {
       this.isLoading = true;
       try {
         // 核心修复：加载前清空列表，防止旧数据残留导致的 UI 错位
@@ -48,8 +54,24 @@ export const usePackageStore = defineStore("package", {
         this.isLoading = false;
       }
     },
+      // 【核心隔离】供编辑器调用的独立抓取方法
+      async fetchPoolPackages(params: { skip: number; limit: number; search?: string; categoryId?: number }) {
+          this.isLoading = true;
+          try {
+              // 透传所有过滤参数
+              const response = await packageService.getPackages(params);
+              this.poolPackages = response.items;
+              this.totalPoolPackages = response.total;
+          } catch (err: any) {
+              this.poolPackages = [];
+              this.totalPoolPackages = 0;
+          } finally {
+              this.isLoading = false;
+          }
+      },
 
-    async fetchPackageById(packageId: number): Promise<TestPackagePublicWithAtoms | null> {
+
+      async fetchPackageById(packageId: number): Promise<TestPackagePublicWithAtoms | null> {
       this.isLoading = true;
       try {
         return await packageService.getPackageById(packageId);

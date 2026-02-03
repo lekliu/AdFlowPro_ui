@@ -97,6 +97,95 @@ const parseParams = (paramStr: string): Record<string, any> => {
 };
 
 /**
+ * 递归动作代码生成器 (DSL)
+ * @param act 动作对象
+ * @param indent 当前缩进字符串（默认为空）
+ */
+const generateActionDsl = (act: any, indent: string = ""): string => {
+    let code = "";
+
+    // --- 1. 处理逻辑分支容器 (IF-ELSE) ---
+    if (act.action === 'logic_if') {
+        const p = act.parameters || {};
+        // 生成 if_true 头行，例如: if_true(var="${rand}", op=">", val="10"):
+        code += `${indent}if_true(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}"):\n`;
+
+        // 生成 THEN 块
+        if (act.thenActions && act.thenActions.length > 0) {
+            act.thenActions.forEach((sub: any) => {
+                code += generateActionDsl(sub, indent + "    "); // 增加 4 个空格缩进
+            });
+        } else {
+            // 空块必须加 pass 占位，保持 Python 风格 DSL 的合法性
+            code += `${indent}    pass\n`;
+        }
+
+        // 生成 ELSE 块
+        if (act.elseActions && act.elseActions.length > 0) {
+            code += `${indent}else:\n`;
+            act.elseActions.forEach((sub: any) => {
+                code += generateActionDsl(sub, indent + "    ");
+            });
+        }
+    }
+    // --- 2. 处理普通原子动作 ---
+    else {
+        let paramList: string[] = [];
+
+        // A. 映射 Selector 字段 (如 resourceId -> id)
+        if (act.selector) {
+            Object.entries(act.selector).forEach(([key, value]) => {
+                if (value === null || value === undefined || value === "") return;
+                if (key === 'index' && value === 0) return;
+                if (key === 'matchMode' && value === 'fuzzy') return;
+
+                const dslKey = REVERSE_SELECTOR_MAP[key];
+                if (!dslKey) return;
+
+                if (typeof value === 'string') paramList.push(`${dslKey}="${value}"`);
+                else paramList.push(`${dslKey}=${value}`);
+            });
+        }
+
+        // B. 映射 Parameters 字段 (如 startX -> x)
+        if (act.parameters) {
+            const ignoreCoordActions = ['click', 'long_click', 'input_text', 'assert_text_equals', 'tap_relative'];
+            const ignoredParams = ['startX', 'startY', 'endX', 'endY'];
+
+            Object.entries(act.parameters).forEach(([k, v]) => {
+                if (v === null || v === undefined || v === "") return;
+                // 语义动作通常不需要显示坐标，保持 DSL 简洁
+                if (ignoreCoordActions.includes(act.action) && ignoredParams.includes(k)) return;
+
+                let dslKey = REVERSE_ACTION_MAP[k] || k;
+
+                // Swipe 特殊处理
+                if (act.action === 'swipe') {
+                    if (k === 'startX') dslKey = 'start_x';
+                    if (k === 'startY') dslKey = 'start_y';
+                }
+
+                if (typeof v === 'string') paramList.push(`${dslKey}="${v}"`);
+                else paramList.push(`${dslKey}=${v}`);
+            });
+        }
+
+        // C. 特殊动作格式美化
+        if (act.action === 'key_down' || act.action === 'key_up') {
+            const key = act.parameters?.keyCode || '';
+            code += `${indent}action.${act.action}(key="${key}")\n`;
+        } else if (act.action === 'jump_back') {
+            code += `${indent}action.jump_back()\n`;
+        } else {
+            // 标准格式: action.click(text="确认")
+            code += `${indent}action.${act.action}(${paramList.join(', ')})\n`;
+        }
+    }
+
+    return code;
+};
+
+/**
  * 生成器：Form -> Code
  */
 export const generateCode = (form: any, id?: number | string | null): string => {
@@ -117,7 +206,18 @@ export const generateCode = (form: any, id?: number | string | null): string => 
     code += `config(${configParams.join(', ')})\n`;
     if (form.description) code += `description("${form.description}")\n`;
 
-    // [Trigger] ... (保持不变)
+    // [Trigger]
+    if (form.triggerType === 'state' && form.stateCondition) {
+        code += `\n# [State Trigger]\n`;
+        const sc = form.stateCondition;
+        if (sc.conditionType === 'variable_comparison') {
+            const p = sc.parameters;
+            code += `state.var(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}")\n`;
+        } else if (sc.conditionType === 'app_foreground_check') {
+            code += `state.app(status="${sc.parameters.expectedState || 'foreground'}")\n`;
+        }
+    }
+
     if (form.triggerType === 'scene') {
         code += `\n# [Trigger]\n`;
         const pm = form.sceneSnapshotJson.primaryMatcher;
@@ -172,59 +272,7 @@ export const generateCode = (form: any, id?: number | string | null): string => 
     if (form.actionsJson && form.actionsJson.length > 0) {
         code += `\n# [Actions]\n`;
         form.actionsJson.forEach((act: any) => {
-            let paramList: string[] = [];
-
-            // 1. 处理 Selector (只处理 REVERSE_SELECTOR_MAP 中定义的 Key)
-            if (act.selector) {
-                Object.entries(act.selector).forEach(([key, value]) => {
-                    // 过滤空值
-                    if (value === null || value === undefined || value === "") return;
-                    // 过滤掉 index=0 这种默认值，让代码更简洁
-                    if (key === 'index' && value === 0) return;
-                    // matchMode 只有在非默认值(exact)时才生成代码，保持简洁
-                    if (key === 'matchMode' && value === 'fuzzy') return;
-
-                    // 核心：只生成映射表中存在的 key
-                    const dslKey = REVERSE_SELECTOR_MAP[key];
-                    if (!dslKey) return;
-
-                    if (typeof value === 'string') paramList.push(`${dslKey}="${value}"`);
-                    else paramList.push(`${dslKey}=${value}`);
-                });
-            }
-
-            // 2. 处理 Parameters
-            if (act.parameters) {
-                // [过滤逻辑]
-                const ignoreCoordActions = ['click', 'long_click', 'input_text', 'assert_text_equals', 'tap_relative'];
-                const ignoredParams = ['startX', 'startY', 'endX', 'endY'];
-
-                Object.entries(act.parameters).forEach(([k, v]) => {
-                    if (v === null || v === undefined || v === "") return;
-
-                    if (ignoreCoordActions.includes(act.action) && ignoredParams.includes(k)) return;
-
-                    // 这里的 k 是 "text"，查表 REVERSE_ACTION_MAP["text"] 得到 "value"
-                    let dslKey = REVERSE_ACTION_MAP[k] || k;
-
-                    // Swipe 特殊处理保持不变...
-                    if (act.action === 'swipe') {
-                        if (k === 'startX') dslKey = 'start_x';
-                        if (k === 'startY') dslKey = 'start_y';
-                    }
-
-                    if (typeof v === 'string') paramList.push(`${dslKey}="${v}"`);
-                    else paramList.push(`${dslKey}=${v}`);
-                });
-            }
-
-            // 特殊处理 KeyDown/KeyUp 的参数名简化，保持代码整洁
-            if (act.action === 'key_down' || act.action === 'key_up') {
-                const key = act.parameters?.keyCode || '';
-                code += `action.${act.action}(key="${key}")\n`;
-            } else {
-                code += `action.${act.action}(${paramList.join(', ')})\n`;
-            }
+            code += generateActionDsl(act, "");
         });
     }
 
@@ -239,24 +287,22 @@ export const parseCode = (code: string, originalForm: any): any => {
 
     // (为了完整性，这里复述一下 parseCode 的核心结构，确保你替换文件时不丢失)
     const newForm = JSON.parse(JSON.stringify(originalForm));
-    newForm.priority = 50; newForm.executionCountLimit = 100; newForm.actionLoopCount = 1; newForm.continueAfterMatch = false; newForm.supportedDevices = []; newForm.categoryId = null; newForm.actionsJson = [];
-    // [核心修复] 无条件强制重置场景列表数据
-    // 无论当前 UI 处于什么状态，解析代码前都必须清空列表，防止脏数据追加
-    if (!newForm.sceneSnapshotJson) {
-        newForm.sceneSnapshotJson = { primaryMatcher: { matchTargetType: 'text' } };
-    }
-    newForm.sceneSnapshotJson.secondaryMatchers = [];
-    newForm.sceneSnapshotJson.extractors = [];
 
-    if (newForm.sceneSnapshotJson.primaryMatcher) {
-        newForm.sceneSnapshotJson.primaryMatcher.pixelPoints = [];
-    }
+    newForm.priority = 50;
+    newForm.executionCountLimit = 100;
+    newForm.actionLoopCount = 1;
+    newForm.continueAfterMatch = false;
+    newForm.supportedDevices = [];
+    newForm.categoryId = null;
+    newForm.actionsJson = [];
 
-    if (!newForm.sceneSnapshotJson.primaryMatcher) {
-        newForm.sceneSnapshotJson.primaryMatcher = { matchTargetType: 'text' };
-    }
-    newForm.sceneSnapshotJson.primaryMatcher.screenRegion = [];
-    newForm.sceneSnapshotJson.primaryMatcher.spatialRelation = null;
+    // 初始化/重置结构，确保不为 null
+    newForm.sceneSnapshotJson = {
+        primaryMatcher: { matchTargetType: 'text', screenRegion: [], spatialRelation: null, pixelPoints: [] },
+        secondaryMatchers: [],
+        extractors: []
+    };
+    newForm.stateCondition = { conditionType: 'variable_comparison', parameters: {} };
 
     const lines = code.split('\n');
     lines.forEach((line) => {
@@ -275,6 +321,20 @@ export const parseCode = (code: string, originalForm: any): any => {
                 if (params.continue !== undefined) newForm.continueAfterMatch = params.continue;
                 if (params.devices) newForm.supportedDevices = params.devices.split('|');
                 if (params.category_id !== undefined) newForm.categoryId = params.category_id;
+                break;
+            case 'state.var':
+                newForm.triggerType = 'state';
+                newForm.stateCondition = {
+                    conditionType: 'variable_comparison',
+                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val }
+                };
+                break;
+            case 'state.app':
+                newForm.triggerType = 'state';
+                newForm.stateCondition = {
+                    conditionType: 'app_foreground_check',
+                    parameters: { expectedState: params.status || 'foreground' }
+                };
                 break;
             case 'description':
                 const descMatch = match[2].match(/"([^"]*)"/);

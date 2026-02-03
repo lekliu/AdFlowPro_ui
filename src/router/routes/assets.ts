@@ -7,21 +7,21 @@ const assetRoutes: Array<RouteRecordRaw> = [
     path: "atomic-operations",
     name: "AtomsList",
     component: () => import("@/pages/atoms/AtomsListPage.vue"),
-    meta: { title: "原子操作" },
+    meta: { title: "原子操作", icon: "Operation" },
   },
   {
     path: "atomic-operations/edit/:atomId?",
     name: "AtomEditor",
     component: () => import("@/pages/atoms/AtomEditorPage.vue"),
     props: true,
-    meta: { title: (route) => (route.params.atomId ? "编辑原子操作" : "新建原子操作") },
+    meta: { title: (route) => (route.params.atomId ? "编辑原子操作" : "新建原子操作"), icon: "Edit" },
   },
   // L2 - Packages
   {
     path: "test-packages",
     name: "TestPackagesList",
     component: () => import("@/pages/packages/TestPackagesListPage.vue"),
-    meta: { title: "测试包" },
+    meta: { title: "测试包", icon: "TakeawayBox" }, // [修复] 补全图标
   },
   {
     path: "test-packages/edit/:packageId?",
@@ -35,7 +35,7 @@ const assetRoutes: Array<RouteRecordRaw> = [
     path: "test-cases",
     name: "TestCasesList",
     component: () => import("@/pages/cases/TestCasesListPage.vue"),
-    meta: { title: "测试用例" },
+    meta: { title: "测试用例", icon: "DocumentCopy" }, // [修复] 补全图标
   },
   {
     path: "test-cases/edit/:caseId?",
@@ -49,7 +49,7 @@ const assetRoutes: Array<RouteRecordRaw> = [
     path: "test-suites",
     name: "TestSuitesList",
     component: () => import("@/pages/suites/TestSuitesListPage.vue"),
-    meta: { title: "测试套件" },
+    meta: { title: "测试套件", icon: "Reading" }, // [修复] 补全图标
   },
   {
     path: "test-suites/edit/:suiteId?",
@@ -64,13 +64,13 @@ const assetRoutes: Array<RouteRecordRaw> = [
     path: "image-templates",
     name: "ImageTemplateList",
     component: () => import("@/pages/assets/ImageTemplatesPage.vue"),
-    meta: { title: "图元模板" },
+    meta: { title: "图元模板", icon: "Picture" }, // [修复] 补全图标
   },
   {
     path: "ai-models",
     name: "AiModelList",
     component: () => import("@/pages/assets/AiModelsPage.vue"),
-    meta: { title: "AI 模型库" },
+    meta: { title: "AI 模型库", icon: "Cpu" }, // [修复] 补全图标
   },
 ];
 

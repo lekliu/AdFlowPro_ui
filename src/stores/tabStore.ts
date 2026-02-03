@@ -8,6 +8,7 @@ export interface Tab {
   title: string; // 标签页上显示的标题
   name: string; // 路由名称, 用于 keep-alive 的 include
   noCache?: boolean;
+  icon?: string; // [新增]
 }
 
 // 定义 Store 的 State 结构
@@ -22,6 +23,7 @@ const HOME_TAB: Tab = {
   title: "Dashboard",
   name: "Dashboard",
   noCache: true,
+  icon: "House",
 };
 
 export const useTabStore = defineStore("tabs", {
@@ -43,6 +45,7 @@ export const useTabStore = defineStore("tabs", {
      * @param route - Vue Router 的路由对象
      */
     addTab(route: RouteLocationNormalized) {
+      console.log(`[TabStore] 🟢 尝试添加标签: ${route.fullPath}, 当前总数: ${this.tabs.length}`);
       // 如果没有路由名称或标题，则忽略，这些页面不适合做标签页
       // 检查 meta 是否存在，以及 title 是否为真值
       if (!route.name || !route.meta?.title) {
@@ -58,10 +61,15 @@ export const useTabStore = defineStore("tabs", {
           title: title,
           name: route.name as string,
           noCache: route.meta.noCache || false,
+          icon: route.meta.icon as string, // [新增]
         });
       }
+      
+      // 如果当前已经是这个标签，不执行激活逻辑，减少渲染频率
+      if (this.activeTabPath === route.fullPath) return;
 
       this.setActiveTab(route.fullPath);
+      console.log(`[TabStore] ✅ 标签添加完成。当前列表:`, this.tabs.map(t => t.title));
     },
 
     /**
@@ -90,6 +98,29 @@ export const useTabStore = defineStore("tabs", {
       }
 
       this.tabs.splice(indexToRemove, 1);
+    },
+
+    /**
+     * 重新设置整个标签列表（拖拽排序使用）
+     * @param newTabs - 排序后的新标签数组
+     */
+    setTabs(newTabs: Tab[]) {
+      this.tabs = newTabs;
+    },
+
+    /**
+     * 拖拽排序：移动数组中的元素
+     */
+    reorderTabs(oldIndex: number, newIndex: number) {
+        if (oldIndex === newIndex) return;
+
+        const newTabs = [...this.tabs];
+        const [movedItem] = newTabs.splice(oldIndex, 1);
+        newTabs.splice(newIndex, 0, movedItem);
+
+        // 直接整体替换，触发 Vue 的全量 Diff
+        this.tabs = newTabs;
+        console.log(`[TabStore] 📦 数据顺序已同步:`, this.tabs.map(t => t.title));
     },
 
     /**

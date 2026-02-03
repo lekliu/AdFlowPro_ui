@@ -1,5 +1,17 @@
 <template>
-  <div class="action-row">
+  <div class="action-row-wrapper">
+    <!-- 1. 逻辑分支容器模式 -->
+    <template v-if="editableAction.action === 'logic_if'">
+      <LogicBlock
+        v-model="editableAction"
+        :mode="mode"
+        :depth="depth"
+        @remove="emit('remove')"
+      />
+    </template>
+
+    <!-- 2. 普通动作行模式 -->
+    <div v-else class="action-row">
     <!-- Action Type Selector -->
     <el-cascader
       v-model="cascaderValue"
@@ -157,8 +169,11 @@
         <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
           <el-tag size="small" type="info" effect="plain">判定条件</el-tag>
           <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 100px" size="small" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 70px" size="small">
-            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 80px" size="small">
+            <el-option label="==" value="==" />
+            <el-option label="!=" value="!=" />
+            <el-option label=">" value=">" />
+            <el-option label="<" value="<" />
           </el-select>
           <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 100px" size="small" />
           <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
@@ -274,6 +289,27 @@
           <el-input v-model="editableAction.parameters.text" placeholder="输入期望的完整文本" />
         </div>
       </div>
+
+
+      <!-- Install Helper App (Conditional) -->
+      <div v-if="editableAction.action === 'install_helper_app'">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+          <span style="font-size: 13px; color: #606266">安装辅助应用</span>
+          <el-button link :type="editableAction.parameters.leftValue ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
+            {{ editableAction.parameters.leftValue ? '编辑条件' : '+ 执行条件' }}
+          </el-button>
+        </div>
+        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
+          <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
+          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 120px" size="small" />
+          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 80px" size="small">
+            <el-option label="==" value="==" /> <el-option label="!=" value="!=" /> <el-option label=">" value=">" /> <el-option label="<" value="<" />
+          </el-select>
+          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 120px" size="small" />
+          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
+        </div>
+      </div>
+
       <!-- Press Key -->
       <el-cascader
         v-if="editableAction.action === 'press_key'"
@@ -321,28 +357,42 @@
 
     <!-- Controls -->
     <div class="controls">
-      <el-icon class="drag-handle" v-if="mode === 'editor'"><Rank /></el-icon>
+      <!-- 无论什么模式，只要在列表中就允许拖拽显示手柄 -->
+      <el-icon class="drag-handle"><Rank /></el-icon>
       <el-button type="danger" :icon="Delete" circle @click="emit('remove')" />
     </div>
+  </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, watch } from "vue";
-import {Delete, Rank, InfoFilled, Filter, CircleClose} from "@element-plus/icons-vue";
+import {Delete, Rank, InfoFilled, Filter, CircleClose, Plus} from "@element-plus/icons-vue";
 import type { PerformActionPayload, Selector } from "@/types/api/common";
 import SelectorInput from "@/components/SelectorInput.vue";
+import LogicBlock from "@/components/LogicBlock.vue"; // 确保导入新组件
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: PerformActionPayload & { id: string };
   mode: "editor" | "standalone";
-}>();
+  depth?: number;
+}>(), {
+  depth: 0
+});
 
 const emit = defineEmits(["update:modelValue", "remove"]);
 
 const editableAction = reactive(JSON.parse(JSON.stringify(props.modelValue)));
 
-const cascaderOptions = [
+// 动态计算选项，限制逻辑分支只能出现在根层级 (depth 0)
+interface CascaderOption {
+  label: string;
+  value: string;
+  children: { value: string; label: string }[];
+}
+
+const cascaderOptions = computed<any[]>(() => {
+  const baseOptions = [
   {
     label: "UI 交互",
     value: "ui_interaction",
@@ -375,6 +425,7 @@ const cascaderOptions = [
       { value: "reopen_app", label: "Reopen App (by PackageName)" },
       { value: "return_to_entry_app", label: "Return to Entry App" },
       { value: "jump_to_state", label: "Jump to State (Flow)" },
+      { value: "jump_back", label: "Jump Back (返回上一状态)" },
       { value: "conditional_tap_jump", label: "Conditional Tap & Jump" },
     ],
   },
@@ -412,7 +463,17 @@ const cascaderOptions = [
       { value: "force_kill_family", label: "强杀进程树 (Force Kill)" },
     ],
   },
-];
+  ];
+
+  if (props.depth < 1) {
+    baseOptions.push({
+      label: "逻辑控制",
+      value: "logic_control",
+      children: [{ value: "logic_if", label: "IF 条件分支" }]
+    });
+  }
+  return baseOptions;
+});
 
 // --- [新增] 按键层级定义 ---
 const keyCodeOptions = [
@@ -446,8 +507,9 @@ const keyCodeOptions = [
 const cascaderValue = computed({
   get: () => {
     const action = editableAction.action;
-    for (const group of cascaderOptions) {
-      if (group.children.some((child) => child.value === action)) {
+    // 遍历 computed 的内容
+    for (const group of (cascaderOptions.value)) {
+      if (group.children?.some((child: any) => child.value === action)) {
         return [group.value, action];
       }
     }
@@ -486,7 +548,7 @@ const handleKeyCodeChange = (val: any) => {
 const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count", "hover", "right_click", "double_click"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
-    ["reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep", "install_helper_app", "set_brightness_auto", "set_brightness_min", "force_kill_family"].includes(editableAction.action)
+    ["reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep", "set_brightness_auto", "set_brightness_min", "force_kill_family"].includes(editableAction.action)
 );
 
 watch(
@@ -498,6 +560,11 @@ watch(
         newVal.selector = undefined;
 
         switch (newVal.action) {
+          case 'logic_if':
+            newVal.parameters = { leftValue: '', comparisonOperator: '==', rightValue: '' };
+            newVal.thenActions = [];
+            newVal.elseActions = [];
+            break;
           case 'click':
           case 'right_click':
           case 'double_click':
@@ -562,6 +629,9 @@ watch(
             newVal.parameters = {
               comparisonOperator: '=='
             };
+            break;
+          case 'install_helper_app':
+            newVal.parameters = { comparisonOperator: '==' };
             break;
           case 'wait_for_vanish':
             newVal.selector = { index: 0 };

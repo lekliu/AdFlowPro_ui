@@ -5,6 +5,7 @@ import type { TestCasePublic, TestCaseListPublic, TestCaseCreatePayload, TestCas
 interface CaseState {
   cases: TestCaseListPublic[];
   totalCases: number;
+  allCases: TestCaseListPublic[]; // 独立池槽位
   isLoading: boolean;
   error: string | null;
   needsRefresh: boolean;
@@ -14,6 +15,7 @@ export const useCaseStore = defineStore("case", {
   state: (): CaseState => ({
     cases: [],
     totalCases: 0,
+    allCases: [],
     isLoading: false,
     error: null,
     needsRefresh: false,
@@ -31,6 +33,19 @@ export const useCaseStore = defineStore("case", {
         this.error = null;
       } catch (err: any) {
         this.error = err.message || "Failed to fetch cases";
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async fetchAllCases() {
+      if (this.allCases.length > 0) return;
+      this.isLoading = true;
+      try {
+        const response = await caseService.getCases({ skip: 0, limit: 2000 });
+        this.allCases = response.items;
+      } catch (err) {
+        console.error("Failed to fetch all cases", err);
       } finally {
         this.isLoading = false;
       }

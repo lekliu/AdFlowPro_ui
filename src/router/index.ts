@@ -18,6 +18,7 @@ declare module "vue-router" {
   interface RouteMeta {
     title: string | ((route: RouteLocationNormalized) => string);
     noCache?: boolean;
+    icon?: string; // [新增] 图标名称
     icon?: string; // Optional: for dynamic sidebar generation later
   }
 }

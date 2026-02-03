@@ -33,6 +33,15 @@ export const suiteService = {
   },
 
   /**
+   * [核心新增] 发布测试套件
+   * 触发：生成静态 JSON -> 版本号+1 -> 广播通知 App
+   */
+  async publishSuite(suiteId: number): Promise<{ versionCode: number; changed: boolean }> {
+    // 对应后端 POST /api/v1/suites/{id}/publish
+    return apiClient.post(`/suites/${suiteId}/publish`);
+  },
+
+  /**
    * 删除一个测试套件
    */
   async deleteSuite(suiteId: number): Promise<void> {

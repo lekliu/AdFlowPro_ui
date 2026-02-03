@@ -40,12 +40,25 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
     assert_text_equals: ["text"],
     jump_to_state: ["targetStateLabel"],
+    install_helper_app: ["leftValue", "comparisonOperator", "rightValue"],
+    jump_back: [],
     clean_app_data: ["packageName", "scope"],
     registry_reset: ["path", "key", "value"],
     force_kill_family: [],
+    logic_if: ["leftValue", "comparisonOperator", "rightValue"],
   };
 
   actionsCopy.forEach((action: any) => {
+    // --- [核心修复] 递归处理逻辑分支 ---
+    if (action.action === 'logic_if') {
+      if (action.thenActions && action.thenActions.length > 0) {
+        action.thenActions = cleanupActionSequence(action.thenActions);
+      }
+      if (action.elseActions && action.elseActions.length > 0) {
+        action.elseActions = cleanupActionSequence(action.elseActions);
+      }
+    }
+
     // --- Selector Cleanup ---
     const needsSelector = ["click", "long_click", "input_text", "assert_element_exists", "assert_text_equals", "hover", "right_click", "double_click"].includes(action.action);
     if (!needsSelector) {

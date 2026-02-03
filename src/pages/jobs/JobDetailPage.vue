@@ -1,6 +1,6 @@
 <template>
   <div class="job-detail-page">
-    <el-page-header @back="goBack" :content="`任务详情 - Job #${jobId}`" />
+    <el-page-header @back="goBack" :content="``" />
 
     <div class="detail-content">
       <!-- 顶部 HUD：关键指标 -->

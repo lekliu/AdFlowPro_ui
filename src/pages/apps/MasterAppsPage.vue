@@ -579,7 +579,8 @@ const handleConfirmRun = async () => {
 
   runDialog.isSubmitting = true;
   try {
-    const createdJob = await jobService.createJob({
+    // [核心修改] Web端运行 -> 调试模式
+    const createdJob = await jobService.runDebugJob({
       suiteId: runDialog.app.defaultSuiteId,
       targetAppPackageName: runDialog.app.packageName,
       deviceId: runDialog.targetDeviceId,

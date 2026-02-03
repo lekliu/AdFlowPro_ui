@@ -148,35 +148,14 @@
       </template>
     </el-dialog>
 
-    <!-- 在 root div 的最后添加弹窗 -->
-    <el-dialog
+    <DslEditorDialog
         v-model="codeDialog.visible"
-        title="编程式配置 (Suite DSL)"
-        width="800px"
-        top="5vh"
-        :close-on-click-modal="false"
-    >
-      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
-        <vue-monaco-editor
-            v-model:value="codeDialog.code"
-            theme="vs"
-            language="python"
-            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
-            @mount="handleEditorMount"
-        />
-      </div>
-      <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-      <span style="color: #909399; font-size: 12px">
-        提示：请确保 Case ID 真实存在。
-      </span>
-          <div>
-            <el-button @click="codeDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
-          </div>
-        </div>
-      </template>
-    </el-dialog>
+        v-model:code="codeDialog.code"
+        title="测试用例 DSL 配置"
+        helpText="支持线性 (package.call) 和流程图 (node.state, edge) 模式"
+        @apply="handleApplyCode"
+        @editor-mount="handleDslEditorMount"
+    />
   </div>
 </template>
 
@@ -201,7 +180,7 @@ import { useWebSocketStore } from "@/stores/webSocketStore";
 import { wsService } from "@/services/wsService";
 import type { TestCaseCreatePayload, TestCaseUpdatePayload, TestPackagePublic } from "@/types/api";
 import type  GraphData  from "@logicflow/core";
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import DslEditorDialog from "@/components/dialogs/DslEditorDialog.vue";
 import { generateCaseCode, parseCaseCode } from "@/utils/dsl/caseDslService";
 
 const props = defineProps<{ caseId?: string | number }>();
@@ -259,7 +238,8 @@ const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConne
 const selectedPackageIds = computed(() => new Set(form.packages.map((p) => p.packageId)));
 
 const availablePackages = computed(() => {
-  const searched = packageStore.packages.filter(
+  // 【核心隔离】改用隔离后的 poolPackages 数据源
+  const searched = packageStore.poolPackages.filter(
       (pkg) =>
           (!packageCategoryFilter.value || pkg.category?.categoryId === packageCategoryFilter.value) &&
           (pkg.name.toLowerCase().includes(packageSearch.value.toLowerCase()) ||
@@ -281,10 +261,20 @@ const clonePackage = (original: TestPackagePublic & { disabled: boolean }) => {
   return pkgToClone;
 };
 
+// 【核心隔离】改用专供编辑器的抓取方法
+const fetchPackagePool = () => {
+  packageStore.fetchPoolPackages({
+    skip: 0, 
+    limit: 2000, // 用例编辑器的包池通常较小，可一次性抓取更多，或按需实现分页
+    search: packageSearch.value || undefined,
+    categoryId: packageCategoryFilter.value || undefined
+  });
+};
+
 onMounted(async () => {
   isLoading.value = true;
   await Promise.all([
-    packageStore.fetchPackages({ skip: 0, limit: 2000 }),
+    fetchPackagePool(),
     atomStore.fetchAtoms({ skip: 0, limit: 2000 }),
     categoryStore.fetchAllCategories(),
     deviceStore.fetchDevices({ limit: 1000 }),
@@ -428,7 +418,7 @@ const handleApplyCode = () => {
   }
 };
 
-const handleEditorMount = (editor: any, monacoInstance: any) => {
+const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
   // 注册 Case DSL 的智能提示
   monacoInstance.languages.registerCompletionItemProvider('python', {
     triggerCharacters: ['.', '('],
@@ -519,9 +509,9 @@ const handleEditorMount = (editor: any, monacoInstance: any) => {
 .editor-content-wrapper {
   margin-top: 0;
 }
-.pool-card,
-.build-card {
-  height: 600px;
+.pool-card, .build-card {
+  height:  calc(100vh - 350px);
+  min-height: 400px;
   display: flex;
   flex-direction: column;
 }

@@ -4,7 +4,7 @@
     <el-card>
       <template #header>
         <div class="master-header-row">
-          <span>原子操作管理</span>
+          <span>原子操作列表</span>
           <el-button type="primary" :icon="Plus" @click="handleCreate">新建原子操作</el-button>
 
           <!-- 1. 批量操作按钮组 -->
@@ -45,8 +45,8 @@
           @row-dblclick="handleRowDblClick"
           ref="atomTableRef">
         <el-table-column type="selection" width="40" />
-        <el-table-column prop="atomId" label="ID" width="60" sortable />
-        <el-table-column prop="name" label="名称" width="280" sortable />
+        <el-table-column prop="atomId" label="ID" width="65" sortable />
+        <el-table-column prop="name" label="名称" width="250" sortable />
         <el-table-column prop="categoryName" label="分类" width="100" sortable>
           <template #default="scope">
             <el-tag v-if="scope.row.categoryName" type="info">{{ scope.row.categoryName }}</el-tag>
@@ -59,20 +59,11 @@
         <el-table-column prop="totalMatches" label="命中" width="80" sortable align="center">
           <template #default="scope">{{ scope.row.totalMatches || 0 }}</template>
         </el-table-column>
-        <el-table-column prop="hitRate" label="命中率" width="95" sortable align="center">
-          <template #default="{ row }">
-            <el-tag :type="getHitRateColor(row)" effect="plain">
-              {{ row.hitRate ? (row.hitRate * 100).toFixed(2) + '%' : '0%' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalScans" label="扫描" width="80" align="center" />
-        <el-table-column prop="totalMatches" label="命中" width="80" align="center" />
-        <el-table-column label="健康度" width="100" align="center">
+        <el-table-column label="健康度" width="100" align="center" sortable prop="hitRate">
           <template #default="{ row }">
             <el-tooltip :content="getAtomHealthDesc(row)" placement="top">
               <el-tag :type="getAtomHealthColor(row)">
-                {{ row.hitRate ? (row.hitRate * 100).toFixed(1) + '%' : '0%' }}
+                {{ row.hitRate ? (row.hitRate * 100).toFixed(2) + '%' : '0%' }}
               </el-tag>
             </el-tooltip>
           </template>
@@ -322,8 +313,9 @@ const getAtomHealthDesc = (row: any) => {
 }
 .master-header-row {
   display: flex;
+  height: 20px;
   align-items: center;
-  gap: 15px; /* 增加元素之间的默认间隔 */
+  gap: 10px; /* 增加元素之间的默认间隔 */
 }
 
 /* 将搜索/筛选器推到最右侧 */

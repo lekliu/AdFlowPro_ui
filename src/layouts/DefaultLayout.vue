@@ -67,8 +67,23 @@
       </el-header>
 
       <div class="tabs-view-container">
-        <el-tabs v-model="activeTab" type="card" class="page-tabs" closable @tab-click="handleTabClick" @tab-remove="handleTabRemove">
-          <el-tab-pane v-for="tab in tabStore.tabs" :key="tab.path" :label="tab.title" :name="tab.path" />
+        <el-tabs
+            ref="tabsRef"
+            v-model="activeTab"
+            type="card"
+            class="page-tabs"
+            closable
+            @tab-click="handleTabClick"
+            @tab-remove="handleTabRemove"
+        >
+          <el-tab-pane v-for="tab in tabStore.tabs" :key="tab.path" :name="tab.path">
+            <template #label>
+              <span class="custom-tab-label">
+                <el-icon v-if="tab.icon" class="tab-icon"><component :is="tab.icon" /></el-icon>
+                <span>{{ tab.title }}</span>
+              </span>
+            </template>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
@@ -81,8 +96,6 @@
           </transition>
         </router-view>
       </div>
-
-      <el-footer class="layout-footer">AdFlowPro Admin ©2024</el-footer>
     </el-container>
     <StatusBar v-if="webSocketStore.isLogPanelVisible" />
   </el-container>
@@ -108,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useTabStore } from "@/stores/tabStore";
 import Sidebar from "./components/Sidebar.vue";
@@ -117,6 +130,7 @@ import { useWebSocketStore } from "@/stores/webSocketStore";
 import { useAuthStore } from "@/stores/authStore";
 import { ElMessageBox, ElMessage, type TabPaneName, type TabsPaneContext } from "element-plus";
 import IconPanelToggle from "@/components/icons/IconPanelToggle.vue";
+import Sortable from "sortablejs";
 
 import {
   Fold, Expand, ArrowDown, Link, Connection, Loading,
@@ -181,6 +195,50 @@ const handleLogout = () => {
     ElMessage.success('已退出登录');
   }).catch(() => {});
 };
+
+const tabsRef = ref<any>(null);
+let sortableInstance: Sortable | null = null;
+
+// 初始化拖拽函数 (带保护)
+const initDraggable = () => {
+  nextTick(() => {
+    // 1. 销毁可能存在的旧实例，防止重复绑定导致的内存泄露和冲突
+    if (sortableInstance) {
+      sortableInstance.destroy();
+      sortableInstance = null;
+    }
+
+    const el = tabsRef.value?.$el.querySelector(".el-tabs__nav");
+    if (el) {
+      sortableInstance = Sortable.create(el, {
+        animation: 150,
+        // 【核心修复】增加延迟，只有按住 100ms 才会判定为拖拽
+        // 这样快速点击菜单跳转时，Sortable 不会去抓取 DOM，彻底解决消失问题
+        delay: 100,
+        delayOnTouchOnly: false,
+        touchStartThreshold: 5, // 容错位移
+        ghostClass: "tab-ghost",
+        onEnd: (evt) => {
+          const { oldIndex, newIndex } = evt;
+          if (oldIndex !== undefined && newIndex !== undefined && oldIndex !== newIndex) {
+            tabStore.reorderTabs(oldIndex, newIndex);
+          }
+        },
+      });
+    }
+  });
+};
+
+onMounted(initDraggable);
+
+// 监听标签页数量变化，一旦发生“重大变更”重置拖拽引擎
+watch(() => tabStore.tabs.length, () => {
+  initDraggable();
+});
+
+onBeforeUnmount(() => {
+  if (sortableInstance) sortableInstance.destroy();
+});
 
 // --- Tab 标签页管理逻辑 ---
 const activeTab = computed({
@@ -284,5 +342,44 @@ watch(() => route.fullPath, (newPath) => {
   color: var(--el-color-primary);
   font-weight: normal;
   opacity: 0.8;
+}
+
+:deep(.page-tabs .el-tabs__header) {
+  margin: 0;
+  height: 26px;
+}
+/* 缩小标签按钮的高度和文字居中 */
+:deep(.page-tabs .el-tabs__item) {
+  height: 24px;
+  line-height: 24px;
+  font-size: 13px; /* 字体也可以相应缩小 1px */
+}
+
+.custom-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 4px; /* [优化] 缩小图标和文字的间距 */
+  user-select: none;
+}
+
+.tab-icon {
+  font-size: 14px;
+  margin-top: -1px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 缩小时，如果开启了卡片模式(type="card")，需要微调边框对齐 */
+:deep(.page-tabs .el-tabs__nav) {
+  border-radius: 4px 4px 0 0 !important;
+}
+
+/* [优化] 核心：大幅缩减 Tab 左右内边距，解决距离太远的问题 */
+:deep(.page-tabs .el-tabs__item) {
+  padding: 0 10px !important; 
+}
+
+.tab-ghost {
+  opacity: 0.4;
+  background: #c8ebfb !important;
 }
 </style>

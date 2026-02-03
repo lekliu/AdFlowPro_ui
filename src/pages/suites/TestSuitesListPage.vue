@@ -9,6 +9,7 @@
           <el-button-group class="header-button-group">
             <el-button :icon="Plus" type="primary" @click="handleCreate">新建套件</el-button>
             <el-button :icon="VideoPlay" type="success" @click="handleRunSelected" :disabled="selectedSuites.length !== 1">运行</el-button>
+            <el-button :icon="Upload" type="warning" @click="handlePublishSelected" :disabled="selectedSuites.length !== 1" plain>发布</el-button>
             <el-button :icon="Document" type="info" @click="handleViewPackageSelected" :disabled="selectedSuites.length !== 1">剧本</el-button>
             <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedSuites.length !== 1">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedSuites.length === 0">删除</el-button>
@@ -52,6 +53,12 @@
           <template #default="scope">
             <el-tag v-if="scope.row.categoryName" type="info">{{ scope.row.categoryName }}</el-tag>
             <span v-else>--</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="版本" width="80" align="center">
+          <template #default="scope">
+            <el-tag effect="plain" type="success" v-if="scope.row.versionCode > 0">v{{ scope.row.versionCode }}</el-tag>
+            <el-tag effect="plain" type="info" v-else>Draft</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
@@ -146,6 +153,9 @@
       <div class="menu-item" @click="handleRunFromMenu">
         <el-icon><VideoPlay /></el-icon> 运行
       </div>
+      <div class="menu-item" @click="handlePublishFromMenu">
+        <el-icon><Upload /></el-icon> 发布
+      </div>
       <div class="menu-item" @click="handleViewPackageFromMenu">
         <el-icon><Document /></el-icon> 剧本
       </div>
@@ -168,9 +178,9 @@ import { useMasterAppStore } from "@/stores/masterAppStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { jobService } from "@/api/jobService";
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type ElTree } from "element-plus";
+import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type FormRules, type ElTree } from "element-plus";
 import type { ElTable } from "element-plus";
-import { Plus, Edit, Delete, Search, VideoPlay, Document } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search, VideoPlay, Document, Upload } from "@element-plus/icons-vue";
 import type { TestSuiteListPublic } from "@/types/api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -237,6 +247,28 @@ const handleRunSelected = () => {
   if (selectedSuites.value.length === 1) {
     handleRunSuite(selectedSuites.value[0]);
   }
+};
+
+const handlePublishSelected = async () => {
+  if (selectedSuites.value.length !== 1) return;
+  const suite = selectedSuites.value[0];
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要发布套件 "${suite.name}" 吗？\n发布后版本号将递增，并自动广播通知所有在线设备进行静默更新。`,
+      "发布确认",
+      { confirmButtonText: "立即发布", cancelButtonText: "取消", type: "info" }
+    );
+    
+    const loading = ElLoading.service({ text: "正在编译并发布..." });
+    const res = await suiteService.publishSuite(suite.suiteId);
+    loading.close();
+
+    if (res.changed) ElMessage.success(`发布成功！新版本: v${res.versionCode}`);
+    else ElMessage.info(`发布完成。内容未变更，版本保持 v${res.versionCode}`);
+    
+    fetchData(); // 刷新列表显示版本号
+  } catch (e) { /* Cancelled or Error */ }
 };
 
 const handleViewPackageSelected = () => {
@@ -427,7 +459,9 @@ const confirmRun = async () => {
     if (valid) {
       runDialog.isSubmitting = true;
       try {
-        const createdJob = await jobService.createJob({
+        // [核心修改] Web端发起的运行，统一走调试轨道 (Direct Push)
+        // 这样用户无需先点击发布，也能立即运行最新修改
+        const createdJob = await jobService.runDebugJob({
           suiteId: runDialog.suite!.suiteId,
           targetAppPackageName: runDialog.form.targetAppPackageName,
           deviceId: runDialog.form.deviceId,
@@ -505,6 +539,15 @@ const handleEditFromMenu = () => {
 const handleRunFromMenu = () => {
   if (contextMenu.row) {
     handleRunSuite(contextMenu.row);
+  }
+  closeContextMenu();
+};
+
+const handlePublishFromMenu = () => {
+  if (contextMenu.row) {
+    // 临时选中
+    selectedSuites.value = [contextMenu.row];
+    handlePublishSelected();
   }
   closeContextMenu();
 };

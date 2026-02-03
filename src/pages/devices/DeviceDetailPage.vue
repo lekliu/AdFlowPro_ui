@@ -1,7 +1,7 @@
 <!-- AdFlowPro_ui/src/pages/devices/DeviceDetailPage.vue -->
 <template>
   <div class="device-detail-page" v-if="device" ref="pageRef">
-    <el-page-header @back="goBack" :content="`设备详情 - ${device.deviceName || device.deviceId}`" class="header-bar">
+    <el-page-header @back="goBack" :content="``" class="header-bar">
       <template #extra>
         <div class="header-actions">
           <!-- [核心新增] 受控模式切换 -->
@@ -86,6 +86,7 @@
         <el-tab-pane label="UI 结构" name="ui" lazy>
           <div class="tab-content-full">
             <UiStructureCard
+              :key="'ui-' + props.deviceId"
                 :structure="uiStructure"
                 :is-loading="isFetchingStructure"
                 :is-connected="device?.isConnectedWs || false"
@@ -107,6 +108,20 @@
                 @add-to-master="handleAddToMaster"
                 @run-app="handleRunApp"
                 class="full-height-card"
+            />
+          </div>
+        </el-tab-pane>
+
+        <!-- Tab 5: 变量监控 (新增) -->
+        <el-tab-pane label="变量监控" name="variables">
+          <div class="tab-content-full">
+            <VariableMonitorCard
+              :key="'var-' + props.deviceId"
+              :device-id="props.deviceId"
+              :variables-data="deviceVariables"
+              :is-loading="isFetchingVariables"
+              :is-connected="device?.isConnectedWs || false"
+              @fetch-variables="handleFetchVariables"
             />
           </div>
         </el-tab-pane>
@@ -143,10 +158,14 @@ import { jobService } from "@/api/jobService";
 import DeviceInfoCard from "@/components/DeviceInfoCard.vue";
 import QuickActionsCard from "@/components/QuickActionsCard.vue";
 import UiStructureCard from "@/components/UiStructureCard.vue";
+import VariableMonitorCard from "@/components/VariableMonitorCard.vue"; // 假设我们把 Tab 内容封装在这个组件中
 import ScreenshotCard from "@/components/ScreenshotCard.vue";
 import InstalledAppsCard from "@/components/InstalledAppsCard.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
+import type { CommandResponse } from "@/types/api/common";
 import DebugControlCard from "@/components/DebugControlCard.vue";
+import apiClient from "@/api/apiClient";
+import { v4 as uuidv4 } from "uuid";
 
 // 为 standalone 模式的 ActionSequenceEditor 创建本地状态
 type ActionWithId = PerformActionPayload & { id: string };
@@ -174,8 +193,13 @@ const isCapturing = ref(false);
 const screenshotUrl = ref<string | null>(null);
 const ocrResult = ref<OcrPayload | null>(null);
 
+const activeVarRequestCid = ref<string | null>(null); // [核心新增] 用于追踪变量请求
 const isFetchingStructure = ref(false);
 const uiStructure = ref<UiNode | null>(null);
+
+// [核心新增] 变量监控状态
+const isFetchingVariables = ref(false);
+const deviceVariables = ref<any>({}); // 用于存储变量数据
 
 const isSendingScreenPowerCmd = ref(false);
 const isSendingHotkey = ref(false);
@@ -426,7 +450,9 @@ const handleRunApp = async (app: DeviceInstalledApp) => {
   }
   try {
     ElMessage.info(`正在启动应用 "${app.appName}" 的测试任务...`);
-    const createdJob = await jobService.createJob({
+    // [核心修改] 统一改为调用 runDebugJob (调试直通车)
+    // 这样用户在 Web 端修改原子操作后，无需“发布”即可立即在设备页看到最新效果
+    const createdJob = await jobService.runDebugJob({
       suiteId: app.defaultSuiteId,
       targetAppPackageName: app.packageName,
       deviceId: props.deviceId
@@ -436,6 +462,49 @@ const handleRunApp = async (app: DeviceInstalledApp) => {
     router.push({ name: "JobDetail", params: { jobId: createdJob.jobId } });
   } catch (error) {
     // Error handled by interceptor
+  }
+};
+
+// [核心新增] 变量获取逻辑
+const handleFetchVariables = async () => {
+  if (!device.value?.isConnectedWs) return ElMessage.error("设备未连接，无法获取变量。");
+  isFetchingVariables.value = true;
+  deviceVariables.value = {};
+  try {
+    const cid = uuidv4();
+    activeVarRequestCid.value = cid; // [核心修复] 记录 ID 以便回调匹配
+    // 增加 10s 超时保底
+    setTimeout(() => {
+      if (isFetchingVariables.value && activeVarRequestCid.value === cid) {
+        isFetchingVariables.value = false;
+      }
+    }, 10000);
+    const res = await apiClient.post<any, CommandResponse>(
+        `/devices/${props.deviceId}/command/get_variables`,
+        { correlationId: cid }
+    );
+
+    ElMessage.info(`变量读取指令已发送 (ID: ${res.correlationId})，等待设备回传...`);
+  } catch (error) {
+    console.error("Error sending get_variables command", error);
+  }
+  // Note: isFetchingVariables is cleared by the WebSocket response handler
+};
+
+const handleLiveVariablesReady = (event: Event) => {
+  const detail = (event as CustomEvent).detail;
+
+  // [核心修复] 改为校验 correlationId，因为后端回包中可能不包含 deviceId
+  // 只要处于加载状态且收到了数据，或者 ID 匹配，就允许停止转圈
+  if ((detail.correlationId && detail.correlationId === activeVarRequestCid.value) || isFetchingVariables.value) {
+    // 清理 ID
+    activeVarRequestCid.value = null;
+
+    // 赋值完整对象
+    deviceVariables.value = detail; // 兼容性写法，防止报错阻断日志
+
+    isFetchingVariables.value = false;
+    ElMessage.success("变量快照已更新");
   }
 };
 
@@ -477,6 +546,7 @@ onMounted(() => {
   window.addEventListener("screen_data_ready", handleScreenDataReady);
   window.addEventListener("ui_structure_ready", handleUiStructureReady);
   window.addEventListener("app_list_ready", handleAppListReady);
+  window.addEventListener("live_variables_ready", handleLiveVariablesReady); // [核心新增]
 });
 
 const toggleFullscreen = () => {
@@ -499,6 +569,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("screen_data_ready", handleScreenDataReady);
   window.removeEventListener("ui_structure_ready", handleUiStructureReady);
   window.removeEventListener("app_list_ready", handleAppListReady);
+  window.removeEventListener("live_variables_ready", handleLiveVariablesReady); // [核心新增]
 });
 </script>
 

@@ -3,12 +3,29 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑原子操作' : '新建原子操作'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
-          <el-button v-if="isEditMode" type="primary" plain :icon="FolderAdd" @click="openAddToPkg"> 归属到包 </el-button>
-          <el-button type="success" :icon="MagicStick" @click="openFullAtomTestDialog"> 测试原子操作 </el-button>
-          <el-button type="warning" plain  :icon="Monitor" @click="openCodeMode">代码模式</el-button>
-          <el-button :icon="Close"  @click="goBack">取消</el-button>
-          <el-button type="primary" plain @click="handleSave(false)" :loading="isSaving">仅保存</el-button>
-          <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving">保存并退出</el-button>
+          <el-tooltip v-if="isEditMode" content="归属到测试包" placement="bottom">
+            <el-button type="primary" plain :icon="FolderAdd" @click="openAddToPkg" />
+          </el-tooltip>
+
+          <el-tooltip content="测试原子操作" placement="bottom">
+            <el-button type="success" :icon="MagicStick" plain @click="openFullAtomTestDialog" />
+          </el-tooltip>
+
+          <el-tooltip content="代码模式 (DSL)" placement="bottom">
+            <el-button type="warning" plain :icon="Monitor" @click="openCodeMode" />
+          </el-tooltip>
+
+          <el-tooltip content="取消" placement="bottom">
+            <el-button :icon="Close" @click="goBack" />
+          </el-tooltip>
+
+          <el-tooltip content="仅保存" placement="bottom">
+            <el-button type="primary" plain :icon="Document" @click="handleSave(false)" :loading="isSaving" />
+          </el-tooltip>
+
+          <el-tooltip content="保存并退出" placement="bottom">
+            <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving" />
+          </el-tooltip>
         </div>
       </template>
     </el-page-header>
@@ -269,40 +286,14 @@
         <el-button type="primary" @click="handleLiveTest" :disabled="!liveTestDialog.targetDeviceId"> 开始 </el-button>
       </template>
     </el-dialog>
-    <el-dialog
+    <DslEditorDialog
         v-model="codeDialog.visible"
-        title="编程式配置 (Python-like DSL)"
-        width="800px"
-        top="5vh"
-        :close-on-click-modal="false"
-    >
-      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
-        <vue-monaco-editor
-            v-model:value="codeDialog.code"
-            theme="vs"
-            language="python"
-            :options="{
-            minimap: { enabled: false },
-            fontSize: 14,
-            scrollBeyondLastLine: false,
-            automaticLayout: true
-          }"
-            @mount="handleEditorMount"
-        />
-      </div>
-      <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <div style="text-align: left; font-size: 12px; color: #909399; line-height: 1.5">
-            <div>提示：支持一行一条指令，格式如 <code>config(name="Val")</code></div>
-            <div>快捷键：<code>Ctrl+S</code> 可直接应用并关闭 (需实现)</div>
-          </div>
-          <div>
-            <el-button @click="codeDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
-          </div>
-        </div>
-      </template>
-    </el-dialog>
+        v-model:code="codeDialog.code"
+        title="原子操作 DSL 配置"
+        helpText="支持一行一条指令，格式如 config(name='Val')"
+        @apply="handleApplyCode"
+        @editor-mount="handleDslEditorMount"
+    />
   </div>
 </template>
 
@@ -313,11 +304,12 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import { v4 as uuidv4 } from "uuid";
 import StateConditionEditor from "@/components/editors/StateConditionEditor.vue";
-import { Delete, Plus, QuestionFilled, MagicStick, Select, Close, FolderAdd } from "@element-plus/icons-vue";
+import { Delete, Plus, QuestionFilled, MagicStick, Select, Close, FolderAdd, Monitor, Document } from "@element-plus/icons-vue";
 import AddToPackageDialog from "@/components/dialogs/AddToPackageDialog.vue";
 import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
 import MultiTextInput from "@/components/MultiTextInput.vue";
 import ActionSequenceEditor from "@/components/ActionSequenceEditor.vue";
+import DslEditorDialog from "@/components/dialogs/DslEditorDialog.vue";
 import { cleanupActionSequence, cleanupSceneSnapshot, cleanupStateCondition } from "@/utils/payloadCleaner";
 import { useAtomStore } from "@/stores/atomStore";
 import { useTabStore } from "@/stores/tabStore";
@@ -334,7 +326,6 @@ import { useWebSocketStore } from "@/stores/webSocketStore";
 import { imageTemplateService } from "@/api/imageTemplateService";
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import { generateCode, parseCode } from "@/utils/dslService";
-import { Monitor } from "@element-plus/icons-vue"; // 引入一个图标
 
 const props = defineProps<{ atomId?: string | number }>();
 const route = useRoute();
@@ -662,10 +653,10 @@ const handleSave = async (shouldExit = true) => {
     // Clean based on trigger type
     if (payload.triggerType === 'scene') {
       payload.sceneSnapshotJson = cleanupSceneSnapshot(payload.sceneSnapshotJson);
-      delete payload.stateCondition;
+      payload.stateCondition = null;
     } else {
       payload.stateCondition = cleanupStateCondition(payload.stateCondition);
-      delete payload.sceneSnapshotJson;
+      payload.sceneSnapshotJson = null;
     }
     payload.actionsJson = cleanupActionSequence(payload.actionsJson);
     if (isEditMode.value) {
@@ -772,6 +763,13 @@ const createDependencyProposals = (range: any, monaco: any) => {
       range: range
     },
     {
+      label: 'state',
+      kind: monaco.languages.CompletionItemKind.Module,
+      documentation: '状态触发命名空间',
+      insertText: 'state',
+      range: range
+    },
+    {
       label: 'and_match',
       kind: monaco.languages.CompletionItemKind.Function,
       documentation: '包含条件 (AND)',
@@ -852,8 +850,30 @@ const createFilterProposals = (range: any, monaco: any) => {
   }));
 };
 
+const createStateProposals = (range: any, monaco: any) => {
+  return [
+    { 
+      label: 'var', 
+      insertText: 'var(var="${1:left}", op="${2:==}", val="${3:right}")', 
+      doc: '变量或公式比较触发器' 
+    },
+    { 
+      label: 'app', 
+      insertText: 'app(status="${1:foreground}")', 
+      doc: '应用前后台状态触发器 (foreground/background)' 
+    },
+  ].map(m => ({
+    label: m.label,
+    kind: monaco.languages.CompletionItemKind.Method,
+    documentation: m.doc,
+    insertText: m.insertText,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    range: range
+  }));
+};
+
 // 编辑器加载完成后的回调
-const handleEditorMount = (editor: any, monacoInstance: any) => {
+const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
   // 1. 注册自动补全提供者
   monacoInstance.languages.registerCompletionItemProvider('python', {
     triggerCharacters: ['.'], // 键入 . 时触发
@@ -885,6 +905,10 @@ const handleEditorMount = (editor: any, monacoInstance: any) => {
       // 3. 如果输入了 'filter.'，提示过滤器
       if (textUntilPosition.match(/filter\.$/)) {
         return { suggestions: createFilterProposals(range, monacoInstance) };
+      }
+      // 4. 如果输入了 'state.'，提示状态触发器
+      if (textUntilPosition.match(/state\.$/)) {
+        return { suggestions: createStateProposals(range, monacoInstance) };
       }
 
       // 4. 默认提示顶层指令 (不在注释行内)

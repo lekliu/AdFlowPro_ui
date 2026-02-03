@@ -4,22 +4,18 @@ import App from "./App.vue";
 import router from "./router";
 import { createPinia } from "pinia";
 import logger from "./utils/logger";
-
-// --- Import Element Plus ---
 import ElementPlus from "element-plus";
-import "element-plus/dist/index.css"; // Import Element Plus styles
-// (Optional) If you need to import a specific locale for Element Plus
-// import locale from 'element-plus/dist/locale/zh-cn.mjs' // Example: Chinese
-
+import "element-plus/dist/index.css";
+import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import { loader } from "@guolao/vue-monaco-editor";
-// 配置为本地路径 (Vite 中 public 目录下的文件可以直接通过 / 访问)
+
 loader.config({
     paths: {
         vs: "/vs",
     },
 });
 
-logger.info("AdFlowPro UI is starting..."); // <--- 2. 添加启动日志
+logger.info("AdFlowPro UI is starting...");
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -27,9 +23,11 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(router);
 
-// --- Use Element Plus ---
-app.use(ElementPlus); // For global registration
-// app.use(ElementPlus, { locale }) // If using a specific locale
+// 全局注册所有图标，以便通过字符串名称使用 <component :is="iconName" />
+for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, component)
+}
 
+app.use(ElementPlus);
 app.mount("#app");
-logger.info("AdFlowPro UI has been mounted successfully."); // <--- 3. 添加挂载成功日志
+logger.info("AdFlowPro UI has been mounted successfully.");

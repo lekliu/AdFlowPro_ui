@@ -57,6 +57,20 @@ const createDefaultCondition = (): StateCondition => ({
 
 const editableCondition = reactive(JSON.parse(JSON.stringify(props.modelValue || createDefaultCondition())));
 
+// 核心修复：监听父组件 modelValue 的变化，确保代码模式解析后能同步到 UI
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    if (newVal) {
+      // 使用 JSON 对比防止不必要的循环更新
+      if (JSON.stringify(newVal) !== JSON.stringify(editableCondition)) {
+        Object.assign(editableCondition, JSON.parse(JSON.stringify(newVal)));
+      }
+    }
+  },
+  { deep: true }
+);
+
 watch(
   () => editableCondition.conditionType,
   (newType) => {

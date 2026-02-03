@@ -6,14 +6,14 @@ const jobRoutes: Array<RouteRecordRaw> = [
     path: "jobs",
     name: "JobsList",
     component: () => import("@/pages/jobs/JobsListPage.vue"),
-    meta: { title: "任务历史" },
+    meta: { title: "任务历史", icon: "DataLine" },
   },
   {
     path: "jobs/:jobId",
     name: "JobDetail",
     component: () => import("@/pages/jobs/JobDetailPage.vue"),
     props: true,
-    meta: { title: (route) => `任务详情 - #${route.params.jobId}` },
+    meta: { title: (route) => `任务详情 - #${route.params.jobId}`, icon: "Monitor" },
   },
 ];
 

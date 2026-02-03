@@ -5,6 +5,9 @@ import type { AtomicOperationPublic, AtomicOperationCreatePayload, AtomicOperati
 interface AtomState {
   atoms: AtomicOperationPublic[];
   totalAtoms: number;
+    // 【核心隔离】为资源池分配独立的状态
+    poolAtoms: AtomicOperationPublic[];
+    totalPoolAtoms: number;
   isLoading: boolean;
   error: string | null;
   needsRefresh: boolean;
@@ -14,6 +17,8 @@ export const useAtomStore = defineStore("atom", {
   state: (): AtomState => ({
     atoms: [],
     totalAtoms: 0,
+      poolAtoms: [],
+      totalPoolAtoms: 0,
     isLoading: false,
     error: null,
     needsRefresh: false,
@@ -33,6 +38,21 @@ export const useAtomStore = defineStore("atom", {
         this.error = err.message || "Failed to fetch atoms";
         this.atoms = [];
         this.totalAtoms = 0;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    // 【核心隔离】专供编辑器调用的分页抓取方法，不影响列表页 atoms 数组
+    async fetchPoolAtoms(params: { skip: number; limit: number; search?: string; categoryId?: number }) {
+      this.isLoading = true;
+      try {
+        const response = await atomService.getAtoms(params);
+        this.poolAtoms = response.items;
+        this.totalPoolAtoms = response.total;
+      } catch (err: any) {
+        this.poolAtoms = [];
+        this.totalPoolAtoms = 0;
       } finally {
         this.isLoading = false;
       }

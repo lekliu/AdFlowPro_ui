@@ -236,6 +236,7 @@ export interface TestSuiteListPublic {
   createdAt: string;
   updatedAt: string;
   categoryName?: string | null; // [新增]
+  versionCode?: number; // [核心新增] 展示版本号
 }
 
 export interface TestSuitePublic extends TestSuiteListPublic {

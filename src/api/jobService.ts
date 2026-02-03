@@ -1,6 +1,12 @@
 import apiClient from "./apiClient";
 import type { JobCreatePayload, JobPublic, PaginatedResponse, JobListPublic, JobDetailPublic } from "@/types/api";
 
+export interface DebugRunPayload {
+    suiteId: number;
+    targetAppPackageName: string;
+    deviceId: string;
+}
+
 export const jobService = {
   /**
    * 创建并启动一个新的测试任务
@@ -50,4 +56,11 @@ export const jobService = {
   async deleteJob(jobId: number): Promise<void> {
     return apiClient.delete(`/jobs/${jobId}`);
   },
+
+  /**
+   * [调试轨道] 发起调试运行
+   */
+  async runDebugJob(payload: DebugRunPayload): Promise<{ jobId: number }> {
+      return apiClient.post("/jobs/debug-run", payload);
+  }
 };

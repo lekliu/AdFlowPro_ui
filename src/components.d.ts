@@ -24,6 +24,7 @@ declare module 'vue' {
     DeviceCard: typeof import('./components/DeviceCard.vue')['default']
     DeviceInfoCard: typeof import('./components/DeviceInfoCard.vue')['default']
     DeviceMonitorCard: typeof import('./components/DeviceMonitorCard.vue')['default']
+    DslEditorDialog: typeof import('./components/dialogs/DslEditorDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
@@ -92,6 +93,7 @@ declare module 'vue' {
     ImageTemplateBrowser: typeof import('./components/browsers/ImageTemplateBrowser.vue')['default']
     ImageTemplatesPage: typeof import('./components/browsers/ImageTemplatesPage.vue')['default']
     InstalledAppsCard: typeof import('./components/InstalledAppsCard.vue')['default']
+    LogicBlock: typeof import('./components/LogicBlock.vue')['default']
     MultiTextInput: typeof import('./components/MultiTextInput.vue')['default']
     NestedPreview: typeof import('./components/NestedPreview.vue')['default']
     PackageLineageDrawer: typeof import('./components/PackageLineageDrawer.vue')['default']
@@ -109,6 +111,7 @@ declare module 'vue' {
     TriggerGroupEditor: typeof import('./components/editors/flowchart/TriggerGroupEditor.vue')['default']
     UiStructureCard: typeof import('./components/UiStructureCard.vue')['default']
     UiTreeNode: typeof import('./components/UiTreeNode.vue')['default']
+    VariableMonitorCard: typeof import('./components/VariableMonitorCard.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

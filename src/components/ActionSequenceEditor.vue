@@ -8,9 +8,22 @@
       </div>
     </div>
 
-    <draggable v-model="editableActions" item-key="id" handle=".drag-handle" ghost-class="ghost" class="action-list">
+    <draggable 
+      v-model="editableActions" 
+      item-key="id" 
+      handle=".drag-handle" 
+      ghost-class="ghost" 
+      class="action-list"
+      :group="{ name: 'actions' }"
+    >
       <template #item="{ element, index }">
-        <ActionRow :model-value="element" @update:model-value="updateAction(index, $event)" @remove="removeAction(index)" :mode="mode" />
+        <ActionRow 
+          :model-value="element" 
+          @update:model-value="updateAction(index, $event)" 
+          @remove="removeAction(index)" 
+          :mode="mode"
+          :depth="0"
+        />
       </template>
     </draggable>
 

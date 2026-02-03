@@ -35,6 +35,7 @@
         <el-select v-model="sortBy" placeholder="排序" style="width: 130px">
           <el-option label="名称 (A-Z)" value="name" />
           <el-option label="时间 (最新)" value="lastRunTime" />
+          <el-option label="时间 (最早)" value="lastRunTimeAsc" />
         </el-select>
       </div>
     </template>
@@ -196,7 +197,12 @@ const filteredApps = computed(() => {
 
   // 4. 排序
   if (sortBy.value === 'lastRunTime') {
+    // 最新运行在前 (降序)
     result.sort((a, b) => (b.lastRunAt || "").localeCompare(a.lastRunAt || ""));
+  } else if (sortBy.value === 'lastRunTimeAsc') {
+    // 最早运行在前 (升序)
+    // 注意：从未运行(null/empty)的会被视为"最小"，排在最前面
+    result.sort((a, b) => (a.lastRunAt || "").localeCompare(b.lastRunAt || ""));
   } else {
     result.sort((a, b) => a.appName.localeCompare(b.appName));
   }
@@ -220,12 +226,12 @@ const formatDuration = (seconds: number) => {
 
 const getStatusType = (status: string) => {
   switch (status) {
-    case 'success': return 'success';
+    case 'SUCCESS': return 'success';
     case 'completed': return 'success';
     case 'failed': return 'danger';
-    case 'running': return 'primary';
+    case 'RUNNING': return 'primary';
     case 'queued': return 'warning';
-    case 'cancelled': return 'info';
+    case 'CANCELLED': return 'info';
     default: return 'info';
   }
 };

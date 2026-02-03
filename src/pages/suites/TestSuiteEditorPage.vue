@@ -4,8 +4,10 @@
       <template #extra>
         <div class="header-actions">
           <el-button type="warning" plain :icon="Monitor" @click="openCodeMode">代码模式</el-button>
+          <el-button type="info" plain :icon="MagicStick" @click="openDebugDialog" :disabled="!isEditMode">调试运行</el-button>
           <el-button @click="goBack">取消</el-button>
-          <el-button type="primary" @click="handleSave" :loading="isSaving">保存</el-button>
+          <el-button type="primary" plain @click="handleSave(false)" :loading="isSaving">保存草稿</el-button>
+          <el-button type="success" :icon="Upload" @click="handleSaveAndPublish" :loading="isSaving">发布上线</el-button>
         </div>
       </template>
     </el-page-header>
@@ -171,40 +173,44 @@
         </el-col>
       </el-row>
     </div>
-
-    <!-- 在 root div 的最后添加弹窗 -->
-    <el-dialog
+    <DslEditorDialog
         v-model="codeDialog.visible"
-        title="编程式配置 (Suite DSL)"
-        width="800px"
-        top="5vh"
-        :close-on-click-modal="false"
-    >
-      <div class="code-editor-container" style="height: 60vh; border: 1px solid #dcdfe6">
-        <vue-monaco-editor
-            v-model:value="codeDialog.code"
-            theme="vs"
-            language="python"
-            :options="{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }"
-            @mount="handleEditorMount"
-        />
-      </div>
+        v-model:code="codeDialog.code"
+        title="测试套件 DSL 配置"
+        helpText="使用 case.call(id=xxx) 编排用例执行序列"
+        @apply="handleApplyCode"
+        @editor-mount="handleDslEditorMount"
+    />
+
+    <!-- 调试运行弹窗 -->
+    <el-dialog v-model="debugDialog.visible" title="调试运行 (草稿模式)" width="450px">
+      <p style="margin-bottom: 15px; color: #666; font-size: 13px">
+        此模式将使用当前的草稿配置直接运行，<b>不更新</b>线上版本号，<b>不影响</b>其他设备。
+      </p>
+      <el-form label-position="top">
+        <el-form-item label="目标设备 (在线)">
+          <el-select v-model="debugDialog.deviceId" placeholder="选择设备" style="width: 100%">
+            <el-option v-for="d in onlineDevices" :key="d.deviceId" :label="d.deviceName || d.deviceId" :value="d.deviceId" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标应用包名 (可选，覆盖默认)">
+          <el-input v-model="debugDialog.targetApp" :placeholder="form.targetAppPackage || 'com.example.app'" />
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-      <span style="color: #909399; font-size: 12px">
-        提示：请确保 Case ID 真实存在。
-      </span>
-          <div>
-            <el-button @click="codeDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="handleApplyCode">运行并生成界面</el-button>
-          </div>
-        </div>
+        <el-button @click="debugDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="handleDebugRun" :disabled="!debugDialog.deviceId" :loading="debugDialog.loading">
+          立即调试
+        </el-button>
       </template>
     </el-dialog>
   </div>
+
 </template>
 
 <script setup lang="ts">
+import {useDeviceStore} from "@/stores/deviceStore";
+
 defineOptions({
   name: "TestSuiteEditor",
 });
@@ -212,16 +218,18 @@ import { ref, reactive, computed, onMounted, defineProps } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import draggable from "vuedraggable";
-import { Delete, Rank, DocumentCopy, QuestionFilled, Edit } from "@element-plus/icons-vue";
+import { Delete, Rank, DocumentCopy, QuestionFilled, Edit,MagicStick } from "@element-plus/icons-vue";
 
 import { useCaseStore } from "@/stores/caseStore";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { TestSuiteCreatePayload, TestSuiteUpdatePayload, TestCaseListPublic } from "@/types/api";
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
+import DslEditorDialog from "@/components/dialogs/DslEditorDialog.vue";
 import { generateSuiteCode, parseSuiteCode } from "@/utils/dslService";
-import { Monitor } from "@element-plus/icons-vue";
+import { Monitor, Upload } from "@element-plus/icons-vue";
+import { suiteService } from "@/api/suiteService";
+import {jobService} from "@/api/jobService";
 
 const props = defineProps<{ suiteId?: string | number }>();
 
@@ -270,6 +278,9 @@ const rules = reactive<FormRules>({
 });
 
 const caseSearch = ref("");
+const deviceStore = useDeviceStore();
+
+const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
 
 const selectedCaseIds = computed(() => new Set(form.cases.map((c) => c.caseId)));
 
@@ -288,6 +299,43 @@ const cloneCase = (original: TestCaseListPublic & { disabled: boolean }) => {
   }
   const { disabled, ...caseToClone } = original;
   return caseToClone;
+};
+
+// Script 部分
+const debugDialog = reactive({
+  visible: false,
+  deviceId: "",
+  targetApp: "",
+  loading: false
+});
+
+const openDebugDialog = () => {
+  deviceStore.fetchDevices({ limit: 100 });
+  debugDialog.deviceId = "";
+  debugDialog.targetApp = form.targetAppPackage;
+  debugDialog.visible = true;
+};
+
+const handleDebugRun = async () => {
+  // 先自动保存草稿，确保后端取到最新数据（或者也可以改为前端直接传 JSON，但保存草稿更安全）
+  await handleSave(false);
+
+  debugDialog.loading = true;
+  try {
+    const res = await jobService.runDebugJob({
+      suiteId: suiteId.value!,
+      deviceId: debugDialog.deviceId,
+      targetAppPackageName: debugDialog.targetApp || form.targetAppPackage
+    });
+    ElMessage.success(`调试任务 #${res.jobId} 已发送`);
+    debugDialog.visible = false;
+    // 可选：跳转到详情页监控
+    // router.push({ name: "JobDetail", params: { jobId: res.jobId } });
+  } catch (e) {
+    // error handled
+  } finally {
+    debugDialog.loading = false;
+  }
 };
 
 onMounted(async () => {
@@ -324,9 +372,11 @@ const handleEditCase = (caseId: number) => {
   router.push({ name: "TestCaseEditor", params: { caseId } });
 };
 
-const handleSave = async () => {
+const handleSave = async (isPublishing = false) => {
   await formRef.value?.validate();
   isSaving.value = true;
+  let savedSuiteId = suiteId.value;
+
   try {
     const payload = {
       name: form.name,
@@ -341,17 +391,40 @@ const handleSave = async () => {
     };
     if (isEditMode.value) {
       await suiteStore.updateSuite(suiteId.value!, payload as TestSuiteUpdatePayload);
+      ElMessage.success("草稿已保存");
     } else {
+      // 如果是新建，需要获取返回的 ID
+      // 注意：suiteStore.addSuite 目前没返回值，建议修改 store 让其返回 ID，或者这里先简化处理
+      // 由于时间关系，这里假设如果是新建，不能直接发布，需要先保存一次
       await suiteStore.addSuite(payload as TestSuiteCreatePayload);
+      ElMessage.success("创建成功，请进入编辑页进行发布");
+      goBack();
+      return; 
     }
+
     // After saving successfully, set the refresh flag.
     suiteStore.setNeedsRefresh(true);
-    ElMessage.success("保存成功！");
-    goBack();
+
+    if (!isPublishing) {
+      goBack();
+    }
   } catch (error) {
+    console.error(error);
   } finally {
-    isSaving.value = false;
+    if (!isPublishing) isSaving.value = false;
   }
+  return savedSuiteId;
+};
+
+const handleSaveAndPublish = async () => {
+  if (!isEditMode.value) return ElMessage.warning("请先保存草稿");
+  const id = await handleSave(true); // 先保存草稿
+  if (id) {
+    const res = await suiteService.publishSuite(id);
+    ElMessage.success(`发布成功！当前版本: v${res.versionCode}`);
+    goBack();
+  }
+  isSaving.value = false;
 };
 
 // --- Code Mode ---
@@ -378,7 +451,7 @@ const handleApplyCode = () => {
   }
 };
 
-const handleEditorMount = (editor: any, monacoInstance: any) => {
+const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
   monacoInstance.languages.registerCompletionItemProvider('python', {
     triggerCharacters: ['.', '('],
     provideCompletionItems: function (model: any, position: any) {
@@ -425,7 +498,8 @@ const handleEditorMount = (editor: any, monacoInstance: any) => {
 }
 .pool-card,
 .build-card {
-  height: 600px;
+  height: calc(100vh - 460px); /* 套件的基础信息卡片更长，所以减去的数值更大一点 */
+  min-height: 400px;
   display: flex;
   flex-direction: column;
 }

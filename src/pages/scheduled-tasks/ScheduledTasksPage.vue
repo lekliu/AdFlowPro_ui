@@ -69,6 +69,16 @@
             <el-option v-for="suite in availableSuites" :key="suite.suiteId" :label="suite.name" :value="suite.suiteId" />
           </el-select>
         </el-form-item>
+        
+        <!-- [新增] 用例切片选择器 -->
+        <el-form-item label="执行切片" v-if="currentSuiteCases.length > 0">
+          <el-select v-model="form.selectedCaseIds" multiple collapse-tags placeholder="留空则执行全部用例" style="width: 100%">
+            <el-option v-for="c in currentSuiteCases" :key="c.caseId" :label="c.name" :value="c.caseId" />
+          </el-select>
+          <div style="font-size: 12px; color: #909399; line-height: 1.2; margin-top: 4px">
+            仅对线性套件生效。若留空，则按默认顺序执行所有用例。
+          </div>
+        </el-form-item>
 
         <el-form-item label="目标应用" prop="targetAppPackageName">
           <el-select v-model="form.targetAppPackageName" placeholder="选择要测试的应用" filterable style="width: 100%" v-loading="appStore.isLoading">
@@ -126,6 +136,7 @@ import { useDeviceStore } from "@/stores/deviceStore";
 import { usePrefillStore } from "@/stores/prefillStore";
 import { useMasterAppStore } from "@/stores/masterAppStore";
 import type { ScheduledTaskPublic } from "@/types/api";
+import { suiteService } from "@/api/suiteService"; // 引入 Service 获取详情
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 import { Plus, Edit, Delete, Search, QuestionFilled } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
@@ -163,6 +174,7 @@ const form = reactive({
   deviceId: "",
   cronExpression: "",
   isEnabled: true,
+  selectedCaseIds: [] as number[], // [新增]
 });
 
 // --- 核心：处理来自其他页面的预填请求 ---
@@ -222,6 +234,19 @@ const availableSuites = computed(() => {
   return suiteStore.allSuites;
 });
 
+// [新增] 当前选中套件的用例列表
+const currentSuiteCases = ref<any[]>([]);
+
+// [新增] 监听套件ID变化，加载用例列表
+watch(() => form.suiteId, async (newId) => {
+  if (!newId) {
+    currentSuiteCases.value = [];
+    return;
+  }
+  const suite = await suiteService.getSuiteById(newId);
+  currentSuiteCases.value = suite.cases || [];
+});
+
 onMounted(() => {
   fetchData();
   // Pre-load data for dialog dropdowns from BOTH stores
@@ -269,6 +294,7 @@ const resetForm = () => {
   form.deviceId = "";
   form.cronExpression = "";
   form.isEnabled = true;
+  form.selectedCaseIds = []; // Reset
   formRef.value?.clearValidate();
 };
 
@@ -286,6 +312,7 @@ const handleOpenDialog = (task: ScheduledTaskPublic | null) => {
       deviceId: task.deviceId,
       cronExpression: task.cronExpression,
       isEnabled: task.isEnabled,
+      selectedCaseIds: task.selectedCaseIds || [], // Fill
     });
   } else {
     dialog.title = "新建定时任务";
@@ -299,7 +326,13 @@ const handleSubmit = async () => {
     if (valid) {
       const isEdit = !!form.scheduleId;
       // Exclude suiteType from the payload
-      const { scheduleId, suiteType, ...payload } = form;
+      // [修正] selectedCaseIds 如果为空数组，转为 null 发送，保持逻辑一致性
+      const { scheduleId, suiteType, selectedCaseIds, ...rest } = form;
+      const payload = { 
+        ...rest, 
+        selectedCaseIds: selectedCaseIds.length > 0 ? selectedCaseIds : null 
+      };
+
       try {
         if (isEdit) {
           await taskStore.updateTask(scheduleId!, payload as any);

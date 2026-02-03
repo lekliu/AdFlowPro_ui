@@ -63,7 +63,7 @@ body {
   These are just examples and can be quite detailed.
 */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 1px;
   height: 6px;
 }
 
