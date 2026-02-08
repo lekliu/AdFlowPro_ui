@@ -19,7 +19,6 @@ declare module "vue-router" {
     title: string | ((route: RouteLocationNormalized) => string);
     noCache?: boolean;
     icon?: string; // [新增] 图标名称
-    icon?: string; // Optional: for dynamic sidebar generation later
   }
 }
 
@@ -29,7 +28,7 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "Login",
     component: () => import("@/pages/LoginPage.vue"),
-    meta: { title: "登录", noCache: true },
+    meta: { title: "登录", noCache: true, hideInTabs: true },
   },
   {
     path: "/",

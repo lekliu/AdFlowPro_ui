@@ -305,13 +305,41 @@ export const parseCode = (code: string, originalForm: any): any => {
     newForm.stateCondition = { conditionType: 'variable_comparison', parameters: {} };
 
     const lines = code.split('\n');
-    lines.forEach((line) => {
+    
+    // 层级追踪工具
+    let currentActions = newForm.actionsJson;
+    const stack: { indent: number; actions: any[]; parentIf?: any }[] = [
+        { indent: 0, actions: newForm.actionsJson }
+    ];
+
+    for (let line of lines) {
+        const indent = line.search(/\S/);
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return;
-        const match = trimmed.match(/^([\w\.]+)\((.*)\)$/);
-        if (!match) return;
+        if (!trimmed || trimmed.startsWith('#') || trimmed === 'pass') continue;
+
+        // 处理缩进回退
+        while (stack.length > 1 && indent <= stack[stack.length - 1].indent && !trimmed.startsWith('else')) {
+            stack.pop();
+        }
+        currentActions = stack[stack.length - 1].actions;
+
+        // 匹配指令模式，支持末尾可选的冒号
+        const match = trimmed.match(/^([\w\.]+)\((.*)\):?$/);
+        
+        // 处理 ELSE 分支
+        if (trimmed === 'else:') {
+            const lastIf = stack[stack.length - 1].parentIf;
+            if (lastIf) {
+                if (!lastIf.elseActions) lastIf.elseActions = [];
+                stack.push({ indent: stack[stack.length - 1].indent, actions: lastIf.elseActions });
+            }
+            continue;
+        }
+
+        if (!match) continue;
         const method = match[1];
         const params = parseParams(match[2]);
+
         switch (method) {
             case 'config':
                 if (params.name) newForm.name = params.name;
@@ -321,6 +349,18 @@ export const parseCode = (code: string, originalForm: any): any => {
                 if (params.continue !== undefined) newForm.continueAfterMatch = params.continue;
                 if (params.devices) newForm.supportedDevices = params.devices.split('|');
                 if (params.category_id !== undefined) newForm.categoryId = params.category_id;
+                break;
+            case 'if_true':
+                const newIf: any = {
+                    id: uuidv4(),
+                    action: 'logic_if',
+                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val },
+                    thenActions: [],
+                    elseActions: []
+                };
+                currentActions.push(newIf);
+                // 进入 IF 的 THEN 作用域
+                stack.push({ indent: indent, actions: newIf.thenActions, parentIf: newIf });
                 break;
             case 'state.var':
                 newForm.triggerType = 'state';
@@ -424,11 +464,11 @@ export const parseCode = (code: string, originalForm: any): any => {
                         }
                     });
 
-                    newForm.actionsJson.push(newAction);
+                    currentActions.push(newAction);
                 }
                 break;
         }
-    });
+    }
     return newForm;
 };
 

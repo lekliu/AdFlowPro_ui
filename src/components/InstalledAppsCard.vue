@@ -227,8 +227,8 @@ const formatDuration = (seconds: number) => {
 const getStatusType = (status: string) => {
   switch (status) {
     case 'SUCCESS': return 'success';
-    case 'completed': return 'success';
-    case 'failed': return 'danger';
+    case 'COMPLETED': return 'success';
+    case 'FAILED': return 'danger';
     case 'RUNNING': return 'primary';
     case 'queued': return 'warning';
     case 'CANCELLED': return 'info';

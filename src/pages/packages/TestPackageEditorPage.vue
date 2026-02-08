@@ -31,6 +31,46 @@
       <div class="editor-content-wrapper">
         <el-tabs v-model="activeTab" type="border-card" class="editor-tabs">
 
+
+
+          <!-- Tab 2: 基础信息 -->
+          <el-tab-pane label="基础信息" name="basic">
+            <div class="tab-content-scroll">
+              <el-form :model="form" ref="formRef" label-position="top" :rules="rules" style="max-width: 800px; margin: 0 auto;">
+                <el-row :gutter="15">
+                  <el-col :span="24">
+                    <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="输入测试包名称" /></el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="所属分类" prop="categoryId">
+                      <el-select
+                          v-model="form.categoryId"
+                          placeholder="选择或创建一个分类"
+                          clearable
+                          filterable
+                          allow-create
+                          default-first-option
+                          @change="handleCategoryChange"
+                          style="width: 100%"
+                      >
+                        <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="公共包">
+                      <el-switch v-model="form.isCommon" />
+                      <el-tooltip content="公共包在所有项目中都可见并可被引用" placement="top">
+                        <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
+                      </el-tooltip>
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="4" placeholder="描述此测试包流程" /></el-form-item>
+              </el-form>
+            </div>
+          </el-tab-pane>
+
           <!-- Tab 1: 编排序列 (默认显示，最常用) -->
           <el-tab-pane label="编排序列" name="sequence">
             <div class="tab-content-full">
@@ -127,44 +167,6 @@
                     class="pagination"
                 />
               </div>
-            </div>
-          </el-tab-pane>
-
-          <!-- Tab 2: 基础信息 -->
-          <el-tab-pane label="基础信息" name="basic">
-            <div class="tab-content-scroll">
-              <el-form :model="form" ref="formRef" label-position="top" :rules="rules" style="max-width: 800px; margin: 0 auto;">
-                <el-row :gutter="15">
-                  <el-col :span="24">
-                    <el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="输入测试包名称" /></el-form-item>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-form-item label="所属分类" prop="categoryId">
-                      <el-select
-                          v-model="form.categoryId"
-                          placeholder="选择或创建一个分类"
-                          clearable
-                          filterable
-                          allow-create
-                          default-first-option
-                          @change="handleCategoryChange"
-                          style="width: 100%"
-                      >
-                        <el-option v-for="cat in categoryStore.allCategories" :key="cat.categoryId" :label="cat.name" :value="cat.categoryId" />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-form-item label="公共包">
-                      <el-switch v-model="form.isCommon" />
-                      <el-tooltip content="公共包在所有项目中都可见并可被引用" placement="top">
-                        <el-icon class="form-item-tooltip"><QuestionFilled /></el-icon>
-                      </el-tooltip>
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-                <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="4" placeholder="描述此测试包流程" /></el-form-item>
-              </el-form>
             </div>
           </el-tab-pane>
 
@@ -293,7 +295,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Delete, Rank, Operation, QuestionFilled, Edit, MagicStick, Document,
-  Search, Monitor, Sort, TakeawayBox, Select, Close, CaretTop, CaretBottom, FolderAdd, Plus, Refresh
+  Monitor, Sort, TakeawayBox, Select, Close, CaretTop, CaretBottom, FolderAdd, Plus, Refresh
 } from "@element-plus/icons-vue";
 
 import { useAtomStore } from "@/stores/atomStore";
@@ -328,7 +330,7 @@ const isLoading = ref(true);
 const isSaving = ref(false);
 
 // 默认激活“编排序列”Tab，因为它最重要
-const activeTab = ref("sequence");
+const activeTab = ref("basic");
 
 // --- 编排列表分页与过滤 ---
 const localSearchQuery = ref("");
@@ -527,12 +529,19 @@ const handleSave = async (shouldExit = true) => {
       atomIds: form.mixedContent.filter(i => i.type === 'atom').map(i => i.id),
       includedPackageIds: form.mixedContent.filter(i => i.type === 'package').map(i => i.id)
     };
-    if (isEditMode.value) await packageStore.updatePackage(packageIdNum.value!, payload as any);
-    else {
+    if (isEditMode.value) {
+      // --- 编辑已有的包 ---
+      await packageStore.updatePackage(packageIdNum.value!, payload as any);
+      ElMessage.success("草稿已保存");
+
+      // [关键修改] 同步更新 Tab 标题为最新的 form.name
+      tabStore.updateTabTitle(route.fullPath, form.name);
+
+    } else {
       const res = await packageStore.addPackage(payload as any);
       if (!shouldExit && res?.packageId) {
         const newPath = router.resolve({ name: 'TestPackageEditor', params: { packageId: res.packageId } }).fullPath;
-        tabStore.morphTab(route.fullPath, newPath, `编辑 - ${form.name}`);
+        tabStore.morphTab(route.fullPath, newPath, form.name);
         router.replace(newPath);
       }
     }
@@ -623,7 +632,7 @@ const loadPackageData = async (id: number) => {
         ...((pkg as any).includedPackages || []).map((s:any) => ({ id: s.childPackageId, name: s.childPackage?.name, type: 'package', order: s.executionOrder, uniqueId: uuidv4() }))
       ];
       form.mixedContent = combined.sort((a, b) => (a.order || 0) - (b.order || 0));
-      tabStore.updateTabTitle(route.fullPath, `编辑 - ${pkg.name}`);
+      tabStore.updateTabTitle(route.fullPath, pkg.name);
     }
   } finally { isLoading.value = false; }
 };
@@ -685,11 +694,11 @@ onMounted(async () => {
 
 /* 5. 穿透修改 Element Plus 内部样式：打通高度链 */
 :deep(.editor-tabs > .el-tabs__content) {
-  flex: 1;            /* 占据剩余空间 */
-  min-height: 0;      /* 允许收缩 */
+  flex: 1;
+  min-height: 0;
   padding: 10px;
   background-color: #f5f7fa;
-  overflow: hidden;   /* 禁止 Content 层级溢出 */
+  overflow: hidden;
 }
 
 :deep(.editor-tabs .el-tab-pane) {

@@ -355,6 +355,7 @@ onMounted(async () => {
       form.postActionDelayMs = suite.postActionDelayMs ?? 500;
       form.screenshotQuality = suite.screenshotQuality ?? 70;
       form.cases = suite.cases || [];
+      tabStore.updateTabTitle(route.fullPath, suite.name);
     }
   }
   isLoading.value = false;
@@ -391,18 +392,28 @@ const handleSave = async (isPublishing = false) => {
     };
     if (isEditMode.value) {
       await suiteStore.updateSuite(suiteId.value!, payload as TestSuiteUpdatePayload);
+      tabStore.updateTabTitle(route.fullPath, form.name);
       ElMessage.success("草稿已保存");
     } else {
-      // 如果是新建，需要获取返回的 ID
-      // 注意：suiteStore.addSuite 目前没返回值，建议修改 store 让其返回 ID，或者这里先简化处理
-      // 由于时间关系，这里假设如果是新建，不能直接发布，需要先保存一次
-      await suiteStore.addSuite(payload as TestSuiteCreatePayload);
-      ElMessage.success("创建成功，请进入编辑页进行发布");
-      goBack();
-      return; 
+      const oldPath = route.fullPath;
+      // [关键修复] 等待结果返回
+      const res = await suiteStore.addSuite(payload as TestSuiteCreatePayload);
+
+      // 现在 res 应该是 TestSuitePublic 类型，包含 suiteId
+      if (res && (res as any).suiteId) {
+        savedSuiteId = (res as any).suiteId;
+        const newPath = router.resolve({
+          name: 'TestSuiteEditor',
+          params: { suiteId: savedSuiteId }
+        }).fullPath;
+
+        tabStore.morphTab(oldPath, newPath, form.name);
+        router.replace(newPath);
+      }
+
+      ElMessage.success("创建成功");
     }
 
-    // After saving successfully, set the refresh flag.
     suiteStore.setNeedsRefresh(true);
 
     if (!isPublishing) {

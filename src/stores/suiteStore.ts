@@ -55,7 +55,9 @@ export const useSuiteStore = defineStore("suite", {
     async addSuite(payload: TestSuiteCreatePayload) {
       this.isLoading = true;
       try {
-        await suiteService.createSuite(payload);
+        // [修改] 捕获结果并返回它
+        const res = await suiteService.createSuite(payload);
+        return res;
       } finally {
         this.isLoading = false;
       }

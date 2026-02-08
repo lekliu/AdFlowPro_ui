@@ -37,7 +37,7 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     press_key: ["keyCode"],
     report_value: ["reportLabel", "leftValue", "rightValue", "comparisonOperator", "text"],
     calculate_value: ["reportLabel", "leftValue", "rightValue", "comparisonOperator", "text"],
-    end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
+    end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue", "isSuccess"],
     assert_text_equals: ["text"],
     jump_to_state: ["targetStateLabel"],
     install_helper_app: ["leftValue", "comparisonOperator", "rightValue"],

@@ -290,6 +290,7 @@ onMounted(async () => {
       form.categoryId = cs.categoryId || null;
       form.packages = cs.packages || [];
       form.flowchartData = (cs.flowchartData as GraphData) || null;
+      tabStore.updateTabTitle(route.fullPath, cs.name);
     }
   }
   isLoading.value = false;
@@ -354,6 +355,7 @@ const handleSave = async (shouldExit = true) => {
     // 2. 在调用 store 之前，打印这个 payload 的最终形态
     if (isEditMode.value) {
       await caseStore.updateCase(caseId.value!, payload as TestCaseUpdatePayload);
+      tabStore.updateTabTitle(route.fullPath, form.name);
       ElMessage.success("已保存更新");
     } else {
       const oldPath = route.fullPath;
@@ -364,7 +366,7 @@ const handleSave = async (shouldExit = true) => {
       if (!shouldExit && res && res.caseId) {
         // 仅在不退出时执行标签变身
         const newPath = router.resolve({ name: 'TestCaseEditor', params: { caseId: res.caseId } }).fullPath;
-        tabStore.morphTab(oldPath, newPath, `编辑 - ${form.name}`);
+        tabStore.morphTab(oldPath, newPath, form.name);
         router.replace(newPath);
       }
     }

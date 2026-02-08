@@ -148,6 +148,26 @@ watch(
 
 <style scoped>
 .selector-input-container { display: flex; flex-direction: column; gap: 8px; }
-.property-checks { margin-top: 5px; display: flex; gap: 15px; }
+/* 修改后的 property-checks 容器样式 */
+.property-checks {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: nowrap;      /* 【核心】强制不换行 */
+  gap: 8px;               /* 调整各项之间的间距为 8px */
+  align-items: center;
+}
+
+/* 移除复选框组件自带的 30px 右边距 */
+.property-checks :deep(.el-checkbox) {
+  margin-right: 0;
+  height: 24px;           /* 稍微压缩高度 */
+}
+
+/* 缩小图标与文字之间的距离 */
+.property-checks :deep(.el-checkbox__label) {
+  padding-left: 4px;      /* 原默认 8px，缩小到 4px */
+  font-size: 12px;        /* 稍微缩小字号 */
+  white-space: nowrap;    /* 防止文字内部换行 */
+}
 .mode-desc { font-size: 12px; color: #909399; margin-left: 10px; line-height: 24px; }
 </style>

@@ -11,6 +11,7 @@ export interface ScheduledTaskBasePayload {
   deviceId: string;
   cronExpression: string;
   isEnabled: boolean;
+  selectedCaseIds?: number[];
 }
 
 /**

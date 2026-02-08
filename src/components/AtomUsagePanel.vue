@@ -1,12 +1,8 @@
 <template>
   <div class="atom-usage-panel" v-loading="isLoading">
-    <div v-if="!report" class="empty-state">
-      <el-button type="primary" plain @click="loadUsage">分析引用关系</el-button>
-    </div>
-    
-    <div v-else>
+    <div v-if="report">
       <div class="section-title">直接引用 (流程图用例)</div>
-      <div v-if="report.directFlowCases.length === 0" class="no-data">无直接引用</div>
+      <div v-if="!report.directFlowCases || report.directFlowCases.length === 0" class="no-data">无直接引用</div>
       <el-collapse v-else>
         <el-collapse-item v-for="flowCase in report.directFlowCases" :key="flowCase.caseId" :name="'flow-' + flowCase.caseId">
           <template #title>
@@ -22,7 +18,7 @@
       </el-collapse>
 
       <div class="section-title" style="margin-top: 20px">间接引用 (通过测试包)</div>
-      <div v-if="report.packages.length === 0" class="no-data">无间接引用</div>
+      <div v-if="!report.packages || report.packages.length === 0" class="no-data">无间接引用</div>
       <el-collapse v-else>
         <el-collapse-item v-for="pkg in report.packages" :key="pkg.packageId" :name="'pkg-' + pkg.packageId">
           <template #title>
@@ -30,7 +26,7 @@
             <span class="pkg-name">{{ pkg.name }}</span>
             <el-button type="primary" link size="small" @click.stop="openPackage(pkg.packageId)" style="margin-left: auto">跳转包</el-button>
           </template>
-          
+
           <!-- Linear Cases using this package -->
           <div v-if="pkg.relatedLinearCases.length > 0" class="sub-section">
             <div class="sub-title">被线性用例引用:</div>
@@ -60,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Share, TakeawayBox } from '@element-plus/icons-vue';
 import { atomService } from '@/api/atomService';
 import type { AtomUsageReport } from '@/types/api';
@@ -71,6 +67,10 @@ const router = useRouter();
 
 const isLoading = ref(false);
 const report = ref<AtomUsageReport | null>(null);
+
+onMounted(() => {
+  loadUsage();
+});
 
 const loadUsage = async () => {
   isLoading.value = true;

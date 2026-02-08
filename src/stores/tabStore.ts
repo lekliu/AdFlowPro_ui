@@ -48,7 +48,12 @@ export const useTabStore = defineStore("tabs", {
       console.log(`[TabStore] 🟢 尝试添加标签: ${route.fullPath}, 当前总数: ${this.tabs.length}`);
       // 如果没有路由名称或标题，则忽略，这些页面不适合做标签页
       // 检查 meta 是否存在，以及 title 是否为真值
-      if (!route.name || !route.meta?.title) {
+      if (
+          !route.name ||
+          !route.meta?.title ||
+          route.name === 'Login' ||
+          route.meta?.hideInTabs
+      ) {
         return;
       }
 
@@ -67,9 +72,15 @@ export const useTabStore = defineStore("tabs", {
       
       // 如果当前已经是这个标签，不执行激活逻辑，减少渲染频率
       if (this.activeTabPath === route.fullPath) return;
-
       this.setActiveTab(route.fullPath);
-      console.log(`[TabStore] ✅ 标签添加完成。当前列表:`, this.tabs.map(t => t.title));
+    },
+
+    /**
+     * [新增] 退出登录时清空所有标签，仅保留首页
+     */
+    resetTabs() {
+      this.tabs = [HOME_TAB];
+      this.activeTabPath = HOME_TAB.path;
     },
 
     /**
@@ -153,6 +164,20 @@ export const useTabStore = defineStore("tabs", {
       if (tabToUpdate) {
         tabToUpdate.title = title;
       }
+    },
+
+    /**
+     * 关闭除首页外的所有标签页
+     */
+    closeAllTabs() {
+      // 1. 重置数组，只保留 HOME_TAB
+      this.tabs = [HOME_TAB];
+
+      // 2. 激活首页路径
+      this.setActiveTab(HOME_TAB.path);
+
+      // 3. 路由跳转回首页
+      router.push(HOME_TAB.path);
     },
   },
 });

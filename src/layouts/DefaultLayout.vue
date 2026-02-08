@@ -1,58 +1,57 @@
 <template>
   <el-container class="main-layout">
-    <el-aside :width="asideWidth">
+    <el-aside :width="asideWidth" class="aside-border">
       <Sidebar :is-collapse="isCollapse" />
     </el-aside>
 
     <el-container>
       <el-header class="layout-header">
         <div class="header-left">
-          <el-icon @click="toggleCollapse" class="collapse-icon">
-            <component :is="isCollapse ? Expand : Fold" />
-          </el-icon>
+          <div class="collapse-wrapper" @click="toggleCollapse">
+            <el-icon class="collapse-icon">
+              <component :is="isCollapse ? Expand : Fold" />
+            </el-icon>
+          </div>
           <div class="header-title-wrapper">
-            <span class="main-title">AdFlowPro 管理后台</span>
-            <span class="tenant-tag" v-if="authStore.user?.tenantName">({{ authStore.user.tenantName }})</span>
+            <span class="main-title">AdFlowPro</span>
+            <span class="sub-title">管理控制台</span>
+            <el-tag size="small" type="info" effect="plain" class="tenant-tag" v-if="authStore.user?.tenantName">
+              {{ authStore.user.tenantName }}
+            </el-tag>
           </div>
         </div>
 
         <div class="header-actions-right">
-          <!-- WebSocket 状态指示器 -->
-          <el-tooltip :content="wsStatusTooltip" placement="bottom">
-            <el-button
-                :icon="wsStatusIcon"
-                :type="wsStatusType"
-                :loading="webSocketStore.connectionStatus === 'connecting'"
-                circle
-                @click="handleWsStatusClick"
-                :disabled="webSocketStore.connectionStatus === 'connecting'"
-                plain
-            />
-          </el-tooltip>
-
-          <!-- 日志面板开关 -->
-          <el-tooltip content="显示/隐藏实时日志面板">
-            <div class="icon-button-wrapper" @click="webSocketStore.toggleLogPanel">
-              <IconPanelToggle :is-open="webSocketStore.isLogPanelVisible" />
-            </div>
-          </el-tooltip>
-
-          <!-- 用户信息下拉菜单 -->
-          <el-dropdown trigger="click">
-            <span class="user-profile-link">
-              <el-avatar :size="28" :icon="UserFilled" class="user-avatar" />
-              <div class="user-info">
-                <span class="user-name">{{ authStore.user?.fullName || authStore.user?.username }}</span>
-                <el-tag size="small" :type="authStore.isAdmin ? 'danger' : 'info'" effect="plain" class="role-tag">
-                  {{ authStore.user?.role }}
-                </el-tag>
+          <!-- 快捷工具组 -->
+          <div class="tool-group">
+            <el-tooltip :content="wsStatusTooltip" placement="bottom">
+              <div class="action-item" @click="handleWsStatusClick">
+                <el-icon :class="['status-icon', webSocketStore.connectionStatus]">
+                  <component :is="wsStatusIcon" />
+                </el-icon>
               </div>
-              <el-icon class="el-icon--right"><arrow-down /></el-icon>
-            </span>
+            </el-tooltip>
+
+            <el-tooltip content="实时日志" placement="bottom">
+              <div class="action-item" @click="webSocketStore.toggleLogPanel">
+                <IconPanelToggle :is-open="webSocketStore.isLogPanelVisible" />
+              </div>
+            </el-tooltip>
+          </div>
+
+          <el-divider direction="vertical" />
+
+          <!-- 用户信息 -->
+          <el-dropdown trigger="click">
+            <div class="user-profile-trigger">
+              <el-avatar :size="26" :icon="UserFilled" class="user-avatar" />
+              <span class="user-name">{{ authStore.user?.fullName || authStore.user?.username }}</span>
+              <el-icon><ArrowDown /></el-icon>
+            </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item disabled>
-                  <span>租户: {{ authStore.user?.tenantId }}</span>
+                <el-dropdown-item disabled class="tenant-info">
+                  ID: {{ authStore.user?.tenantId }}
                 </el-dropdown-item>
                 <el-dropdown-item :icon="User" @click="openProfileDialog">个人中心</el-dropdown-item>
                 <el-dropdown-item :icon="Setting">系统设置</el-dropdown-item>
@@ -66,25 +65,34 @@
         </div>
       </el-header>
 
+      <!-- 优化后的 Tabs 区域 -->
       <div class="tabs-view-container">
-        <el-tabs
-            ref="tabsRef"
-            v-model="activeTab"
-            type="card"
-            class="page-tabs"
-            closable
-            @tab-click="handleTabClick"
-            @tab-remove="handleTabRemove"
-        >
-          <el-tab-pane v-for="tab in tabStore.tabs" :key="tab.path" :name="tab.path">
-            <template #label>
-              <span class="custom-tab-label">
-                <el-icon v-if="tab.icon" class="tab-icon"><component :is="tab.icon" /></el-icon>
-                <span>{{ tab.title }}</span>
-              </span>
-            </template>
-          </el-tab-pane>
-        </el-tabs>
+        <div class="tabs-flex-container">
+          <el-tabs
+              ref="tabsRef"
+              v-model="activeTab"
+              type="card"
+              class="page-tabs"
+              closable
+              @tab-click="handleTabClick"
+              @tab-remove="handleTabRemove"
+          >
+            <el-tab-pane v-for="tab in tabStore.tabs" :key="tab.path" :name="tab.path">
+              <template #label>
+                <span class="custom-tab-label">
+                  <el-icon v-if="tab.icon" class="tab-icon"><component :is="tab.icon" /></el-icon>
+                  <span>{{ tab.title }}</span>
+                </span>
+              </template>
+            </el-tab-pane>
+          </el-tabs>
+
+          <div class="tabs-action-bar">
+            <el-tooltip content="全部关闭" placement="bottom">
+              <el-icon class="close-all-icon" @click="tabStore.closeAllTabs"><CircleClose /></el-icon>
+            </el-tooltip>
+          </div>
+        </div>
       </div>
 
       <div class="main-content-area">
@@ -134,7 +142,7 @@ import Sortable from "sortablejs";
 
 import {
   Fold, Expand, ArrowDown, Link, Connection, Loading,
-  UserFilled, User, Setting, SwitchButton
+  UserFilled, User, Setting, SwitchButton, CircleClose
 } from "@element-plus/icons-vue";
 import apiClient from "@/api/apiClient";
 
@@ -191,6 +199,7 @@ const handleLogout = () => {
     type: 'warning',
   }).then(() => {
     authStore.logout();
+    tabStore.resetTabs();
     router.push('/login');
     ElMessage.success('已退出登录');
   }).catch(() => {});
@@ -295,91 +304,101 @@ watch(() => route.fullPath, (newPath) => {
 </script>
 
 <style scoped>
-.main-layout { height: 100vh; overflow: hidden; }
-.el-aside { transition: width 0.28s; }
+.main-layout { height: 100vh; background-color: #f5f7fa; }
+.aside-border { border-right: 1px solid #dcdfe6; transition: width 0.3s; }
+
 .layout-header {
+  background-color: #fff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #fff;
-  border-bottom: 1px solid #e6e6e6;
-  padding: 0 20px;
-  height: 48px;
+  padding: 0 16px;
+  height: 50px;
+  border-bottom: 1px solid #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  z-index: 11;
 }
-.header-left { display: flex; align-items: center; font-weight: 600; }
-.collapse-icon { cursor: pointer; font-size: 20px; margin-right: 15px; }
-.header-actions-right { display: flex; align-items: center; gap: 15px; }
-.icon-button-wrapper { cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--el-text-color-regular); }
 
-.user-profile-link { display: flex; align-items: center; cursor: pointer; padding: 0 8px; height: 48px; transition: background-color 0.2s; }
-.user-profile-link:hover { background-color: #f6f6f6; }
-.user-info { margin-left: 10px; display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
-.user-name { font-size: 14px; font-weight: 500; color: var(--el-text-color-primary); }
-.role-tag { margin-top: 2px; height: 18px; padding: 0 4px; font-size: 10px; }
-.user-avatar { background-color: var(--el-color-primary-light-7); color: var(--el-color-primary); }
-.logout-item { color: var(--el-color-danger); }
+.header-left { display: flex; align-items: center; }
+.collapse-wrapper {
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 18px;
+  color: #606266;
+  transition: color 0.3s;
+}
+.collapse-wrapper:hover { color: #409eff; }
 
-.tabs-view-container { background-color: #f0f2f5; padding: 5px 10px 0 10px; border-bottom: 1px solid #dcdfe6; }
-.main-content-area { flex-grow: 1; overflow: auto; background-color: #f0f2f5; }
-.layout-footer { height: 20px; line-height: 20px; text-align: center; font-size: 12px; color: #909399; background-color: #f0f2f5; border-top: 1px solid #e6e6e6; }
-.fade-transform-leave-active, .fade-transform-enter-active { transition: all 0.3s; }
-.fade-transform-enter-from { opacity: 0; transform: translateX(-30px); }
-.fade-transform-leave-to { opacity: 0; transform: translateX(30px); }
-/* 在 DefaultLayout.vue 的 style 块中添加 */
-.header-title-wrapper {
+.header-title-wrapper { margin-left: 8px; display: flex; align-items: baseline; gap: 6px; }
+.main-title { font-size: 18px; font-weight: 700; color: #1f2d3d; }
+.sub-title { font-size: 13px; color: #909399; }
+.tenant-tag { margin-left: 8px; border-radius: 4px; }
+
+.header-actions-right { display: flex; align-items: center; }
+.tool-group { display: flex; gap: 4px; }
+.action-item {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.3s;
+  font-size: 18px;
+  color: #606266;
+}
+.action-item:hover { background-color: #f5f7fa; }
+
+/* 状态颜色 */
+.status-icon.connected { color: #67c23a; }
+.status-icon.connecting { color: #e6a23c; }
+.status-icon.disconnected { color: #f56c6c; }
+
+.user-profile-trigger {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 0 8px;
+  cursor: pointer;
+  height: 40px;
+  border-radius: 6px;
+}
+.user-profile-trigger:hover { background-color: #f5f7fa; }
+.user-name { font-size: 14px; color: #606266; font-weight: 500; }
+
+/* Tabs 样式美化 */
+.tabs-view-container {
+  background-color: #fff;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid #e4e7ed;
+}
+.tabs-flex-container { display: flex; align-items: flex-end; }
+.page-tabs { flex: 1; min-width: 0; }
+:deep(.el-tabs--card > .el-tabs__header) { border-bottom: none; margin: 0; }
+:deep(.el-tabs--card > .el-tabs__header .el-tabs__item) {
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  margin-right: 4px;
+  height: 32px;
+  line-height: 32px;
+  background-color: #f4f4f5;
+  transition: all 0.3s;
+}
+:deep(.el-tabs--card > .el-tabs__header .el-tabs__item.is-active) {
+  background-color: #fff;
+  border-bottom: 2px solid #409eff;
+  color: #409eff;
 }
 
-.main-title {
-  font-size: 16px;
-  font-weight: 600;
+.tabs-action-bar { padding: 0 8px 6px; }
+.close-all-icon {
+  cursor: pointer;
+  font-size: 18px;
+  color: #909399;
+  transition: color 0.3s;
 }
+.close-all-icon:hover { color: #f56c6c; }
 
-.tenant-tag {
-  font-size: 14px;
-  color: var(--el-color-primary);
-  font-weight: normal;
-  opacity: 0.8;
-}
-
-:deep(.page-tabs .el-tabs__header) {
-  margin: 0;
-  height: 26px;
-}
-/* 缩小标签按钮的高度和文字居中 */
-:deep(.page-tabs .el-tabs__item) {
-  height: 24px;
-  line-height: 24px;
-  font-size: 13px; /* 字体也可以相应缩小 1px */
-}
-
-.custom-tab-label {
-  display: flex;
-  align-items: center;
-  gap: 4px; /* [优化] 缩小图标和文字的间距 */
-  user-select: none;
-}
-
-.tab-icon {
-  font-size: 14px;
-  margin-top: -1px;
-  color: var(--el-text-color-secondary);
-}
-
-/* 缩小时，如果开启了卡片模式(type="card")，需要微调边框对齐 */
-:deep(.page-tabs .el-tabs__nav) {
-  border-radius: 4px 4px 0 0 !important;
-}
-
-/* [优化] 核心：大幅缩减 Tab 左右内边距，解决距离太远的问题 */
-:deep(.page-tabs .el-tabs__item) {
-  padding: 0 10px !important; 
-}
-
-.tab-ghost {
-  opacity: 0.4;
-  background: #c8ebfb !important;
-}
+.main-content-area { flex: 1; padding: 16px; overflow-y: auto; }
 </style>

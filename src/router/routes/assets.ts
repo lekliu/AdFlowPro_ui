@@ -14,7 +14,10 @@ const assetRoutes: Array<RouteRecordRaw> = [
     name: "AtomEditor",
     component: () => import("@/pages/atoms/AtomEditorPage.vue"),
     props: true,
-    meta: { title: (route) => (route.params.atomId ? "编辑原子操作" : "新建原子操作"), icon: "Edit" },
+    meta: {
+      title: (route) => (route.params.atomId ? "原子操作" : "新建原子操作"),
+      icon: "Operation"
+    },
   },
   // L2 - Packages
   {
@@ -28,7 +31,10 @@ const assetRoutes: Array<RouteRecordRaw> = [
     name: "TestPackageEditor",
     component: () => import("@/pages/packages/TestPackageEditorPage.vue"),
     props: true,
-    meta: { title: (route) => (route.params.packageId ? "编辑测试包" : "新建测试包") },
+    meta: {
+      title: (route) => (route.params.packageId ? "测试包" : "新建测试包"),
+      icon: "TakeawayBox"
+    },
   },
   // L3 - Cases
   {
@@ -42,7 +48,10 @@ const assetRoutes: Array<RouteRecordRaw> = [
     name: "TestCaseEditor",
     component: () => import("@/pages/cases/TestCaseEditorPage.vue"),
     props: true,
-    meta: { title: (route) => (route.params.caseId ? "编辑测试用例" : "新建测试用例") },
+    meta: {
+      title: (route) => (route.params.caseId ? "测试用例" : "新建测试用例"),
+      icon: "DocumentCopy" // [修改] 使用用例图标
+    },
   },
   // L4 - Suites
   {
@@ -56,7 +65,10 @@ const assetRoutes: Array<RouteRecordRaw> = [
     name: "TestSuiteEditor",
     component: () => import("@/pages/suites/TestSuiteEditorPage.vue"),
     props: true,
-    meta: { title: (route) => (route.params.suiteId ? "编辑测试套件" : "新建测试套件") },
+    meta: {
+      title: (route) => (route.params.suiteId ? "测试套件" : "新建测试套件"),
+      icon: "Reading" // [修改] 使用套件图标
+    },
   },
 
   // Image Templates

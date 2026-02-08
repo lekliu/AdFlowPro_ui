@@ -118,7 +118,7 @@ const classifiedVariables = computed(() => {
     let type = 'temp';
     let typeLabel = '临时';
     let appLabel = '当前用例';
-    let typeTag = 'info' as const; // 使用 const 断言以匹配 Element Plus 类型
+    let typeTag: "" | "success" | "warning" | "info" | "danger" | "primary" = 'info';
 
     if (key.startsWith('sys.')) {
       type = 'sys';
@@ -140,7 +140,7 @@ const classifiedVariables = computed(() => {
       value: strValue,
       preview: strValue.length > 50 ? strValue.substring(0, 50) + '...' : strValue,
       type: type,
-      typeLabel: typeLabel,
+      typeLabel: typeLabel as string,
       app: appLabel,
       typeTag: typeTag
     };

@@ -3,29 +3,38 @@
     <el-page-header @back="goBack" :content="isEditMode ? '编辑原子操作' : '新建原子操作'" class="sticky-header">
       <template #extra>
         <div class="header-actions">
-          <el-tooltip v-if="isEditMode" content="归属到测试包" placement="bottom">
-            <el-button type="primary" plain :icon="FolderAdd" @click="openAddToPkg" />
-          </el-tooltip>
+          <!-- 第一组：资产与代码工具 -->
+          <el-button-group>
 
-          <el-tooltip content="测试原子操作" placement="bottom">
-            <el-button type="success" :icon="MagicStick" plain @click="openFullAtomTestDialog" />
-          </el-tooltip>
+            <el-button v-if="isEditMode" :icon="FolderAdd" @click="openAddToPkg">归属包</el-button>
+            <el-button :icon="Monitor" @click="openCodeMode">代码模式</el-button>
+            <el-button
+                v-if="isEditMode"
+                :icon="PieChart"
+                @click="openUsageDialog"
+            >
+              引用分析
+            </el-button>
+          </el-button-group>
 
-          <el-tooltip content="代码模式 (DSL)" placement="bottom">
-            <el-button type="warning" plain :icon="Monitor" @click="openCodeMode" />
-          </el-tooltip>
+          <!-- 第二组：核心测试动作 (独立突出) -->
+          <el-button type="success" :icon="MagicStick" plain @click="openFullAtomTestDialog" style="margin-left: 12px">
+            测试原子
+          </el-button>
 
-          <el-tooltip content="取消" placement="bottom">
-            <el-button :icon="Close" @click="goBack" />
-          </el-tooltip>
+          <el-divider direction="vertical" />
 
-          <el-tooltip content="仅保存" placement="bottom">
-            <el-button type="primary" plain :icon="Document" @click="handleSave(false)" :loading="isSaving" />
-          </el-tooltip>
+          <!-- 第三组：退出与保存动作 -->
+          <el-button :icon="Close" @click="goBack" style="margin-right: 12px">取消</el-button>
 
-          <el-tooltip content="保存并退出" placement="bottom">
-            <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving" />
-          </el-tooltip>
+          <el-button-group>
+            <el-button type="primary" plain :icon="Document" @click="handleSave(false)" :loading="isSaving">
+              仅保存
+            </el-button>
+            <el-button type="primary" :icon="Select" @click="handleSave(true)" :loading="isSaving">
+              保存并退出
+            </el-button>
+          </el-button-group>
         </div>
       </template>
     </el-page-header>
@@ -38,8 +47,8 @@
           </div>
         </template>
         <el-form :model="form" ref="formRef" label-position="top" :rules="rules">
-          <el-row :gutter="20">
-            <el-col :span="10">
+          <el-row :gutter="24">
+            <el-col :span="12">
               <el-form-item label="名称" prop="name">
                 <el-input v-model="form.name" placeholder="为这个原子操作起一个明确的名称"></el-input>
               </el-form-item>
@@ -60,7 +69,7 @@
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="4">
+            <el-col :span="6">
               <el-form-item prop="priority">
                 <template #label>
                   <span>优先级</span>
@@ -72,7 +81,10 @@
               </el-form-item>
             </el-col>
 
-            <el-col :span="4">
+          </el-row>
+          <el-row :gutter="20">
+
+            <el-col :span="6">
               <el-form-item prop="executionCountLimit">
                 <template #label>
                   <span>最大执行次数</span>
@@ -84,10 +96,8 @@
               </el-form-item>
             </el-col>
 
-          </el-row>
-          <el-row :gutter="20">
 
-            <el-col :span="5">
+            <el-col :span="6">
               <el-form-item prop="continueAfterMatch">
                 <template #label>
                   <span>匹配后继续扫描</span>
@@ -98,7 +108,7 @@
                 <el-switch v-model="form.continueAfterMatch" />
               </el-form-item>
             </el-col>
-            <el-col :span="5">
+            <el-col :span="4">
               <el-form-item>
                 <template #label>
                   <span>动作序列循环次数</span>
@@ -110,7 +120,7 @@
               </el-form-item>
             </el-col>
 
-            <el-col :span="14">
+            <el-col :span="8">
               <el-form-item prop="supportedDevices">
                 <template #label>
                   <span>适用机型 (可选)</span>
@@ -126,40 +136,54 @@
             </el-col>
 
           </el-row>
-
-          <el-form-item label="描述" prop="description">
-            <el-input v-model="form.description" type="textarea" placeholder="描述此操作的用途和上下文"></el-input>
-          </el-form-item>
+          <el-row>
+            <el-col :span="24">
+              <el-form-item label="描述" prop="description">
+                <el-input v-model="form.description" type="textarea" placeholder="描述此操作的用途和上下文"></el-input>
+              </el-form-item>
+            </el-col>
+          </el-row>
         </el-form>
       </el-card>
 
-      <el-row :gutter="6" style="margin-top: 6px">
+      <el-row :gutter="16" class="main-editor-row">
         <el-col :span="10">
           <el-card>
             <template #header>
-              <div class="card-header">
-                <span>触发条件</span>
-                <el-radio-group v-model="form.triggerType" size="small">
-                  <el-radio-button value="scene">场景触发</el-radio-button>
-                  <el-radio-button value="state">状态触发</el-radio-button>
-                </el-radio-group>
-                <el-button v-if="form.triggerType === 'scene'" type="success" :icon="MagicStick" plain @click="openValidationDialog"> 测试此条件 </el-button>
+              <div class="card-header-flex">
+                <div style="display: flex; align-items: center; gap: 15px">
+                  <span class="decorated-title">触发条件</span>
+                  <!-- 缩小尺寸以节省空间 -->
+                  <el-radio-group v-model="form.triggerType" size="small">
+                    <el-radio-button value="scene">场景触发</el-radio-button>
+                    <el-radio-button value="state">状态触发</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <!-- 仅在场景触发时显示测试按钮 -->
+                <el-button
+                    v-if="form.triggerType === 'scene'"
+                    type="success"
+                    link
+                    :icon="MagicStick"
+                    @click="openValidationDialog"
+                >
+                  测试匹配
+                </el-button>
               </div>
             </template>
             <template v-if="form.triggerType === 'scene'">
               <div class="matchers-list">
-                <el-card shadow="never" class="matcher-card">
-                  <template #header>
-                    <div class="card-header">
-                      <span>主匹配器 (Primary)</span>
-                      <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="default" class="matcher-type-switch">
-                        <el-radio-button value="text">文本</el-radio-button>
-                        <el-radio-button value="image">图元</el-radio-button>
-                        <el-radio-button value="pixel">像素</el-radio-button>
-                        <el-radio-button value="ai_detect">AI检测</el-radio-button>
-                      </el-radio-group>
-                    </div>
-                  </template>
+                <div class="matcher-container-bg">
+                  <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-size: 13px; font-weight: bold; color: #606266;">主匹配器 (Primary)</span>
+                    <!-- 改为单选按钮组 -->
+                    <el-radio-group v-model="form.sceneSnapshotJson.primaryMatcher.matchTargetType" size="small">
+                      <el-radio-button value="text">文本</el-radio-button>
+                      <el-radio-button value="image">图元</el-radio-button>
+                      <el-radio-button value="pixel">像素</el-radio-button>
+                      <el-radio-button value="ai_detect">AI</el-radio-button>
+                    </el-radio-group>
+                  </div>
                   <el-form label-position="top">
                     <component :is="primaryMatcherComponent" v-model="form.sceneSnapshotJson.primaryMatcher" />
 
@@ -203,14 +227,14 @@
                       </div>
                     </template>
                   </el-form>
-                </el-card>
+                </div>
 
                 <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
                   <div v-for="(matcher, index) in form.sceneSnapshotJson.secondaryMatchers" :key="index" class="matcher-item">
                     <el-card shadow="never" class="matcher-card">
                       <template #header>
                         <div class="card-header">
-                          <span>次级匹配器 {{ index + 1 }}</span>
+                          <el-divider content-position="left">次级匹配器 {{ index + 1 }}</el-divider>
                           <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeSecondaryMatcher(index)" />
                         </div>
                       </template>
@@ -233,7 +257,9 @@
               </div>
 
               <!-- 新增：数据提取器区域 -->
-              <el-divider content-position="left">数据提取 (Extractors)</el-divider>
+
+              <el-divider content-position="center">数据提取 (Extractors)</el-divider>
+              <div class="extractors-container-bg">
               <div class="extractors-list">
                 <div v-for="(extractor, index) in form.sceneSnapshotJson.extractors" :key="index" class="extractor-row">
                   <el-input v-model="extractor.name" placeholder="变量名" style="width: 120px" />
@@ -250,6 +276,7 @@
                 </div>
                 <el-button type="primary" link :icon="Plus" @click="addExtractor">添加提取规则</el-button>
               </div>
+              </div>
             </template>
             <StateConditionEditor v-else v-model="form.stateCondition" />
           </el-card>
@@ -259,14 +286,8 @@
         </el-col>
       </el-row>
 
-      <el-row style="margin-top: 6px" v-if="isEditMode">
-        <el-col :span="24">
-          <el-card header="引用分析 (Usage Analysis)">
-            <AtomUsagePanel :atom-id="atomIdNum!" />
-          </el-card>
-        </el-col>
-      </el-row>
-    </div>
+     </div>
+
     <AddToPackageDialog ref="addToPkgDialog" />
     <el-dialog v-model="liveTestDialog.visible" :title="dialogTitle" width="400px">
       <el-form label-position="top">
@@ -284,6 +305,26 @@
       <template #footer>
         <el-button @click="liveTestDialog.visible = false">取消</el-button>
         <el-button type="primary" @click="handleLiveTest" :disabled="!liveTestDialog.targetDeviceId"> 开始 </el-button>
+      </template>
+    </el-dialog>
+    <!-- [新增] 引用分析弹窗 -->
+    <el-dialog
+        v-model="usageDialogVisible"
+        title="资产血缘与引用分析"
+        width="800px"
+        destroy-on-close
+        append-to-body
+    >
+      <div style="padding: 10px 0;">
+        <p style="margin-bottom: 20px; color: #909399; font-size: 13px;">
+          <el-icon><InfoFilled /></el-icon>
+          正在分析当前原子操作被哪些测试用例和测试包所引用。
+        </p>
+        <!-- 引入原有的分析组件 -->
+        <AtomUsagePanel :atom-id="atomIdNum!" />
+      </div>
+      <template #footer>
+        <el-button @click="usageDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
     <DslEditorDialog
@@ -304,7 +345,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
 import { v4 as uuidv4 } from "uuid";
 import StateConditionEditor from "@/components/editors/StateConditionEditor.vue";
-import { Delete, Plus, QuestionFilled, MagicStick, Select, Close, FolderAdd, Monitor, Document } from "@element-plus/icons-vue";
+import { Delete, Plus, QuestionFilled, MagicStick, Select, Close, FolderAdd, Monitor, Document,PieChart } from "@element-plus/icons-vue";
 import AddToPackageDialog from "@/components/dialogs/AddToPackageDialog.vue";
 import ScreenRegionSelector from "@/components/ScreenRegionSelector.vue";
 import MultiTextInput from "@/components/MultiTextInput.vue";
@@ -345,6 +386,13 @@ const isLoading = ref(false);
 const isSaving = ref(false);
 const liveTestDialog = reactive({ visible: false, targetDeviceId: "", testType: "matcher" as "matcher" | "full_atom" });
 const onlineDevices = computed(() => deviceStore.devices.filter((d) => d.isConnectedWs));
+
+// --- [新增] 控制引用分析弹窗的状态 ---
+const usageDialogVisible = ref(false);
+
+const openUsageDialog = () => {
+  usageDialogVisible.value = true;
+};
 
 const createNewPrimaryMatcher = (): Matcher => ({
   matchTargetType: "text",
@@ -508,7 +556,7 @@ const loadAtomData = async (id: number) => {
         }
       }
 
-      tabStore.updateTabTitle(route.fullPath, `编辑 - ${atom.name}`);
+      tabStore.updateTabTitle(route.fullPath, atom.name);
     }
   } catch (error) {
     console.error("Failed to load atom data:", error);
@@ -574,7 +622,7 @@ const handleLiveTest = () => {
       }
 
       const cleanedActions = cleanupActionSequence(JSON.parse(JSON.stringify(form.actionsJson)));
-      
+
       wsService.sendTestFullAtom(liveTestDialog.targetDeviceId, {
         triggerType: form.triggerType,
         sceneSnapshotJson: cleanedSnapshot,
@@ -662,6 +710,8 @@ const handleSave = async (shouldExit = true) => {
     if (isEditMode.value) {
       await atomStore.updateAtom(atomIdNum.value!, payload as AtomicOperationUpdatePayload);
       ElMessage.success("已保存更新");
+      // [核心修复] 保存成功后，立即同步更新标签页标题，反映最新的原子操作名称
+      tabStore.updateTabTitle(route.fullPath, form.name);
     } else {
       const oldPath = route.fullPath;
       const res = await atomStore.addAtom(payload as AtomicOperationCreatePayload);
@@ -669,7 +719,7 @@ const handleSave = async (shouldExit = true) => {
       if (!shouldExit && res && res.atomId) {
         // 仅在不退出时执行标签变身
         const newPath = router.resolve({ name: 'AtomEditor', params: { atomId: res.atomId } }).fullPath;
-        tabStore.morphTab(oldPath, newPath, `编辑 - ${form.name}`);
+        tabStore.morphTab(oldPath, newPath, form.name);
         router.replace(newPath);
       }
     }
@@ -852,15 +902,15 @@ const createFilterProposals = (range: any, monaco: any) => {
 
 const createStateProposals = (range: any, monaco: any) => {
   return [
-    { 
-      label: 'var', 
-      insertText: 'var(var="${1:left}", op="${2:==}", val="${3:right}")', 
-      doc: '变量或公式比较触发器' 
+    {
+      label: 'var',
+      insertText: 'var(var="${1:left}", op="${2:==}", val="${3:right}")',
+      doc: '变量或公式比较触发器'
     },
-    { 
-      label: 'app', 
-      insertText: 'app(status="${1:foreground}")', 
-      doc: '应用前后台状态触发器 (foreground/background)' 
+    {
+      label: 'app',
+      insertText: 'app(status="${1:foreground}")',
+      doc: '应用前后台状态触发器 (foreground/background)'
     },
   ].map(m => ({
     label: m.label,
@@ -1001,11 +1051,23 @@ const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
   font-size: 13px;
   text-align: center;
 }
+/* 修改后的数据提取区域背景样式（淡桃红/淡红色） */
+.extractors-container-bg {
+  /* 使用 Element Plus 规范的危险/错误色系的极浅色 */
+  background-color: #fef0f0;
+  /* 配合浅粉色的边框 */
+  border: 1px solid #fde2e2;
+
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
 .extractor-row {
   display: flex;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
+  background-color: transparent;
 }
 .eq-sign {
   font-weight: bold;
@@ -1015,5 +1077,86 @@ const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
   margin-bottom: 8px;
+}
+
+/* 确保顶栏容器不换行且垂直居中 */
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* 按钮组内部文字稍微缩小一点点，增加精致感 */
+.header-actions :deep(.el-button) {
+  padding: 8px 15px;
+  font-weight: 500;
+}
+
+/* 垂直分割线的间距 */
+.el-divider--vertical {
+  margin: 0 15px;
+  height: 24px;
+}
+
+/* 修正 Label 中图标的间距 */
+.help-icon {
+  margin-left: 4px;
+  color: #909399;
+  font-size: 14px;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* 强行让 Switch 在 Form Item 里垂直居中，不破坏整体高度 */
+.switch-container {
+  height: 32px; /* 对应输入框的标准高度 */
+  display: flex;
+  align-items: center;
+}
+
+/* 统一卡片内边距，增加呼吸感 */
+.box-card :deep(.el-card__body) {
+  padding: 20px 25px;
+}
+
+/* 统一卡片头部布局 */
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* 蓝色指示条标题 */
+.decorated-title {
+  position: relative;
+  padding-left: 12px;
+  font-weight: 700;
+  color: #1f2f3d;
+  font-size: 14px;
+}
+.decorated-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 14px;
+  background: #409eff;
+  border-radius: 2px;
+}
+
+/* 内部匹配器区块稍微压暗，形成层次 */
+.matcher-container-bg {
+  background-color: #fdf6ec;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #faecd8;
+  margin-bottom: 15px;
+}
+
+/* 修正卡片 Body 的内边距 */
+.full-height-card :deep(.el-card__body) {
+  padding: 15px;
 }
 </style>

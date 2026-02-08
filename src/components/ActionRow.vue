@@ -17,6 +17,7 @@
       v-model="cascaderValue"
       :options="cascaderOptions"
       :props="{ expandTrigger: 'hover' }"
+      :show-all-levels="false"
       popper-class="action-cascader-popper"
       placeholder="选择动作"
       class="action-selector"
@@ -91,12 +92,12 @@
           />
           <!-- Operator at end of Row 1 -->
           <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 120px">
+            <el-option label="==" value="==" />
+            <el-option label="!=" value="!=" />
             <el-option label=">" value=">" />
             <el-option label=">=" value=">=" />
             <el-option label="<" value="<" />
             <el-option label="<=" value="<=" />
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
             <el-option label="包含" value="contains" />
           </el-select>
         </div>
@@ -134,9 +135,9 @@
           <span style="font-size: 12px; color: #909399; flex-shrink: 0">条件:</span>
           <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="flex-grow: 1" />
           <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 200px">
+            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
             <el-option label=">" value=">" /> <el-option label=">=" value=">=" />
             <el-option label="<" value="<" /> <el-option label="<=" value="<=" />
-            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
             <el-option label="包含" value="contains" />
           </el-select>
           <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="flex-grow: 1" />
@@ -173,7 +174,10 @@
             <el-option label="==" value="==" />
             <el-option label="!=" value="!=" />
             <el-option label=">" value=">" />
+            <el-option label=">=" value=">=" />
             <el-option label="<" value="<" />
+            <el-option label="<=" value="<=" />
+            <el-option label="包含" value="contains" />
           </el-select>
           <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 100px" size="small" />
           <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
@@ -303,7 +307,13 @@
           <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
           <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 120px" size="small" />
           <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 80px" size="small">
-            <el-option label="==" value="==" /> <el-option label="!=" value="!=" /> <el-option label=">" value=">" /> <el-option label="<" value="<" />
+            <el-option label="==" value="==" />
+            <el-option label="!=" value="!=" />
+            <el-option label=">" value=">" />
+            <el-option label=">=" value=">=" />
+            <el-option label="<" value="<" />
+            <el-option label="<=" value="<=" />
+            <el-option label="包含" value="contains" />
           </el-select>
           <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 120px" size="small" />
           <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
@@ -336,7 +346,13 @@
           <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
           <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 90px" size="small" />
           <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 70px" size="small">
-            <el-option label="!=" value="!=" /> <el-option label="==" value="==" /> <el-option label=">" value=">" />
+            <el-option label="==" value="==" />
+            <el-option label="!=" value="!=" />
+            <el-option label=">" value=">" />
+            <el-option label=">=" value=">=" />
+            <el-option label="<" value="<" />
+            <el-option label="<=" value="<=" />
+            <el-option label="包含" value="contains" />
           </el-select>
           <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 90px" size="small" />
           <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
@@ -345,9 +361,13 @@
       <!-- Assert Element Count -->
       <div v-if="editableAction.action === 'assert_element_count'" class="comparison-row">
         <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="操作符" style="width: 120px">
-          <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
-          <el-option label=">" value=">" /> <el-option label=">=" value=">=" />
-          <el-option label="<" value="<" /> <el-option label="<=" value="<=" />
+          <el-option label="==" value="==" />
+          <el-option label="!=" value="!=" />
+          <el-option label=">" value=">" />
+          <el-option label=">=" value=">=" />
+          <el-option label="<" value="<" />
+          <el-option label="<=" value="<=" />
+          <el-option label="包含" value="contains" />
         </el-select>
         <el-input-number v-model="editableAction.parameters.expectedCount" :min="0" placeholder="期望数量" controls-position="right" style="flex-grow: 1" />
       </div>
@@ -367,8 +387,8 @@
 
 <script setup lang="ts">
 import { computed, reactive, watch } from "vue";
-import {Delete, Rank, InfoFilled, Filter, CircleClose, Plus} from "@element-plus/icons-vue";
-import type { PerformActionPayload, Selector } from "@/types/api/common";
+import {Delete, Rank, InfoFilled, Filter, CircleClose} from "@element-plus/icons-vue";
+import type { PerformActionPayload } from "@/types/api/common";
 import SelectorInput from "@/components/SelectorInput.vue";
 import LogicBlock from "@/components/LogicBlock.vue"; // 确保导入新组件
 
@@ -411,22 +431,22 @@ const cascaderOptions = computed<any[]>(() => {
     label: "流程控制",
     value: "flow_control",
     children: [
-      { value: "wait", label: "Wait (Fixed Time)" },
-      { value: "wait_random", label: "Wait (Random Range)" },
-      { value: "wait_dynamic", label: "Wait (Dynamic from Var)" },
+      { value: "wait", label: "等待 (固定时间)" },
+      { value: "wait_random", label: "等待 (随机时间)" },
+      { value: "wait_dynamic", label: "等待 (计算公式)秒" },
       { value: "scroll_until", label: "Scroll Until (OCR Match)" },
       { value: "data_generator", label: "Data Generator (造数)" },
       { value: "shell_execute", label: "Shell Execute (系统命令)" },
       { value: "wait_for_vanish", label: "Wait For Vanish" },
-      { value: "calculate_value", label: "Set / Calculate Variable" },
-      { value: "report_value", label: "Report Value (Upload)" },
+      { value: "calculate_value", label: "变量赋值" },
+      { value: "report_value", label: "变量赋值 (上报)" },
       { value: "end_case", label: "End Case" },
       { value: "reopen_app_if_needed", label: "Reopen App If Needed" },
-      { value: "reopen_app", label: "Reopen App (by PackageName)" },
+      { value: "reopen_app", label: "Open App by PackageName" },
       { value: "return_to_entry_app", label: "Return to Entry App" },
       { value: "jump_to_state", label: "Jump to State (Flow)" },
       { value: "jump_back", label: "Jump Back (返回上一状态)" },
-      { value: "conditional_tap_jump", label: "Conditional Tap & Jump" },
+      { value: "conditional_tap_jump", label: "有条件点击并跳转状态" },
     ],
   },
   {
@@ -445,6 +465,7 @@ const cascaderOptions = computed<any[]>(() => {
     label: "断言",
     value: "assertion",
     children: [
+      { value: "assert_element_exists", label: "Assert Element Exists" },
       { value: "assert_text_equals", label: "Assert Text Equals" },
       { value: "assert_element_count", label: "Assert Element Count" },
     ],
@@ -545,7 +566,7 @@ const handleKeyCodeChange = (val: any) => {
   editableAction.parameters.keyCode = val;
 };
 
-const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count", "hover", "right_click", "double_click"].includes(editableAction.action));
+const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count", "assert_element_exists", "hover", "right_click", "double_click"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
     ["reopen_app_if_needed", "return_to_entry_app", "wake_up", "sleep", "set_brightness_auto", "set_brightness_min", "force_kill_family"].includes(editableAction.action)
@@ -569,7 +590,7 @@ watch(
           case 'right_click':
           case 'double_click':
           case 'long_click':
-          // case 'assert_element_exists':
+          case 'assert_element_exists':
           case 'input_text':
           case 'hover':
             newVal.selector = { index: 0 };
@@ -724,7 +745,8 @@ if (!editableAction.parameters) {
 /* 1. 设置菜单外层高度和宽度 */
 .action-cascader-popper .el-cascader-menu {
   height: 500px !important;
-  min-width: 220px;
+  min-width: 100px;
+  max-width: 250px;
   border-right: 1px solid #f0f0f0;
 }
 
