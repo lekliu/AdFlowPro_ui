@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-page">
+  <div class="dashboard-page" ref="dashboardRef">
     <!-- 1. 顶部 HUD 统计栏 -->
     <div class="stats-hud">
       <el-row :gutter="20">
@@ -37,6 +37,12 @@
         <el-radio-button label="offline" value="offline">仅离线</el-radio-button>
       </el-radio-group>
 
+      <el-divider direction="vertical" />
+      
+      <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏监控'" placement="bottom">
+        <el-button :icon="isFullscreen ? Close : FullScreen" circle @click="toggleFullscreen" size="small" />
+      </el-tooltip>
+
       <div class="server-info">
         <span class="label">Server:</span>
         <span class="value">{{ serverIp || apiBaseUrl }}</span>
@@ -57,16 +63,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useDeviceStore } from "@/stores/deviceStore";
 import apiClient from "@/api/apiClient";
 import DeviceMonitorCard from "@/components/DeviceMonitorCard.vue";
 import axios from "axios";
 import logger from "@/utils/logger";
+import { FullScreen, Close } from "@element-plus/icons-vue";
 
 // 移除了不正确的 defineComponent
 
 const deviceStore = useDeviceStore();
+const dashboardRef = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
 const gridColumns = ref(6);
 const filterStatus = ref("all");
 
@@ -118,13 +127,34 @@ const filteredDevices = computed(() => {
   return deviceStore.devices;
 });
 
+// --- 全屏控制逻辑 ---
+const toggleFullscreen = () => {
+  if (!dashboardRef.value) return;
+  if (!document.fullscreenElement) {
+    dashboardRef.value.requestFullscreen().catch(err => {
+      logger.error(`Fullscreen error: ${err.message}`);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+};
+
+const handleFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement;
+};
+
 onMounted(() => {
   fetchStats();
   fetchServerHealth();
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
 
   if (deviceStore.devices.length === 0) {
     deviceStore.fetchDevices({ limit: 1000 });
   }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("fullscreenchange", handleFullscreenChange);
 });
 
 watch(filterStatus, () => {
@@ -142,6 +172,12 @@ watch(filterStatus, () => {
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Prevent body scrollbar */
+}
+
+/* 全屏时的特殊样式处理 */
+.dashboard-page:fullscreen {
+  background-color: #f0f2f5; /* 确保背景不是黑色 */
+  padding: 20px;
 }
 
 .stats-hud {

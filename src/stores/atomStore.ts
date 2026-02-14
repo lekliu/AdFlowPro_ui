@@ -99,5 +99,14 @@ export const useAtomStore = defineStore("atom", {
         this.isLoading = false;
       }
     },
+
+    async resetStats() {
+      this.isLoading = true;
+      try {
+        await atomService.resetAllStats();
+      } finally {
+        this.isLoading = false;
+      }
+    },
   },
 });

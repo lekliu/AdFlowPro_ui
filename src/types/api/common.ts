@@ -80,7 +80,11 @@ export interface PerformActionPayload {
       | "assert_element_count"
       | "key_down"
       | "key_up"
-      | "logic_if";
+      | "registry_reset"
+      | "force_kill_family"
+      | "logic_if"
+      | "system_alarm"
+      | "capture_for_ai";
   selector?: Selector;
   parameters?: PerformActionParameters;
   thenActions?: PerformActionPayload[];

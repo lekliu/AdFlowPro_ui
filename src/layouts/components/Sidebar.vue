@@ -64,6 +64,25 @@
         </el-menu-item>
       </el-sub-menu>
 
+      <el-sub-menu index="/data-center">
+        <template #title>
+          <el-icon><DataLine /></el-icon>
+          <span>数据中心</span>
+        </template>
+        <el-menu-item index="/data/dashboard">
+          <el-icon><PieChart /></el-icon>
+          <template #title>业务看板</template>
+        </el-menu-item>
+        <el-menu-item index="/data/alarms">
+          <el-icon><BellFilled /></el-icon>
+          <template #title>系统告警</template>
+        </el-menu-item>
+        <el-menu-item index="/data/ai-gallery">
+          <el-icon><PictureFilled /></el-icon>
+          <template #title>AI素材库</template>
+        </el-menu-item>
+      </el-sub-menu>
+
       <el-sub-menu index="/automation">
         <template #title>
           <el-icon><Cpu /></el-icon>

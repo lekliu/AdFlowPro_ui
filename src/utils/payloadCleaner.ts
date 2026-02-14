@@ -46,11 +46,16 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     registry_reset: ["path", "key", "value"],
     force_kill_family: [],
     logic_if: ["leftValue", "comparisonOperator", "rightValue"],
+    system_alarm: ["text"],
+    capture_for_ai: ["text"],
   };
 
   actionsCopy.forEach((action: any) => {
     // --- [核心修复] 递归处理逻辑分支 ---
-    if (action.action === 'logic_if') {
+    if (action.action !== 'logic_if') {
+      delete action.thenActions;
+      delete action.elseActions;
+    } else {
       if (action.thenActions && action.thenActions.length > 0) {
         action.thenActions = cleanupActionSequence(action.thenActions);
       }

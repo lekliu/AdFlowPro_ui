@@ -1,6 +1,6 @@
 // FILE: AdFlowPro_ui/src/stores/webSocketStore.ts
 import { defineStore } from "pinia";
-import { ref, computed } from "vue"; // <-- 导入 computed
+import { ref, computed } from "vue";
 import logger from "@/utils/logger";
 import { ElNotification } from "element-plus";
 import { wsService } from "@/services/wsService";
@@ -40,6 +40,9 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
 
   const currentAdhocTask = ref<AdhocTaskInfo | null>(null);
   const isAbortingAdhocTask = ref(false);
+
+  // [核心新增] 存储报警通知实例的 Map，Key 是 deviceId
+  const alarmInstances = new Map<string, any>();
 
   let ws: WebSocket | null = null;
   let logCounter = 0;
@@ -94,18 +97,33 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
             data.type === "apk_pull_complete" ||
             data.type === "job_step_update" ||
             data.type === "job_status_change"||
-            data.type === "live_variables_ready"
+            data.type === "live_variables_ready" ||
+            data.type === "live_test_result" ||
+            data.type === "live_validation_result"
         ) {
           const customEvent = new CustomEvent(data.type, { detail: payload });
           window.dispatchEvent(customEvent);
           logger.info(`[WS-UI] Dispatched browser event: ${data.type}`, payload);
-          return; // Don't add to log panel
+
+          // 【关键修改点】：如果是结果类消息，派发完事件后“不要”return，继续向下执行日志逻辑
+          const isResultType = data.type === "live_test_result" || data.type === "live_validation_result";
+          if (!isResultType) {
+            return; // 只有非结果类的纯通知消息（如数据就绪）才提前结束
+          }
         }
 
         // --- [新增] 设备上下线状态同步事件 ---
         if (data.type === "device_connected") {
           const deviceStore = useDeviceStore();
           deviceStore.setDeviceOnline(payload.deviceId, true);
+
+          // [核心修复] 如果该设备之前在报警，自动解除并关闭弹窗
+          if (alarmInstances.has(payload.deviceId)) {
+            alarmInstances.get(payload.deviceId).close();
+            alarmInstances.delete(payload.deviceId);
+            console.log(`[ALARM] 设备 ${payload.deviceId} 已恢复，自动关闭报警弹窗`);
+          }
+
           addLog(`设备上线: ${payload.deviceId}`, "success");
           return;
         }
@@ -113,6 +131,59 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
           const deviceStore = useDeviceStore();
           deviceStore.setDeviceOnline(payload.deviceId, false);
           addLog(`设备下线: ${payload.deviceId}`, "warning");
+          return;
+        }
+
+        // --- 活跃设备异常离线报警 ---
+        if (data.type === "device_critical_offline") {
+          // 如果同一个设备已经有弹窗了，不再重复弹出
+          if (alarmInstances.has(payload.deviceId)) return;
+
+          const instance = ElNotification({
+            title: "", // 标题留空，全部写在 message 里以撑满红色背景
+            dangerouslyUseHTMLString: true,
+            customClass: 'critical-alarm-box', // 增加自定义类名
+            message: `
+                <div style="background-color: #CC0000; margin: -20px; padding: 30px; border-radius: 4px; border: 3px solid #FFEB3B; box-shadow: 0 0 30px rgba(204,0,0,0.8); animation: pulse-red 1.5s infinite;">
+                  <div style="color: #FFFFFF; font-size: 28px; font-weight: 900; text-align: center; margin-bottom: 15px; letter-spacing: 4px;">
+                    🚨 设备离线
+                  </div>
+                  <div style="color: #FFEB3B; font-size: 20px; font-weight: bold; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 12px; text-align: center;">
+                    ${payload.deviceName || payload.deviceId}
+                  </div>
+                  <div style="color: #FFFFFF; font-size: 15px; margin-top: 12px; text-align: center; opacity: 0.9;">
+                    活跃插槽失联，请立即处理！
+                  </div>
+                </div>
+                <style>
+                  /* 强制修改 Element 原生关闭按钮样式 */
+                  .critical-alarm-box .el-notification__closeBtn {
+                    color: #FFFFFF !important;
+                    font-size: 24px !important;
+                    top: 15px !important;
+                    right: 15px !important;
+                  }
+                  .critical-alarm-box { background-color: #CC0000 !important; border: none !important; padding: 0 !important; overflow: hidden; }
+                  @keyframes pulse-red {
+                    0% { box-shadow: 0 0 10px rgba(204,0,0,0.6); }
+                    50% { box-shadow: 0 0 30px rgba(204,0,0,1); border-color: #fff; }
+                    100% { box-shadow: 0 0 10px rgba(204,0,0,0.6); }
+                  }
+                </style>
+              `,
+            type: "",
+            duration: 0,
+            position: "top-right",
+            offset: 60,
+            onClose: () => {
+              alarmInstances.delete(payload.deviceId);
+            }
+          });
+
+          // 存入 Map 以便后续自动关闭
+          alarmInstances.set(payload.deviceId, instance);
+
+          addLog(`紧急报警: 活跃设备 ${payload.deviceId} 异常离线`, "error");
           return;
         }
 

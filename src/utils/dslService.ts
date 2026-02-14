@@ -25,6 +25,7 @@ const ACTION_PARAM_MAP: Record<string, string> = {
     key: "keyCode",
     direction: "direction",
     value: "text",
+    prefix: "text",
 };
 
 // 选择器参数 (DSL -> UI Selector) - 仅保留您要求的核心字段
@@ -58,7 +59,7 @@ const REVERSE_ACTION_MAP: Record<string, string> = {
     reportLabel: "report_label",
     keyCode: "key",
     direction: "direction",
-    text: "value"
+    text: "value",
 };
 
 const REVERSE_SELECTOR_MAP: Record<string, string> = {
@@ -149,7 +150,7 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
 
         // B. 映射 Parameters 字段 (如 startX -> x)
         if (act.parameters) {
-            const ignoreCoordActions = ['click', 'long_click', 'input_text', 'assert_text_equals', 'tap_relative'];
+            const ignoreCoordActions = ['click', 'long_click', 'input_text', 'assert_text_equals', 'tap_relative', 'system_alarm'];
             const ignoredParams = ['startX', 'startY', 'endX', 'endY'];
 
             Object.entries(act.parameters).forEach(([k, v]) => {
@@ -158,6 +159,14 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
                 if (ignoreCoordActions.includes(act.action) && ignoredParams.includes(k)) return;
 
                 let dslKey = REVERSE_ACTION_MAP[k] || k;
+
+                if (k === 'text') {
+                    if (act.action === 'capture_for_ai') {
+                        dslKey = 'prefix'; // 特殊处理：采集指令显示为 prefix
+                    } else {
+                        dslKey = 'value';  // 其他指令（如输入）显示为 value
+                    }
+                }
 
                 // Swipe 特殊处理
                 if (act.action === 'swipe') {

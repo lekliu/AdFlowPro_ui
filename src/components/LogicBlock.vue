@@ -1,3 +1,6 @@
+======================================================================
+FILE: AdFlowPro_ui\src\components\LogicBlock.vue
+======================================================================
 <template>
   <div class="logic-block">
     <div class="logic-header">

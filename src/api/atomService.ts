@@ -25,4 +25,8 @@ export const atomService = {
   async getAtomUsage(atomId: number): Promise<AtomUsageReport> {
     return apiClient.get(`/atoms/${atomId}/usage`);
   },
+
+  async resetAllStats(): Promise<void> {
+    return apiClient.post("/atoms/reset-stats");
+  },
 };

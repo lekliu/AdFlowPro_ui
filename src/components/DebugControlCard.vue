@@ -2,32 +2,32 @@
   <el-card class="card-margin">
     <template #header>
       <div class="card-header">
-        <span>远程调试</span>
+        <span>调试辅助 (仅对当前在线的受控设备生效)</span>
       </div>
     </template>
 
     <!-- Flex 布局保持单行结构 -->
     <div v-loading="isLoading" class="compact-controls" v-if="isControlled">
-      <!-- 左侧：开关组 -->
-      <!-- 移除了调试模式开关，直接显示 TAG 过滤 -->
-
-      <!-- 右侧：TAG 选择器 -->
-      <div class="control-group flex-expand" v-if="isControlled">
-        <span class="label">TAG过滤:</span>
+      <div class="control-group flex-expand">
+        <span class="label">视觉增强开关:</span>
         <el-select
             v-model="selectedTags"
             multiple
             filterable
-            placeholder="留空则上报全部"
+            placeholder="请勾选需要开启的视觉反馈"
             class="tag-select"
             :disabled="!isControlled"
         >
-          <el-option v-for="tag in availableTags" :key="tag" :label="tag" :value="tag" />
+          <!-- 核心修改：手动定义新的功能性标签 -->
+          <el-option label="显示手势路径 (曲线)" value="VISUAL_PATH" />
+          <el-option label="显示点击红圈" value="VISUAL_TAP" />
+          <el-option label="显示匹配绿框" value="VISUAL_MATCH" />
+          <el-option label="显示原子 ID 标签" value="VISUAL_ID" />
         </el-select>
       </div>
     </div>
     <div v-else class="empty-tip">
-      请在右上角开启“受控模式”以启用远程调试日志。
+      请在右上角开启“受控模式”以启用调试辅助功能。
     </div>
   </el-card>
 </template>

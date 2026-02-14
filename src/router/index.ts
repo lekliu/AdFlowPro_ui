@@ -11,6 +11,7 @@ import masterAppRoutes from "./routes/masterApp";
 import assetRoutes from "./routes/assets";
 import jobRoutes from "./routes/job";
 import platformRoutes from "./routes/platform";
+import dataRoutes from "./routes/data";
 import { useAuthStore } from "@/stores/authStore";
 
 // 为 meta.title 定义更具体的类型
@@ -33,7 +34,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/",
     component: DefaultLayout,
-    children: [...dashboardRoutes, ...deviceRoutes, ...masterAppRoutes, ...assetRoutes, ...jobRoutes, ...platformRoutes],
+    children: [...dashboardRoutes, ...deviceRoutes, ...masterAppRoutes, ...assetRoutes, ...jobRoutes, ...platformRoutes, ...dataRoutes],
   },
 ];
 

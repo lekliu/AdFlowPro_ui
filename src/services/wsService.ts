@@ -8,6 +8,7 @@ interface AtomDataPayload {
   sceneSnapshotJson?: SceneSnapshot;
   stateCondition?: StateCondition;
   actionsJson: PerformActionPayload[];
+  actionLoopCount?: number;
 }
 
 /**

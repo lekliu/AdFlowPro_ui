@@ -512,7 +512,12 @@ const loadAtomData = async (id: number) => {
       form.continueAfterMatch = atom.continueAfterMatch;
       form.actionLoopCount = atom.actionLoopCount || 1;
       form.supportedDevices = atom.supportedDevices || [];
-      form.actionsJson = atom.actionsJson.map((a) => ({ ...a, id: uuidv4() }));
+      form.actionsJson = atom.actionsJson.map((a) => ({
+        ...a,
+        id: uuidv4(),
+        thenActions: a.thenActions || [],
+        elseActions: a.elseActions || []
+      }));
 
       if (atom.sceneSnapshotJson) {
         const snapshot = atom.sceneSnapshotJson as any;
@@ -627,7 +632,8 @@ const handleLiveTest = () => {
         triggerType: form.triggerType,
         sceneSnapshotJson: cleanedSnapshot,
         stateCondition: cleanedStateCondition,
-        actionsJson: cleanedActions
+        actionsJson: cleanedActions,
+        actionLoopCount: form.actionLoopCount
       });
       ElMessage.info("完整原子操作测试请求已发送，请在底部状态栏查看结果。");
       break;
@@ -698,6 +704,8 @@ const handleSave = async (shouldExit = true) => {
   isSaving.value = true;
   try {
     const payload = JSON.parse(JSON.stringify(form));
+    console.log(">>> [LOG 2] 执行Cleanup前表单状态:", JSON.stringify(payload.actionsJson));
+
     // Clean based on trigger type
     if (payload.triggerType === 'scene') {
       payload.sceneSnapshotJson = cleanupSceneSnapshot(payload.sceneSnapshotJson);
@@ -707,6 +715,7 @@ const handleSave = async (shouldExit = true) => {
       payload.sceneSnapshotJson = null;
     }
     payload.actionsJson = cleanupActionSequence(payload.actionsJson);
+    console.log(">>> [LOG 3] 最终发送至API的载荷:", JSON.stringify(payload.actionsJson));
     if (isEditMode.value) {
       await atomStore.updateAtom(atomIdNum.value!, payload as AtomicOperationUpdatePayload);
       ElMessage.success("已保存更新");
@@ -751,6 +760,7 @@ const handleApplyCode = () => {
   try {
     // 2. 解析代码
     const updatedForm = parseCode(codeDialog.code, form);
+    console.log(">>> [LOG 1] DSL解析后结果:", JSON.stringify(updatedForm.actionsJson));
 
     // 3. 应用变更 (Object.assign 保持响应式引用)
     // 注意：我们需要深拷贝回来的属性，特别是数组

@@ -24,13 +24,26 @@
     </el-row>
 
     <el-row class="property-checks" :gutter="10">
-      <el-checkbox v-model="checkedState" @change="onPropertyChange('checked', $event as boolean)" :indeterminate="checkedState === undefined">
+      <el-checkbox
+          :model-value="checkedState === true"
+          :indeterminate="checkedState === undefined"
+          @click.prevent="toggleTriState('checked')"
+      >
         Checked
       </el-checkbox>
-      <el-checkbox v-model="enabledState" @change="onPropertyChange('enabled', $event as boolean)" :indeterminate="enabledState === undefined">
+
+      <el-checkbox
+          :model-value="enabledState === true"
+          :indeterminate="enabledState === undefined"
+          @click.prevent="toggleTriState('enabled')"
+      >
         Enabled
       </el-checkbox>
-      <el-checkbox v-model="selectedState" @change="onPropertyChange('selected', $event as boolean)" :indeterminate="selectedState === undefined">
+      <el-checkbox
+          :model-value="selectedState === true"
+          :indeterminate="selectedState === undefined"
+          @click.prevent="toggleTriState('selected')"
+      >
         Selected
       </el-checkbox>
     </el-row>
@@ -106,11 +119,24 @@ const filteredOptions = computed(() => {
 const onValueChange = (val: string) => { selectorValue.value = val; emitUpdate(); };
 const onTypeChange = (newType: any) => { selectorType.value = newType; selectorValue.value = ""; emitUpdate(); };
 const onModeChange = (val: any) => { matchMode.value = val; emitUpdate(); };
-const onPropertyChange = (prop: 'checked' | 'enabled' | 'selected', value: boolean | null) => {
-  const val = value ?? undefined;
-  if (prop === 'checked') checkedState.value = val;
-  if (prop === 'enabled') enabledState.value = val;
-  if (prop === 'selected') selectedState.value = val;
+/**
+ * 核心修改：三态切换逻辑
+ * 状态循环：undefined (-) -> true (勾选) -> false (空框) -> 重置为 undefined (-)
+ */
+const toggleTriState = (prop: 'checked' | 'enabled' | 'selected') => {
+  let targetRef;
+  if (prop === 'checked') targetRef = checkedState;
+  else if (prop === 'enabled') targetRef = enabledState;
+  else targetRef = selectedState;
+
+  if (targetRef.value === undefined) {
+    targetRef.value = true;
+  } else if (targetRef.value === true) {
+    targetRef.value = false;
+  } else {
+    targetRef.value = undefined;
+  }
+
   emitUpdate();
 };
 
@@ -118,13 +144,27 @@ const onPropertyChange = (prop: 'checked' | 'enabled' | 'selected', value: boole
 watch(
     () => props.modelValue,
     (newVal) => {
-      if (!newVal) return;
+      if (!newVal) {
+        checkedState.value = undefined;
+        enabledState.value = undefined;
+        selectedState.value = undefined;
+        return;
+      }
 
       // A. 恢复配置字段
       matchMode.value = newVal.matchMode || "fuzzy";
-      checkedState.value = newVal.checked;
-      enabledState.value = newVal.enabled;
-      selectedState.value = newVal.selected;
+
+      /**
+       * 核心修复逻辑：
+       * 由于 el-checkbox 的 indeterminate 状态强依赖于 undefined。
+       * 如果 newVal.checked 是 null，(null === undefined) 为 false，会导致显示为空框。
+       * 这里通过严格判定，将 null 或任何非布尔值强制转回 undefined。
+       */
+      const normalizeBoolean = (val: any) => (val === true || val === false) ? val : undefined;
+
+      checkedState.value = normalizeBoolean(newVal.checked);
+      enabledState.value = normalizeBoolean(newVal.enabled);
+      selectedState.value = normalizeBoolean(newVal.selected);
 
       // B. 明确优先级判定类型和值
       if (newVal.bounds !== undefined && newVal.bounds !== null) {

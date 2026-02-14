@@ -7,6 +7,12 @@
             <h3 class="page-title">原子操作列表</h3>
             <el-button type="primary" :icon="Plus" @click="handleCreate">新建操作</el-button>
 
+            <el-tooltip content="将所有原子的扫描和命中次数清零，重新开始健康度统计" placement="top">
+              <el-button type="danger" plain :icon="RefreshLeft" @click="handleResetAllStats">
+                重置统计
+              </el-button>
+            </el-tooltip>
+
             <el-button-group class="ml-4">
               <el-button :icon="Edit" @click="handleEditSelected" :disabled="selectedAtoms.length !== 1">编辑</el-button>
               <el-button :icon="CopyDocument" @click="handleCopySelected" :disabled="selectedAtoms.length !== 1">复制</el-button>
@@ -135,7 +141,7 @@ import { useAtomStore } from "@/stores/atomStore";
 import { useRouter } from "vue-router";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessage, ElMessageBox, ElTable } from "element-plus";
-import { Plus, Edit, Delete, Search, CopyDocument } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search, CopyDocument, RefreshLeft } from "@element-plus/icons-vue";
 import type { AtomicOperationCreatePayload } from "@/types/api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -279,6 +285,27 @@ const handleCopySelected = async () => {
     fetchData();
   } catch (error) { if (error !== "cancel") console.error("Copy failed:", error); }
 };
+
+/**
+ * 核心业务逻辑：清除全量健康数据
+ */
+const handleResetAllStats = () => {
+  ElMessageBox.confirm(
+      '确定要清空本租户所有原子操作的“扫描次数”和“命中次数”吗？该操作不可撤销，健康度将重新从 0% 开始计算。',
+      '警告：重置全量统计数据',
+      {
+        confirmButtonText: '确 定',
+        cancelButtonText: '取 消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+  ).then(async () => {
+    await atomStore.resetStats();
+    ElMessage.success('统计数据已重置');
+    fetchData(); // 刷新列表查看效果
+  }).catch(() => {});
+};
+
 
 onMounted(() => { fetchData(); categoryStore.fetchAllCategories(); });
 onActivated(() => { if (atomStore.needsRefresh) { fetchData(); atomStore.setNeedsRefresh(false); } });

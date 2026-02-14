@@ -28,6 +28,14 @@
 
     <!-- Parameters Area -->
     <div class="parameters">
+      <!-- [新增] 系统告警指令的参数输入框 -->
+      <el-input 
+        v-if="editableAction.action === 'system_alarm'" 
+        v-model="editableAction.parameters.text" 
+        placeholder="输入告警描述，支持 {sys.xxx} 或 {变量} 实时替换" 
+        clearable
+      />
+
       <!-- Selector-based Actions -->
       <SelectorInput v-if="needsSelector" v-model="editableAction.selector" :action="editableAction.action" />
 
@@ -371,6 +379,20 @@
         </el-select>
         <el-input-number v-model="editableAction.parameters.expectedCount" :min="0" placeholder="期望数量" controls-position="right" style="flex-grow: 1" />
       </div>
+
+      <!-- [新增] AI 训练素材采集参数输入 -->
+      <div v-if="editableAction.action === 'capture_for_ai'" style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 12px; color: #909399; white-space: nowrap;">素材前缀:</span>
+        <el-input
+            v-model="editableAction.parameters.text"
+            placeholder="例如: ad / video / normal (用于分类)"
+            clearable
+        />
+        <el-tooltip content="采集到的截图文件名将以该前缀开头，方便在标注时批量分拣。" placement="top">
+          <el-icon style="color: #909399; cursor: help"><QuestionFilled /></el-icon>
+        </el-tooltip>
+      </div>
+
       <!-- No visible parameters for wait_dynamic, wake_up, etc. -->
       <el-input v-if="isParameterlessAction" disabled placeholder="此动作无参数" />
     </div>
@@ -439,7 +461,6 @@ const cascaderOptions = computed<any[]>(() => {
       { value: "shell_execute", label: "Shell Execute (系统命令)" },
       { value: "wait_for_vanish", label: "Wait For Vanish" },
       { value: "calculate_value", label: "变量赋值" },
-      { value: "report_value", label: "变量赋值 (上报)" },
       { value: "end_case", label: "End Case" },
       { value: "reopen_app_if_needed", label: "Reopen App If Needed" },
       { value: "reopen_app", label: "Open App by PackageName" },
@@ -459,6 +480,15 @@ const cascaderOptions = computed<any[]>(() => {
       { value: "install_helper_app", label: "Install Helper App" },
       { value: "set_brightness_auto", label: "Set Brightness Auto" },
       { value: "set_brightness_min", label: "Set Brightness Min" },
+    ],
+  },
+  {
+    label: "数据中心",
+    value: "data_center",
+    children: [
+      { value: "capture_for_ai", label: "AI 训练素材采集" },
+      { value: "report_value", label: "变量赋值 (上报)" },
+      { value: "system_alarm", label: "主动故障告警" },
     ],
   },
   {
@@ -484,6 +514,8 @@ const cascaderOptions = computed<any[]>(() => {
       { value: "force_kill_family", label: "强杀进程树 (Force Kill)" },
     ],
   },
+
+
   ];
 
   if (props.depth < 1) {
@@ -673,6 +705,14 @@ watch(
             break;
           case 'registry_reset':
             newVal.parameters = { path: '', key: '', value: '' };
+            break;
+          case 'capture_for_ai':
+            // 初始化默认前缀为 'raw'
+            newVal.parameters = { text: 'raw' };
+            break;
+          case 'system_alarm':
+            // [新增] 初始化 text 属性
+            newVal.parameters = { text: '' };
             break;
         }
       }
