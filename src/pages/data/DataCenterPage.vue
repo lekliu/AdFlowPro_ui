@@ -136,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed } from 'vue';
+import { ref, onMounted, reactive, computed, onBeforeUnmount } from 'vue';
 import { dataReportService } from '@/api/dataReportService';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useMasterAppStore } from '@/stores/masterAppStore';

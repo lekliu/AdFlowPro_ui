@@ -25,6 +25,9 @@ const ACTION_PARAM_MAP: Record<string, string> = {
     key: "keyCode",
     direction: "direction",
     value: "text",
+    if: "formula",
+    message: "message",
+    success: "isSuccess",
     prefix: "text",
 };
 
@@ -60,6 +63,9 @@ const REVERSE_ACTION_MAP: Record<string, string> = {
     keyCode: "key",
     direction: "direction",
     text: "value",
+    formula: "if",
+    message: "message",
+    isSuccess: "success"
 };
 
 const REVERSE_SELECTOR_MAP: Record<string, string> = {
@@ -108,8 +114,8 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
     // --- 1. 处理逻辑分支容器 (IF-ELSE) ---
     if (act.action === 'logic_if') {
         const p = act.parameters || {};
-        // 生成 if_true 头行，例如: if_true(var="${rand}", op=">", val="10"):
-        code += `${indent}if_true(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}"):\n`;
+        // 重构：生成简洁的公式行 if_true("expression"):
+        code += `${indent}if_true("${p.formula || ''}"):\n`;
 
         // 生成 THEN 块
         if (act.thenActions && act.thenActions.length > 0) {
@@ -221,7 +227,7 @@ export const generateCode = (form: any, id?: number | string | null): string => 
         const sc = form.stateCondition;
         if (sc.conditionType === 'variable_comparison') {
             const p = sc.parameters;
-            code += `state.var(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}")\n`;
+            code += `state.var(formula="${p.formula || ''}")\n`;
         } else if (sc.conditionType === 'app_foreground_check') {
             code += `state.app(status="${sc.parameters.expectedState || 'foreground'}")\n`;
         }
@@ -360,10 +366,12 @@ export const parseCode = (code: string, originalForm: any): any => {
                 if (params.category_id !== undefined) newForm.categoryId = params.category_id;
                 break;
             case 'if_true':
+                // 解析重构：支持 if_true("a==b") 或 if_true(formula="a==b")
+                const rawFormula = match[2].replace(/"/g, '').trim();
                 const newIf: any = {
                     id: uuidv4(),
                     action: 'logic_if',
-                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val },
+                    parameters: { formula: params.formula || rawFormula },
                     thenActions: [],
                     elseActions: []
                 };
@@ -375,7 +383,7 @@ export const parseCode = (code: string, originalForm: any): any => {
                 newForm.triggerType = 'state';
                 newForm.stateCondition = {
                     conditionType: 'variable_comparison',
-                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val }
+                    parameters: { formula: params.formula || "" }
                 };
                 break;
             case 'state.app':

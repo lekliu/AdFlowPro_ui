@@ -10,19 +10,8 @@
 
       <!-- Variable Comparison Editor -->
       <div v-if="editableCondition.conditionType === 'variable_comparison'">
-        <div class="comparison-row">
-          <el-input v-model="editableCondition.parameters.leftValue" placeholder="左值 (支持公式/变量{v})" />
-          <el-select v-model="editableCondition.parameters.comparisonOperator" placeholder="操作符" style="width: 250px">
-            <el-option label=">" value=">" />
-            <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" />
-            <el-option label="<=" value="<=" />
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
-          <el-input v-model="editableCondition.parameters.rightValue" placeholder="右值 (支持公式/变量{v})" />
-        </div>
+        <el-input v-model="editableCondition.parameters.formula" placeholder="输入判定公式，例如: {coin} > 100 and {vip} == '1'" clearable />
+        <div style="font-size: 12px; color: #909399; margin-top: 5px;">提示: 支持 {变量名}、数学运算及 and/or/not 逻辑组合</div>
       </div>
 
       <!-- App Foreground Check Editor -->
@@ -51,7 +40,7 @@ const emit = defineEmits(["update:modelValue"]);
 const createDefaultCondition = (): StateCondition => ({
   conditionType: "variable_comparison",
   parameters: {
-    comparisonOperator: "==",
+    formula: "",
   },
 });
 
@@ -77,7 +66,7 @@ watch(
     // Reset parameters when type changes to avoid carrying over old values
     if (newType === 'variable_comparison') {
       editableCondition.parameters = {
-        comparisonOperator: "==",
+        formula: "",
       };
     } else if (newType === 'app_foreground_check') {
       editableCondition.parameters = {

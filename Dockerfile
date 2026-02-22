@@ -3,6 +3,8 @@ FROM node:20-slim AS build-stage
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
+# 显式安装 Linux 环境下的 Rollup 二进制依赖，解决从 Windows 提交代码后的平台不匹配问题
+RUN npm install @rollup/rollup-linux-x64-gnu
 COPY . .
 RUN npm run build
 

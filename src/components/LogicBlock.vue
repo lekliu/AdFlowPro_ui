@@ -6,13 +6,7 @@ FILE: AdFlowPro_ui\src\components\LogicBlock.vue
     <div class="logic-header">
       <el-tag size="small" type="warning" effect="dark">IF 逻辑判定</el-tag>
       <div class="condition-row">
-        <el-input v-model="modelValue.parameters.leftValue" placeholder="变量 {v}" size="small" style="width: 130px" />
-        <el-select v-model="modelValue.parameters.comparisonOperator" size="small" style="width: 85px">
-          <el-option label="==" value="==" /><el-option label="!=" value="!=" />
-          <el-option label=">" value=">" /><el-option label="<" value="<" />
-          <el-option label="包含" value="contains" />
-        </el-select>
-        <el-input v-model="modelValue.parameters.rightValue" placeholder="值" size="small" style="width: 130px" />
+        <el-input v-model="modelValue.parameters.formula" placeholder="公式表达式 (例如: {a}==1 and {b}==2)" size="small" style="flex-grow: 1" clearable />
       </div>
       <div class="header-controls">
         <el-icon class="drag-handle"><Rank /></el-icon>

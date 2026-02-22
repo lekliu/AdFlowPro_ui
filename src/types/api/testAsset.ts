@@ -11,12 +11,7 @@ export interface MatcherCoordinates {
 
 // --- State Condition Schemas ---
 export interface StateConditionParameters {
-  // For variable_comparison
-  leftSource?: "variable" | "expression" | "value";
-  leftValue?: string;
-  comparisonOperator?: string;
-  rightSource?: "value" | "variable";
-  rightValue?: string;
+  formula?: string;
   // For app_foreground_check
   expectedState?: "foreground" | "background";
 }

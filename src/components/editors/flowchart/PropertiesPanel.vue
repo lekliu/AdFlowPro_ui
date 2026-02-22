@@ -18,15 +18,13 @@
               <el-button link type="danger" :icon="Delete" @click="removeBranch(index)" />
             </div>
 
-            <div class="branch-cond-row">
-              <el-input v-model="branch.leftValue" placeholder="${var}" size="small" />
-              <el-select v-model="branch.operator" size="small" style="width: 80px">
-                <el-option label="==" value="==" /><el-option label="!=" value="!=" />
-                <el-option label=">" value=">" /><el-option label="<" value="<" />
-                <el-option label="包含" value="contains" />
-              </el-select>
-              <el-input v-model="branch.rightValue" placeholder="值" size="small" />
-            </div>
+            <!-- 核心修改：三元组改为单输入框 -->
+            <el-input
+                v-model="branch.formula"
+                placeholder="输入公式，如：{gold} > 100 and {status} == 'ok'"
+                size="small"
+            />
+            <!-- 跳转目标保留 -->
 
             <el-form-item label="满足条件则跳转至" class="jump-select-item">
               <el-select v-model="branch.targetNodeId" placeholder="选择目标节点" size="small" style="width: 100%" @change="updateProperties">
@@ -202,7 +200,7 @@ const availableTargetNodes = computed(() => {
 // --- 事件处理 ---
 const addBranch = () => {
   if (!properties.value.branches) properties.value.branches = [];
-  properties.value.branches.push({ leftValue: "", operator: "==", rightValue: "", targetNodeId: "" });
+  properties.value.branches.push({ formula: "", targetNodeId: "" });
   updateProperties();
 };
 

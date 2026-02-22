@@ -22,7 +22,7 @@
             <el-tag 
               v-if="displayProperties.boundsInScreen" 
               class="prop-tag" 
-              :type="isSmallElement ? 'info' : 'warning'" 
+              :type="isSmallElement ? 'primary' : 'warning'"
               size="small" 
               effect="plain"
             >

@@ -23,6 +23,7 @@
           <el-option label="显示点击红圈" value="VISUAL_TAP" />
           <el-option label="显示匹配绿框" value="VISUAL_MATCH" />
           <el-option label="显示原子 ID 标签" value="VISUAL_ID" />
+          <el-option label="显示数据提取结果 (蓝色)" value="VISUAL_EXTRACT" />
         </el-select>
       </div>
     </div>

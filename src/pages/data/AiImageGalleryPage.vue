@@ -44,14 +44,14 @@
     <div class="image-grid" v-loading="loading">
       <div class="grid-container" v-if="images.length > 0">
         <div
-            v-for="img in images"
+            v-for="(img, index) in images"
             :key="img.fullPath"
             class="img-card"
             :class="{ 'is-selected': selection.includes(img.fullPath) }"
         >
           <div class="img-checker-wrapper">
             <el-checkbox-group v-model="selection">
-              <el-checkbox :label="img.fullPath" class="img-checker"><span></span></el-checkbox>
+              <el-checkbox :value="img.fullPath" class="img-checker"><span></span></el-checkbox>
             </el-checkbox-group>
           </div>
 
@@ -60,7 +60,8 @@
               fit="contain"
               lazy
               class="main-img"
-              :preview-src-list="[img.url]"
+              :preview-src-list="previewUrlList"
+              :initial-index="index"
               preview-teleported
           />
           <div class="img-info">
@@ -158,6 +159,9 @@ const totalCount = ref(0);     // 存储总数
 const selection = ref<string[]>([]);
 const loading = ref(false);
 const searchPrefix = ref("");
+
+// 计算属性：提取当前页所有图片的 URL 供预览器左右切换
+const previewUrlList = computed(() => images.value.map(img => img.url));
 
 const currentPage = ref(1);
 const pageSize = ref(18); // 核心修改：改为 ref 响应式

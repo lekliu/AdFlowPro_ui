@@ -49,12 +49,15 @@ export const suiteService = {
   },
 
   /**
-   * 获取用于执行的、完整的、已打包的测试套件 "剧本"
+   * 获取测试套件 "剧本"
+   * @param suiteId 套件ID
+   * @param mode 'prod' (默认,读缓存) 或 'draft' (实时生成)
    */
-  async getSuitePackage(suiteId: number): Promise<any> {
+  async getSuitePackage(suiteId: number, mode: 'prod' | 'draft' = 'prod'): Promise<any> {
     return apiClient.get(`/suites/${suiteId}/package`, {
       params: {
-        encrypt: false // Request plain JSON for UI preview
+        encrypt: false, // UI预览不加密
+        mode: mode      // <--- 核心修改：透传模式参数
       }
     });
   },
