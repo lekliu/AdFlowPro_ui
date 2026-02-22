@@ -85,6 +85,7 @@ export interface UiNode {
   isClickable?: boolean;
   isEditable?: boolean;
   children?: UiNode[];
+  _source?: string;
 }
 
 // --- Remote Debugging ---

@@ -1,7 +1,7 @@
 <template>
   <div class="action-row-wrapper">
     <!-- 1. 逻辑分支容器模式 -->
-    <template v-if="editableAction.action === 'logic_if'">
+    <template v-if="['logic_if', 'logic_for'].includes(editableAction.action)">
       <LogicBlock
         v-model="editableAction"
         :mode="mode"
@@ -28,7 +28,7 @@
 
     <!-- Parameters Area -->
     <div class="parameters">
-      <!-- [新增] 系统告警指令的参数输入框 -->
+      <!-- 系统告警指令的参数输入框 -->
       <el-input 
         v-if="editableAction.action === 'system_alarm'" 
         v-model="editableAction.parameters.text" 
@@ -90,36 +90,10 @@
 
       <!-- Conditional Tap (Enhanced) -->
       <div v-if="editableAction.action === 'conditional_tap'" class="conditional-tap-container">
-        <!-- Row 1: Left Side + Operator -->
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #909399; flex-shrink: 0">左值:</span>
-          <el-input
-              v-model="editableAction.parameters.leftValue"
-              placeholder="变量 {v} / 公式 / 值"
-              style="flex-grow: 1"
-          />
-          <!-- Operator at end of Row 1 -->
-          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 120px">
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" />
-            <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" />
-            <el-option label="<=" value="<=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">IF 条件:</span>
+          <el-input v-model="editableAction.parameters.formula" placeholder="公式表达式" style="flex-grow: 1" />
         </div>
-
-        <!-- Row 2: Right Side -->
-        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #909399; flex-shrink: 0">右值:</span>
-          <el-input
-              v-model="editableAction.parameters.rightValue"
-              placeholder="变量 {v} / 公式 / 值"
-              style="flex-grow: 1"
-          />
-        </div>
-
         <!-- 满足条件时的点击 -->
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
           <el-tag size="small" type="success">若 True 点击</el-tag>
@@ -140,15 +114,9 @@
       <!-- Conditional Tap Jump (New) -->
       <div v-if="editableAction.action === 'conditional_tap_jump'" class="conditional-tap-container">
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #909399; flex-shrink: 0">条件:</span>
-          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="flex-grow: 1" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" placeholder="Op" style="width: 200px">
-            <el-option label="==" value="==" /> <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" /> <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" /> <el-option label="<=" value="<=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
-          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="flex-grow: 1" />
+          <span style="font-size: 12px; color: #909399; flex-shrink: 0">IF 条件:</span>
+          <!-- 统一使用 formula 字段 -->
+          <el-input v-model="editableAction.parameters.formula" placeholder="逻辑表达式" style="flex-grow: 1" />
         </div>
         <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
           <span style="font-size: 12px; color: #909399; flex-shrink: 0">点击坐标:</span>
@@ -171,24 +139,15 @@
       <div v-if="editableAction.action === 'end_case'">
         <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
           <el-switch v-model="editableAction.parameters.isSuccess" active-text="用例结束: 成功" inactive-text="用例结束: 失败" />
-          <el-button link type="info" @click="editableAction._showCond = !editableAction._showCond">
-            {{ editableAction.parameters.leftValue ? '编辑条件' : '+ 执行条件' }}
+          <el-button link :type="editableAction.parameters.formula ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
+            <el-icon><Filter /></el-icon>
           </el-button>
         </div>
-        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
-          <el-tag size="small" type="info" effect="plain">判定条件</el-tag>
-          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 100px" size="small" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 80px" size="small">
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" />
-            <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" />
-            <el-option label="<=" value="<=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
-          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 100px" size="small" />
-          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
+        <el-input v-model="editableAction.parameters.message" placeholder="执行结果消息，支持 {var} 变量" size="small" style="margin-top: 8px" clearable />
+        <!-- 统一的条件盒 -->
+        <div v-if="editableAction.parameters.formula || editableAction._showCond" class="sub-condition-box">
+          <span class="condition-label">IF 逻辑</span>
+          <el-input v-model="editableAction.parameters.formula" placeholder="判定公式: {gold} > 100" size="small" style="flex-grow: 1" clearable />
         </div>
       </div>
 
@@ -302,29 +261,18 @@
         </div>
       </div>
 
-
       <!-- Install Helper App (Conditional) -->
       <div v-if="editableAction.action === 'install_helper_app'">
         <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
-          <span style="font-size: 13px; color: #606266">安装辅助应用</span>
-          <el-button link :type="editableAction.parameters.leftValue ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
-            {{ editableAction.parameters.leftValue ? '编辑条件' : '+ 执行条件' }}
+          <span style="font-size: 13px; color: #606266">安装辅助 APK (assets/helper.apk)</span>
+          <el-button link :type="editableAction.parameters.formula ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
+            <el-icon><Filter /></el-icon>
           </el-button>
         </div>
-        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
-          <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
-          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 120px" size="small" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 80px" size="small">
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" />
-            <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" />
-            <el-option label="<=" value="<=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
-          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 120px" size="small" />
-          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
+        <!-- 统一的条件盒 -->
+        <div v-if="editableAction.parameters.formula || editableAction._showCond" class="sub-condition-box">
+          <span class="condition-label">IF 逻辑</span>
+          <el-input v-model="editableAction.parameters.formula" placeholder="例如: {status} == 'off'" size="small" style="flex-grow: 1" clearable />
         </div>
       </div>
 
@@ -346,24 +294,13 @@
           <el-input v-model="editableAction.parameters.reportLabel" placeholder="变量名" style="width: 140px" />
           <span style="font-weight: bold; color: #409EFF">=</span>
           <el-input v-model="editableAction.parameters.text" placeholder="公式 (如 {count}+1)" style="flex-grow: 1" />
-          <el-button link :type="editableAction.parameters.leftValue ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
+          <el-button link :type="editableAction.parameters.formula ? 'warning' : 'info'" @click="editableAction._showCond = !editableAction._showCond">
             <el-icon><Filter /></el-icon>
           </el-button>
         </div>
-        <div v-if="editableAction.parameters.leftValue || editableAction._showCond" class="sub-condition-box">
-          <el-tag size="small" type="warning" effect="plain">仅当 (IF)</el-tag>
-          <el-input v-model="editableAction.parameters.leftValue" placeholder="左值" style="width: 90px" size="small" />
-          <el-select v-model="editableAction.parameters.comparisonOperator" style="width: 70px" size="small">
-            <el-option label="==" value="==" />
-            <el-option label="!=" value="!=" />
-            <el-option label=">" value=">" />
-            <el-option label=">=" value=">=" />
-            <el-option label="<" value="<" />
-            <el-option label="<=" value="<=" />
-            <el-option label="包含" value="contains" />
-          </el-select>
-          <el-input v-model="editableAction.parameters.rightValue" placeholder="右值" style="width: 90px" size="small" />
-          <el-button link type="danger" @click="clearActionCondition(editableAction)"><el-icon><CircleClose /></el-icon></el-button>
+        <div v-if="editableAction.parameters.formula || editableAction._showCond" class="sub-condition-box">
+          <span class="condition-label">IF 逻辑</span>
+          <el-input v-model="editableAction.parameters.formula" placeholder="例如: {gold} > 100 and {status} == 'ok'" size="small" style="flex-grow: 1" clearable />
         </div>
       </div>
       <!-- Assert Element Count -->
@@ -375,12 +312,11 @@
           <el-option label=">=" value=">=" />
           <el-option label="<" value="<" />
           <el-option label="<=" value="<=" />
-          <el-option label="包含" value="contains" />
         </el-select>
         <el-input-number v-model="editableAction.parameters.expectedCount" :min="0" placeholder="期望数量" controls-position="right" style="flex-grow: 1" />
       </div>
 
-      <!-- [新增] AI 训练素材采集参数输入 -->
+      <!-- AI 训练素材采集参数输入 -->
       <div v-if="editableAction.action === 'capture_for_ai'" style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 12px; color: #909399; white-space: nowrap;">素材前缀:</span>
         <el-input
@@ -392,6 +328,15 @@
           <el-icon style="color: #909399; cursor: help"><QuestionFilled /></el-icon>
         </el-tooltip>
       </div>
+
+      <template v-if="editableAction.action === 'tap_region'">
+        <el-input
+            v-model="editableAction.parameters.tapBounds"
+            placeholder="输入区域 [左, 上, 右, 下] 例如: [372, 1200, 708, 1320]"
+            clearable
+        />
+        <div style="font-size: 11px; color: #909399; margin-top: 4px;">将在指定矩形范围内随机选取一点点击（不含边界）</div>
+      </template>
 
       <!-- No visible parameters for wait_dynamic, wake_up, etc. -->
       <el-input v-if="isParameterlessAction" disabled placeholder="此动作无参数" />
@@ -443,6 +388,7 @@ const cascaderOptions = computed<any[]>(() => {
       { value: "long_click", label: "Long Click (by Selector)" },
       { value: "input_text", label: "Input Text (by Selector)" },
       { value: "tap", label: "Tap (by Coordinate)" },
+      { value: "tap_region", label: "区域随机点击 (Region Tap)" },
       { value: "tap_relative", label: "Tap Relative (to Anchor)" },
       { value: "conditional_tap", label: "Conditional Tap" },
       { value: "swipe", label: "Swipe (by Coordinate)" },
@@ -522,7 +468,10 @@ const cascaderOptions = computed<any[]>(() => {
     baseOptions.push({
       label: "逻辑控制",
       value: "logic_control",
-      children: [{ value: "logic_if", label: "IF 条件分支" }]
+      children: [
+        { value: "logic_if", label: "IF 条件分支" },
+        { value: "logic_for", label: "FOR 次数循环" }
+      ]
     });
   }
   return baseOptions;
@@ -582,9 +531,7 @@ const handleCascaderChange = (val: string[]) => {
 
 // 清理动作内部的执行条件
 const clearActionCondition = (act: any) => {
-  act.parameters.leftValue = undefined;
-  act.parameters.rightValue = undefined;
-  act.parameters.comparisonOperator = "==";
+  act.parameters.formula = undefined;
   act._showCond = false;
 };
 
@@ -614,7 +561,12 @@ watch(
 
         switch (newVal.action) {
           case 'logic_if':
-            newVal.parameters = { leftValue: '', comparisonOperator: '==', rightValue: '' };
+            newVal.parameters = { formula: '' };
+            newVal.thenActions = [];
+            newVal.elseActions = [];
+            break;
+          case 'logic_for':
+            newVal.parameters = { expectedCount: 1 };
             newVal.thenActions = [];
             newVal.elseActions = [];
             break;
@@ -633,6 +585,9 @@ watch(
           case 'tap':
             newVal.parameters = { startX: 0, startY: 0, duration: 100 };
             break;
+          case 'tap_region':
+            newVal.parameters = { tapBounds: '' };
+            break;
           case 'key_down':
           case 'key_up':
             newVal.parameters = { keyCode: 'home' };
@@ -640,14 +595,14 @@ watch(
           case 'conditional_tap':
             // Simplified initialization
             newVal.parameters = {
-              comparisonOperator: '>',
+              formula: '',
               startX: 0, startY: 0,
               elseX: 0, elseY: 0
             };
             break;
           case 'conditional_tap_jump':
             newVal.parameters = {
-              comparisonOperator: '==',
+              formula: '',
               startX: 0,
               startY: 0,
               targetStateLabel: '结束'
@@ -680,7 +635,7 @@ watch(
           case 'end_case':
             // Initialize with empty conditional parameters
             newVal.parameters = {
-              comparisonOperator: '=='
+              formula: ''
             };
             break;
           case 'install_helper_app':
@@ -696,7 +651,7 @@ watch(
           case 'assert_element_count':
             newVal.selector = { index: -1 };
             newVal.parameters = {
-              comparisonOperator: '==',
+              formula: '',
               expectedCount: 1,
             };
             break;
@@ -815,14 +770,25 @@ if (!editableAction.parameters) {
   background-color: #f5f7fa;
 }
 
+/* 橙色虚线条件盒容器 */
 .sub-condition-box {
-  margin-top: 6px;
-  padding: 6px 10px;
-  background-color: #fdf6ec; /* 浅橙色背景提醒 */
+  margin-top: 8px;
+  padding: 4px 10px; /* 稍微收紧内边距，更精致 */
+  background-color: #fffaf4;
   border: 1px dashed #e6a23c;
   border-radius: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 恢复之前的字体大小与颜色 */
+.condition-label {
+  font-size: 12px;     /* 恢复到 Tag 的标准字号 */
+  color: #e6a23c;      /* 恢复到之前的警告橙色 */
+  font-weight: bold;   /* 加粗显示 */
+  white-space: nowrap; /* 强制不换行 */
+  flex-shrink: 0;      /* 防止被输入框挤压 */
+  line-height: 1;      /* 修正行高防止偏移 */
 }
 </style>

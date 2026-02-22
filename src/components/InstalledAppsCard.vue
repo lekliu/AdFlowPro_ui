@@ -88,6 +88,13 @@
           <span v-else class="placeholder-text">--</span>
         </template>
       </el-table-column>
+      
+      <!-- 修复：增加描述信息展示列 -->
+      <el-table-column label="最后描述" min-width="150" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="message-text">{{ row.lastStatusMessage || '--' }}</span>
+        </template>
+      </el-table-column>
 
       <el-table-column label="版本" prop="versionName" width="90" />
       <el-table-column label="操作" width="180" fixed="right">

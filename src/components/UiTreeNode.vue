@@ -8,6 +8,10 @@
 
       <div class="node-info-wrapper">
         <div class="node-main-info">
+          <!-- [新增] 如果是根节点且包含来源标记，显式展示 -->
+          <el-tag v-if="node._source" size="small" type="danger" effect="dark" style="margin-right: 10px">
+            {{ node._source === 'SYSTEM_RAW' ? '原始树' : '同源树' }}
+          </el-tag>
           <span class="node-class">{{ getSimpleClassName(node.className) }}</span>
           <span v-if="node.contentDescription" class="node-desc" :title="node.contentDescription"
           >#{{ node.contentDescription }}</span
@@ -22,7 +26,7 @@
             <el-tag 
               v-if="displayProperties.boundsInScreen" 
               class="prop-tag" 
-              :type="isSmallElement ? 'info' : 'warning'" 
+              :type="isSmallElement ? 'primary' : 'warning'"
               size="small" 
               effect="plain"
             >

@@ -76,12 +76,12 @@ dayjs.extend(utc);
 
 // --- 1. 定义接口 (解决 TS7006 的关键) ---
 interface SystemAlarm {
-  alarmId: number;
+  id: number;          // 修正：从 alarmId 改为 id
   deviceId: string;
   deviceName?: string;
-  type: string;
+  alarmType: string;   // 修正：后端返回的是 alarmType
   message: string;
-  detailsJson: any;
+  details: any;        // 修正：后端字段名是 details
   createdAt: string;
 }
 
@@ -94,7 +94,7 @@ const pagination = reactive({ page: 1, pageSize: 15, total: 0 });
 // 3. 编写处理函数，显式声明参数类型以通过 TS 检查
 const handleSelectionChange = (val: SystemAlarm[]) => {
   // 这里的 i 会被自动推断为 SystemAlarm 类型
-  selectedIds.value = val.map((i) => i.alarmId);
+  selectedIds.value = val.map((i) => i.id);
 };
 
 const fetchAlarms = async () => {

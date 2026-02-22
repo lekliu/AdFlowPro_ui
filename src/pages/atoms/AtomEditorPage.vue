@@ -231,24 +231,51 @@
 
                 <template v-if="form.sceneSnapshotJson.primaryMatcher.matchTargetType === 'text'">
                   <div v-for="(matcher, index) in form.sceneSnapshotJson.secondaryMatchers" :key="index" class="matcher-item">
-                    <el-card shadow="never" class="matcher-card">
+                    <!-- 核心修改：使用自定义类名 secondary-matcher-card -->
+                    <el-card shadow="never" class="secondary-matcher-card">
                       <template #header>
                         <div class="card-header">
-                          <el-divider content-position="left">次级匹配器 {{ index + 1 }}</el-divider>
+                          <span class="secondary-title">次级条件 {{ index + 1 }}</span>
                           <el-button type="danger" :icon="Delete" circle plain size="small" @click="removeSecondaryMatcher(index)" />
                         </div>
                       </template>
-                      <el-form label-position="top">
-                        <el-form-item label="匹配类型">
-                          <el-switch v-model="matcher.isExclusion" active-text="排除 (NOT)" inactive-text="包含 (AND)" />
+
+                      <!-- 核心修改：label-width 和 flex 布局实现单行 -->
+                      <el-form label-width="80px" label-position="left" size="small">
+
+                        <el-form-item label="逻辑类型">
+                          <el-radio-group v-model="matcher._type" @change="matcher.formula = ''; matcher.text = []">
+                            <el-radio-button label="text">文本逻辑</el-radio-button>
+                            <el-radio-button label="formula">公式逻辑</el-radio-button>
+                          </el-radio-group>
                         </el-form-item>
-                        <el-form-item label="匹配文本">
-                          <MultiTextInput
-                              :model-value="getSecondaryMatcherText(index)"
-                              @update:model-value="setSecondaryMatcherText(index, $event)"
-                              placeholder="输入备选文本后按回车"
-                          />
+
+                        <template v-if="matcher._type !== 'formula'">
+                          <div class="inline-row">
+                            <el-form-item label="匹配方式" style="margin-bottom: 0; flex-shrink: 0;">
+                              <el-switch
+                                  v-model="matcher.isExclusion"
+                                  active-text="排除"
+                                  inactive-text="包含"
+                                  inline-prompt
+                                  style="--el-switch-on-color: #ff4949; --el-switch-off-color: #13ce66"
+                              />
+                            </el-form-item>
+
+                            <el-form-item label="匹配文本" style="margin-bottom: 0; flex-grow: 1; margin-left: 20px;">
+                              <MultiTextInput
+                                  :model-value="getSecondaryMatcherText(index)"
+                                  @update:model-value="setSecondaryMatcherText(index, $event)"
+                                  placeholder="输入并回车"
+                              />
+                            </el-form-item>
+                          </div>
+                        </template>
+
+                        <el-form-item v-else label="逻辑公式" style="margin-bottom: 0;">
+                          <el-input v-model="matcher.formula" placeholder="例如: {gold} > 100" clearable />
                         </el-form-item>
+
                       </el-form>
                     </el-card>
                   </div>
@@ -410,7 +437,7 @@ const createNewPrimaryMatcher = (): Matcher => ({
   targetLabel: "",
   minConfidence: 0.5,
 });
-const createNewSecondaryMatcher = (): SecondaryMatcher => ({ text: [], isExclusion: false });
+const createNewSecondaryMatcher = (): SecondaryMatcher => ({ text: [], isExclusion: false, formula: "", _type: "text" });
 const createNewExtractor = (): Extractor => ({ name: "", regex: "", scope: "matched_node" });
 const createNewFormState = () => ({
   name: "",
@@ -533,7 +560,10 @@ const loadAtomData = async (id: number) => {
           }
         }
         if (snapshot.secondaryMatchers) {
-          snapshot.secondaryMatchers.forEach(normalizeTextOnLoad);
+          snapshot.secondaryMatchers.forEach((m: SecondaryMatcher) => {
+            normalizeTextOnLoad(m);
+            m._type = m.formula ? "formula" : "text";
+          });
         }
         if (!snapshot.extractors) {
           snapshot.extractors = [];
@@ -692,8 +722,12 @@ const handleSave = async (shouldExit = true) => {
       ElMessage.error("空间约束中的“锚点匹配文本”不能为空。");
       return;
     }
-    if (form.sceneSnapshotJson.secondaryMatchers.some((m) => !m.text || (Array.isArray(m.text) && m.text.length === 0))) {
-      ElMessage.error("所有次级匹配器的“匹配文本”不能为空。");
+    // 核心修复：根据类型判断必填项
+    if (form.sceneSnapshotJson.secondaryMatchers.some((m: any) =>
+        (m._type === 'text' && (!m.text || m.text.length === 0)) ||
+        (m._type === 'formula' && !m.formula)
+    )) {
+      ElMessage.error("所有次级匹配条件均需填写完整（匹配文本或逻辑公式）。");
       return;
     }
   }
@@ -842,6 +876,14 @@ const createDependencyProposals = (range: any, monaco: any) => {
       kind: monaco.languages.CompletionItemKind.Function,
       documentation: '排除条件 (NOT)',
       insertText: 'not_match(text="${1:text}")',
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range: range
+    },
+    {
+      label: 'and_logic',
+      kind: monaco.languages.CompletionItemKind.Function,
+      documentation: '公式逻辑条件',
+      insertText: 'and_logic(formula="${1:{var} > 0}")',
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       range: range
     },
@@ -1169,4 +1211,41 @@ const handleDslEditorMount = ({ editor, monaco: monacoInstance }: any) => {
 .full-height-card :deep(.el-card__body) {
   padding: 15px;
 }
+
+/* 次级匹配器专用淡紫色背景 */
+.secondary-matcher-card {
+  background-color: #f9f0ff !important; /* 浅紫色 */
+  border: 1px solid #efdbff !important;
+  margin-bottom: 10px;
+}
+
+/* 次级匹配器卡片头部文字样式 */
+.secondary-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #722ed1; /* 深紫色 */
+}
+
+/* 内部 Form 项边距压缩 */
+.secondary-matcher-card :deep(.el-form-item) {
+  margin-bottom: 8px;
+}
+
+/* 实现文本逻辑中的单行混排 */
+.inline-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* 修改次级条件卡片 Body 内边距，使其更紧凑 */
+.secondary-matcher-card :deep(.el-card__body) {
+  padding: 10px 15px !important;
+}
+
+.secondary-matcher-card :deep(.el-card__header) {
+  padding: 8px 15px !important;
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
 </style>

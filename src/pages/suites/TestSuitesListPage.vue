@@ -10,7 +10,7 @@
             <el-button :icon="Plus" type="primary" @click="handleCreate">新建套件</el-button>
             <el-button :icon="VideoPlay" type="success" @click="handleRunSelected" :disabled="selectedSuites.length !== 1">运行</el-button>
             <el-button :icon="Upload" type="warning" @click="handlePublishSelected" :disabled="selectedSuites.length !== 1" plain>发布</el-button>
-            <el-button :icon="Document" type="info" @click="handleViewPackageSelected" :disabled="selectedSuites.length !== 1">剧本</el-button>
+            <el-button :icon="Document" type="info" @click="handleViewPackageSelected" :disabled="selectedSuites.length !== 1">实时剧本</el-button>
             <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedSuites.length !== 1">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedSuites.length === 0">删除</el-button>
           </el-button-group>
@@ -55,10 +55,19 @@
             <span v-else>--</span>
           </template>
         </el-table-column>
-        <el-table-column label="版本" width="80" align="center">
+        <el-table-column label="版本" width="100" align="center">
           <template #default="scope">
-            <el-tag effect="plain" type="success" v-if="scope.row.versionCode > 0">v{{ scope.row.versionCode }}</el-tag>
-            <el-tag effect="plain" type="info" v-else>Draft</el-tag>
+            <el-tooltip content="点击查看该版本的已发布快照 (Cached)" placement="top">
+              <el-tag
+                  effect="plain"
+                  :type="scope.row.versionCode > 0 ? 'success' : 'info'"
+                  class="version-tag"
+                  @click.stop="handleViewPublishedPackage(scope.row)"
+              >
+                <span v-if="scope.row.versionCode > 0">v{{ scope.row.versionCode }}</span>
+                <span v-else>Draft</span>
+              </el-tag>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
@@ -271,9 +280,21 @@ const handlePublishSelected = async () => {
   } catch (e) { /* Cancelled or Error */ }
 };
 
+// 1. 查看实时剧本 (Draft Mode) - 对应顶部按钮
 const handleViewPackageSelected = () => {
   if (selectedSuites.value.length === 1) {
-    handleViewPackage(selectedSuites.value[0]);
+    // 传入 'draft' 模式
+    handleViewPackage(selectedSuites.value[0], 'draft');
+  }
+};
+
+// 2. 查看已发布快照 (Prod Mode) - 对应版本号点击
+const handleViewPublishedPackage = (row: TestSuiteListPublic) => {
+  // 只有已发布的版本才有快照
+  if ((row.versionCode ?? 0) > 0) {
+    handleViewPackage(row, 'prod');
+  } else {
+    ElMessage.info("该套件尚未发布，无缓存快照，请查看实时剧本。");
   }
 };
 
@@ -423,13 +444,24 @@ const toggleExpandAll = () => {
   }
 };
 
-const handleViewPackage = async (suite: TestSuiteListPublic) => {
+// 3. 通用打开函数 (修改原有函数，增加 mode 参数)
+const handleViewPackage = async (suite: TestSuiteListPublic, mode: 'prod' | 'draft' = 'prod') => {
   packageDialog.content = null;
   packageDialog.treeData = [];
   packageDialog.loading = true;
+
+  // 更新弹窗标题，让用户知道自己在看什么
+  const titlePrefix = mode === 'draft' ? '⚡ 实时剧本 (预览最新修改)' : `🔒 已发布快照 (v${suite.versionCode})`;
+  // 这里你需要稍微改一下 dialog 对象或者直接操作 DOM title，最简单的是加个 title 状态
+  // packageDialog.title = `${titlePrefix} - ${suite.name}`;
+  // (需要在 reactive packageDialog 中添加 title 属性，并在 el-dialog 上绑定)
+
   packageDialog.visible = true;
+
   try {
-    const packageData = await suiteService.getSuitePackage(suite.suiteId);
+    // 调用 API 时传入 mode
+    const packageData = await suiteService.getSuitePackage(suite.suiteId, mode);
+
     packageDialog.content = packageData;
     packageDialog.treeData = jsonToTree(packageData, `suite-${suite.suiteId}`);
     await nextTick(); // Wait for the DOM to update
@@ -657,5 +689,13 @@ onBeforeUnmount(() => {
 
 .menu-item.danger:hover {
   background-color: #fef0f0;
+}
+.version-tag {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.version-tag:hover {
+  transform: scale(1.1);
+  font-weight: bold;
 }
 </style>

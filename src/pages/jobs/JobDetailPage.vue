@@ -21,14 +21,14 @@
             </el-tag>
             <el-button :icon="CopyDocument" type="primary" link @click="handleCopyForAI">AI分析</el-button>
             <el-button
-                v-if="['running', 'queued', 'pending'].includes(jobDetails.status)"
+                v-if="['running', 'queued', 'pending', 'debugging'].includes(jobDetails.status)"
                 type="danger"
                 size="small"
                 :icon="VideoPause"
                 @click="handleCancelJob"
                 :loading="jobStore.isCancelling"
             >
-              {{ ['running', 'pending'].includes(jobDetails.status) ? "停止" : "取消排队" }}
+              {{ ['running', 'pending', 'debugging'].includes(jobDetails.status) ? "停止" : "取消排队" }}
             </el-button>
             <el-button
                 v-if="['completed', 'failed', 'cancelled'].includes(jobDetails.status)"

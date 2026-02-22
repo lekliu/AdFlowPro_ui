@@ -4,15 +4,15 @@ FILE: AdFlowPro_ui\src\components\LogicBlock.vue
 <template>
   <div class="logic-block">
     <div class="logic-header">
-      <el-tag size="small" type="warning" effect="dark">IF 逻辑判定</el-tag>
+      <el-tag v-if="modelValue.action === 'logic_if'" size="small" type="warning" effect="dark">IF 逻辑判定</el-tag>
+      <el-tag v-else size="small" type="primary" effect="dark">FOR 次数循环</el-tag>
       <div class="condition-row">
-        <el-input v-model="modelValue.parameters.leftValue" placeholder="变量 {v}" size="small" style="width: 130px" />
-        <el-select v-model="modelValue.parameters.comparisonOperator" size="small" style="width: 85px">
-          <el-option label="==" value="==" /><el-option label="!=" value="!=" />
-          <el-option label=">" value=">" /><el-option label="<" value="<" />
-          <el-option label="包含" value="contains" />
-        </el-select>
-        <el-input v-model="modelValue.parameters.rightValue" placeholder="值" size="small" style="width: 130px" />
+        <el-input v-if="modelValue.action === 'logic_if'" v-model="modelValue.parameters.formula" placeholder="公式表达式 (例如: {a}==1 and {b}==2)" size="small" style="flex-grow: 1" clearable />
+        <template v-else>
+          <span style="font-size: 13px; color: #606266">循环执行</span>
+          <el-input-number v-model="modelValue.parameters.expectedCount" :min="1" :max="999" size="small" controls-position="right" style="width: 100px" />
+          <span style="font-size: 13px; color: #606266">次</span>
+        </template>
       </div>
       <div class="header-controls">
         <el-icon class="drag-handle"><Rank /></el-icon>
@@ -21,7 +21,7 @@ FILE: AdFlowPro_ui\src\components\LogicBlock.vue
     </div>
 
     <div class="logic-body">
-      <div class="branch-label then-label">满足条件时 (THEN)</div>
+      <div class="branch-label then-label">{{ modelValue.action === 'logic_if' ? '满足条件时 (THEN)' : '循环体动作' }}</div>
       <draggable
           v-model="modelValue.thenActions"
           group="actions"
@@ -44,7 +44,7 @@ FILE: AdFlowPro_ui\src\components\LogicBlock.vue
     </div>
 
     <div class="logic-footer">
-      <div v-if="showElse" class="else-container">
+      <div v-if="showElse && modelValue.action === 'logic_if'" class="else-container">
         <div class="branch-divider">
           <span class="branch-label else-label">否则执行 (ELSE)</span>
           <el-button link type="info" size="small" @click="clearElse">移除 ELSE</el-button>
@@ -68,7 +68,7 @@ FILE: AdFlowPro_ui\src\components\LogicBlock.vue
           </template>
         </draggable>
       </div>
-      <div v-else class="add-else-btn" @click="addElse">
+      <div v-else-if="!showElse && modelValue.action === 'logic_if'" class="add-else-btn" @click="addElse">
         <el-icon><Plus /></el-icon> 添加 ELSE 分支
       </div>
     </div>

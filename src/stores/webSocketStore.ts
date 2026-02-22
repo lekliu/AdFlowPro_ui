@@ -239,8 +239,14 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
 
               message = `[${correlationId.slice(0, 8)}] ✅ 匹配成功! ${details} @ ${boundsStr}`;
             } else {
-              // Default success message
-              message = `[${correlationId.slice(0, 8)}] ✅ ${payload.message || '操作成功'}`;
+              // [核心优化] 针对计算回显进行美化展示
+              const rawMsg = payload.message || '操作成功';
+              if (rawMsg.includes('Set {')) {
+                // 如果包含变量赋值信息，使用特殊的符号标记
+                message = `[${correlationId.slice(0, 8)}] 📊 ${rawMsg}`;
+              } else {
+                message = `[${correlationId.slice(0, 8)}] ✅ ${rawMsg}`;
+              }
             }
 
           } else {

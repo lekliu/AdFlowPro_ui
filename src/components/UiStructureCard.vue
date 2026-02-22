@@ -4,12 +4,21 @@
       <div class="card-header">
         <span>UI 结构</span>
         <div class="header-actions">
+          <el-tooltip :content="isRawMode ? '当前：原生数据（含屏幕外节点，未纠偏）' : '当前：引擎同源数据（已纠偏并过滤不可见项）'">
+            <el-switch
+                v-model="isRawMode"
+                active-text="原始"
+                inactive-text="同源"
+                inline-prompt
+                style="margin-right: 15px"
+            />
+          </el-tooltip>
           <el-switch v-model="isAllExpanded" inline-prompt active-text="全部展开" inactive-text="折叠" style="margin-right: 15px" />
           <el-button :icon="CopyDocument" @click="handleCopyStructure" :disabled="!structure" plain>复制</el-button>
           <el-button
               type="success"
               :icon="Search"
-              @click="$emit('fetchUiStructure')"
+              @click="$emit('fetchUiStructure', !!isRawMode)"
               :loading="isLoading"
               :disabled="!isConnected"
           >
@@ -46,6 +55,7 @@ const props = defineProps<{
 defineEmits(["fetchUiStructure"]);
 
 const isAllExpanded = ref<boolean>(false);
+const isRawMode = ref<boolean>(false);
 
 const fullText = computed(() => {
   if (!props.structure) return "";

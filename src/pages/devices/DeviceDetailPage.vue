@@ -335,12 +335,12 @@ const fetchLastUiStructure = async () => {
   }
 };
 
-const handleGetUiStructure = async () => {
+const handleGetUiStructure = async (isRaw: boolean = false) => {
   if (!device.value?.isConnectedWs) return ElMessage.error("设备未连接，无法发送指令。");
   isFetchingStructure.value = true;
   uiStructure.value = null;
   try {
-    const res = await commandService.sendUiStructureCommand(props.deviceId);
+    const res = await commandService.sendUiStructureCommand(props.deviceId, isRaw);
     ElMessage.info(`UI结构请求已发送 (ID: ${res.correlationId})，等待设备实时响应...`);
   } catch (error) {
     console.error("Error sending UI structure command", error);

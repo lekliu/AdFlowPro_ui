@@ -34,12 +34,9 @@ export interface PerformActionParameters {
   offsetY?: number;
   reportLabel?: string;
   direction?: "UP" | "DOWN" | "LEFT" | "RIGHT"; // For swipe_gesture
-  comparisonOperator?: string; // >, <, ==, !=, >=, <=, contains, etc.
   packageName?: string; // For reopen_app
   expectedCount?: number; // For assert_element_count
-  leftSource?: "regex" | "variable" | "expression" | "value";
   leftValue?: string;
-  rightSource?: "regex" | "variable" | "expression" | "value";
   rightValue?: string;
   targetStateLabel?: string;
 }

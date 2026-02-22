@@ -18,41 +18,43 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
   const validParamsByAction: Record<string, string[]> = {
     input_text: ["text"],
     tap: ["startX", "startY", "duration"],
+    tap_region: ["tapBounds"],
     hover: ["startX", "startY"],
     right_click: ["startX", "startY"],
     double_click: ["startX", "startY"],
     key_down: ["keyCode"],
     key_up: ["keyCode"],
     tap_relative: ["offsetX", "offsetY"],
-    conditional_tap: ["startX", "startY", "elseX", "elseY", "comparisonOperator", "leftSource", "leftValue", "rightSource", "rightValue"],
-    conditional_tap_jump: ["startX", "startY", "comparisonOperator", "leftValue", "rightValue", "targetStateLabel"],
+    conditional_tap: ["startX", "startY", "elseX", "elseY", "formula"],
+    conditional_tap_jump: ["startX", "startY", "targetStateLabel", "formula"],
     swipe: ["startX", "startY", "endX", "endY", "duration"],
     swipe_gesture: ["direction"],
     wait: ["duration"],
     wait_random: ["minDuration", "maxDuration"],
-    wait_dynamic: ["leftSource", "leftValue"],
+    wait_dynamic: ["leftValue"],
     scroll_until: ["direction", "text", "expectedCount"],
     data_generator: ["genType", "reportLabel"],
     shell_execute: ["command", "reportLabel"],
     press_key: ["keyCode"],
-    report_value: ["reportLabel", "leftValue", "rightValue", "comparisonOperator", "text"],
-    calculate_value: ["reportLabel", "leftValue", "rightValue", "comparisonOperator", "text"],
-    end_case: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue", "isSuccess"],
+    report_value: ["reportLabel", "text", "formula"],
+    calculate_value: ["reportLabel", "text", "formula"],
+    end_case: ["isSuccess", "message", "formula"],
     assert_text_equals: ["text"],
     jump_to_state: ["targetStateLabel"],
-    install_helper_app: ["leftValue", "comparisonOperator", "rightValue"],
+    install_helper_app: ["formula"],
     jump_back: [],
     clean_app_data: ["packageName", "scope"],
     registry_reset: ["path", "key", "value"],
     force_kill_family: [],
-    logic_if: ["leftValue", "comparisonOperator", "rightValue"],
+    logic_if: ["formula"],
+    logic_for: ["expectedCount"],
     system_alarm: ["text"],
     capture_for_ai: ["text"],
   };
 
   actionsCopy.forEach((action: any) => {
     // --- [核心修复] 递归处理逻辑分支 ---
-    if (action.action !== 'logic_if') {
+    if (!['logic_if', 'logic_for'].includes(action.action)) {
       delete action.thenActions;
       delete action.elseActions;
     } else {
@@ -104,11 +106,12 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
         // [V15.1 Update]: Also allow 0 for conditional_tap_jump to support "logic only" mode
         // And critical fix: if value is missing for these actions, force a default 0 to prevent empty params
         if (['tap', 'swipe', 'conditional_tap_jump', 'hover', 'right_click', 'double_click'].includes(action.action) && (val === null || val === undefined)) {
-             if (paramKey === 'duration') {
-                 val = 1000; // Default duration for swipe
-             } else {
-                 val = 0;
-             }
+          if (paramKey === 'duration') {
+            val = (action.action === 'swipe') ? 600 : 100;
+          } else if (['startX', 'startY', 'endX', 'endY', 'elseX', 'elseY', 'offsetX', 'offsetY'].includes(paramKey)) {
+            // 核心修复：仅针对坐标类字段填充 0，不填充字符串类型的 formula 或 targetStateLabel
+            val = 0;
+          }
         }
 
         if (val !== null && val !== undefined) {
@@ -215,6 +218,8 @@ export const cleanupSceneSnapshot = (sceneSnapshot: any) => {
         if (Array.isArray(sm.text) && sm.text.length === 0) {
           delete sm.text;
         }
+        // 移除 UI 专用辅助字段
+        delete sm._type;
       });
     } else {
       // If the array is empty, remove the key itself.
@@ -237,7 +242,7 @@ export const cleanupStateCondition = (stateCondition: any) => {
   if (!stateCondition) return undefined;
   const copy = JSON.parse(JSON.stringify(stateCondition));
   const validParams: Record<string, string[]> = {
-    variable_comparison: ["leftSource", "leftValue", "comparisonOperator", "rightSource", "rightValue"],
+    variable_comparison: ["formula"],
     app_foreground_check: ["expectedState"]
   };
 

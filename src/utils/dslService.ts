@@ -23,9 +23,14 @@ const ACTION_PARAM_MAP: Record<string, string> = {
     op: "comparisonOperator",
     report_label: "reportLabel",
     key: "keyCode",
+    count: "expectedCount",
     direction: "direction",
     value: "text",
+    if: "formula",
+    message: "message",
+    success: "isSuccess",
     prefix: "text",
+    tapBounds: "tapBounds",
 };
 
 // 选择器参数 (DSL -> UI Selector) - 仅保留您要求的核心字段
@@ -59,7 +64,12 @@ const REVERSE_ACTION_MAP: Record<string, string> = {
     reportLabel: "report_label",
     keyCode: "key",
     direction: "direction",
+    expectedCount: "count",
     text: "value",
+    formula: "if",
+    message: "message",
+    isSuccess: "success",
+    tapBounds: "tapBounds",
 };
 
 const REVERSE_SELECTOR_MAP: Record<string, string> = {
@@ -108,8 +118,8 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
     // --- 1. 处理逻辑分支容器 (IF-ELSE) ---
     if (act.action === 'logic_if') {
         const p = act.parameters || {};
-        // 生成 if_true 头行，例如: if_true(var="${rand}", op=">", val="10"):
-        code += `${indent}if_true(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}"):\n`;
+        // 重构：生成简洁的公式行 if_true("expression"):
+        code += `${indent}if_true("${p.formula || ''}"):\n`;
 
         // 生成 THEN 块
         if (act.thenActions && act.thenActions.length > 0) {
@@ -129,7 +139,20 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
             });
         }
     }
-    // --- 2. 处理普通原子动作 ---
+    // --- 3. 处理循环执行容器 (FOR) ---
+    else if (act.action === 'logic_for') {
+        const count = act.parameters?.expectedCount || 1;
+        code = `${indent}for_range(count=${count}):\n`;
+
+        if (act.thenActions && act.thenActions.length > 0) {
+            act.thenActions.forEach((sub: any) => {
+                code += generateActionDsl(sub, indent + "    ");
+            });
+        } else {
+            code += `${indent}    pass\n`;
+        }
+    }
+    // --- 4. 处理普通原子动作 ---
     else {
         let paramList: string[] = [];
 
@@ -221,7 +244,7 @@ export const generateCode = (form: any, id?: number | string | null): string => 
         const sc = form.stateCondition;
         if (sc.conditionType === 'variable_comparison') {
             const p = sc.parameters;
-            code += `state.var(var="${p.leftValue || ''}", op="${p.comparisonOperator || '=='}", val="${p.rightValue || ''}")\n`;
+            code += `state.var(formula="${p.formula || ''}")\n`;
         } else if (sc.conditionType === 'app_foreground_check') {
             code += `state.app(status="${sc.parameters.expectedState || 'foreground'}")\n`;
         }
@@ -262,9 +285,13 @@ export const generateCode = (form: any, id?: number | string | null): string => 
         }
         if (form.sceneSnapshotJson.secondaryMatchers) {
             form.sceneSnapshotJson.secondaryMatchers.forEach((sm: any) => {
-                const func = sm.isExclusion ? 'not_match' : 'and_match';
-                const smText = Array.isArray(sm.text) ? sm.text.join("|") : sm.text;
-                code += `${func}(text="${smText}")\n`;
+                if (sm.formula) {
+                    code += `and_logic(formula="${sm.formula}")\n`;
+                } else {
+                    const func = sm.isExclusion ? 'not_match' : 'and_match';
+                    const smText = Array.isArray(sm.text) ? sm.text.join("|") : sm.text;
+                    code += `${func}(text="${smText}")\n`;
+                }
             });
         }
         // [新增] 生成提取器代码
@@ -360,10 +387,12 @@ export const parseCode = (code: string, originalForm: any): any => {
                 if (params.category_id !== undefined) newForm.categoryId = params.category_id;
                 break;
             case 'if_true':
+                // 解析重构：支持 if_true("a==b") 或 if_true(formula="a==b")
+                const rawFormula = match[2].replace(/"/g, '').trim();
                 const newIf: any = {
                     id: uuidv4(),
                     action: 'logic_if',
-                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val },
+                    parameters: { formula: params.formula || rawFormula },
                     thenActions: [],
                     elseActions: []
                 };
@@ -371,11 +400,23 @@ export const parseCode = (code: string, originalForm: any): any => {
                 // 进入 IF 的 THEN 作用域
                 stack.push({ indent: indent, actions: newIf.thenActions, parentIf: newIf });
                 break;
+            case 'for_range':
+                const newFor: any = {
+                    id: uuidv4(),
+                    action: 'logic_for',
+                    parameters: { expectedCount: params.count || 1 },
+                    thenActions: [],
+                    elseActions: []
+                };
+                currentActions.push(newFor);
+                // 进入 FOR 的循环体作用域
+                stack.push({ indent: indent, actions: newFor.thenActions, parentIf: newFor });
+                break;
             case 'state.var':
                 newForm.triggerType = 'state';
                 newForm.stateCondition = {
                     conditionType: 'variable_comparison',
-                    parameters: { leftValue: params.var, comparisonOperator: params.op || '==', rightValue: params.val }
+                    parameters: { formula: params.formula || "" }
                 };
                 break;
             case 'state.app':
@@ -438,7 +479,20 @@ export const parseCode = (code: string, originalForm: any): any => {
                 break;
             case 'and_match':
             case 'not_match':
-                newForm.sceneSnapshotJson.secondaryMatchers.push({ text: params.text ? params.text.split('|') : [], isExclusion: method === 'not_match' });
+                newForm.sceneSnapshotJson.secondaryMatchers.push({
+                    text: params.text ? params.text.split('|') : [],
+                    isExclusion: method === 'not_match',
+                    formula: "",
+                    _type: "text"
+                });
+                break;
+            case 'and_logic':
+                newForm.sceneSnapshotJson.secondaryMatchers.push({
+                    formula: params.formula,
+                    text: [],
+                    isExclusion: false,
+                    _type: "formula"
+                });
                 break;
             case 'extract':
                 if (params.name && params.regex) {
