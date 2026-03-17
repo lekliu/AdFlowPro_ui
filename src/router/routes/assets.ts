@@ -19,6 +19,23 @@ const assetRoutes: Array<RouteRecordRaw> = [
       icon: "Operation"
     },
   },
+  // L1.5 - Action Fragments
+  {
+    path: "assets/action-fragments",
+    name: "ActionFragmentsList",
+    component: () => import("@/pages/assets/ActionFragmentsListPage.vue"),
+    meta: { title: "动作片段", icon: "MagicStick" },
+  },
+  {
+    path: "assets/action-fragments/edit/:fragmentId?",
+    name: "ActionFragmentEditor",
+    component: () => import("@/pages/assets/ActionFragmentEditorPage.vue"),
+    props: true,
+    meta: {
+      title: (route) => (route.params.fragmentId ? "编辑片段" : "新建动作片段"),
+      icon: "MagicStick"
+    },
+  },
   // L2 - Packages
   {
     path: "test-packages",

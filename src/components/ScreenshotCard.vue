@@ -68,7 +68,17 @@
       <div v-if="ocrResult && ocrResult.elements && ocrResult.elements.length > 0" class="ocr-text-box">
         <div v-for="(element, index) in ocrResult.elements" :key="index" class="ocr-element-row">
           <span class="ocr-element-text">"{{ element.text }}"</span>
-          <span class="ocr-element-coords">({{ element.left }}, {{ element.top }}) ({{ element.right }}, {{ element.bottom }})</span>
+          <div class="ocr-coord-copy-wrapper">
+            <code class="ocr-element-coords">[{{ element.left }}, {{ element.top }}, {{ element.right }}, {{ element.bottom }}]</code>
+            <el-button
+                link
+                type="primary"
+                size="small"
+                :icon="CopyDocument"
+                @click="handleCopyText(`[${element.left}, ${element.top}, ${element.right}, ${element.bottom}]`)"
+            >
+            </el-button>
+          </div>
         </div>
       </div>
       <el-empty v-else description="无OCR识别结果" :image-size="50" />
@@ -80,11 +90,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { OcrPayload } from "@/types/api";
-import { Camera, Picture, Grid, Download, Pointer } from "@element-plus/icons-vue";
+import { Camera, Picture, Grid, Download, Pointer,CopyDocument } from "@element-plus/icons-vue";
 import GridOverlay from "./GridOverlay.vue";
 import { wsService } from "@/services/wsService";
 import { ElMessage } from "element-plus";
 import { useWebSocketStore } from "@/stores/webSocketStore";
+import { copyToClipboard } from "@/utils/clipboard";
 
 // --- 1. 定义 Props 和 Emits (必须置顶) ---
 const props = defineProps<{
@@ -166,6 +177,19 @@ const magnifierStyle = computed(() => ({
   left: `${mousePosition.x + 20}px`,
   top: `${mousePosition.y - 120}px`
 }));
+
+const handleCopyText = async (text: string) => {
+  const success = await copyToClipboard(text);
+  if (success) {
+    ElMessage.success({
+      message: '坐标已复制',
+      duration: 1000,
+      grouping: true // 防止连续点击弹出多个提示
+    });
+  } else {
+    ElMessage.error("复制失败");
+  }
+};
 
 // --- 4. 侦听器 ---
 watch(() => props.screenshotUrl, () => {

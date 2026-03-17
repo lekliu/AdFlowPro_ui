@@ -36,6 +36,28 @@
         clearable
       />
 
+      <!-- Action Fragment Selector -->
+      <div v-if="editableAction.action === 'call_fragment'" style="display: flex; gap: 8px; align-items: center;">
+        <el-select
+            v-model="editableAction.parameters.fragmentId"
+            placeholder="请选择要调用的动作片段"
+            filterable
+            clearable
+            style="flex-grow: 1"
+        >
+          <el-option
+              v-for="f in fragmentStore.allFragments"
+              :key="f.fragmentId"
+              :label="f.name"
+              :value="f.fragmentId"
+          />
+        </el-select>
+        <el-button v-if="editableAction.parameters.fragmentId" type="primary" link :icon="View" @click="jumpToFragment(editableAction.parameters.fragmentId)">
+          查看片段
+        </el-button>
+      </div>
+
+
       <!-- Selector-based Actions -->
       <SelectorInput v-if="needsSelector" v-model="editableAction.selector" :action="editableAction.action" />
 
@@ -148,6 +170,23 @@
         <div v-if="editableAction.parameters.formula || editableAction._showCond" class="sub-condition-box">
           <span class="condition-label">IF 逻辑</span>
           <el-input v-model="editableAction.parameters.formula" placeholder="判定公式: {gold} > 100" size="small" style="flex-grow: 1" clearable />
+        </div>
+      </div>
+
+      <!-- Exit Atom (Conditional) -->
+      <div v-if="editableAction.action === 'exit_atom'">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%">
+          <el-tag type="warning">条件满足则强制退出当前原子操作</el-tag>
+        </div>
+        <div class="sub-condition-box" style="margin-top: 8px">
+          <span class="condition-label">退出条件</span>
+          <el-input
+              v-model="editableAction.parameters.formula"
+              placeholder="判定公式: {status} == 'finished' 或 {count} > 5"
+              size="small"
+              style="flex-grow: 1"
+              clearable
+          />
         </div>
       </div>
 
@@ -406,12 +445,14 @@ const cascaderOptions = computed<any[]>(() => {
       { value: "data_generator", label: "Data Generator (造数)" },
       { value: "shell_execute", label: "Shell Execute (系统命令)" },
       { value: "wait_for_vanish", label: "Wait For Vanish" },
+      { value: "exit_atom", label: "退出当前原子 (Exit Atom)" },
       { value: "calculate_value", label: "变量赋值" },
       { value: "end_case", label: "End Case" },
       { value: "reopen_app_if_needed", label: "Reopen App If Needed" },
       { value: "reopen_app", label: "Open App by PackageName" },
       { value: "return_to_entry_app", label: "Return to Entry App" },
       { value: "jump_to_state", label: "Jump to State (Flow)" },
+      { value: "call_fragment", label: "Call Fragment (调用片段)" },
       { value: "jump_back", label: "Jump Back (返回上一状态)" },
       { value: "conditional_tap_jump", label: "有条件点击并跳转状态" },
     ],
@@ -545,6 +586,20 @@ const handleKeyCodeChange = (val: any) => {
   editableAction.parameters.keyCode = val;
 };
 
+import { useActionFragmentStore } from "@/stores/actionFragmentStore";
+import { View } from "@element-plus/icons-vue";
+import { useRouter } from "vue-router";
+
+const fragmentStore = useActionFragmentStore();
+const router = useRouter();
+
+// 加载片段池用于下拉回显
+fragmentStore.fetchAllForSelect();
+
+const jumpToFragment = (id: number) => {
+  router.push({ name: 'ActionFragmentEditor', params: { fragmentId: id } });
+};
+
 const needsSelector = computed(() => ["click", "long_click", "input_text", "wait_for_vanish", "assert_element_count", "assert_element_exists", "hover", "right_click", "double_click"].includes(editableAction.action));
 
 const isParameterlessAction = computed(() =>
@@ -564,6 +619,10 @@ watch(
             newVal.parameters = { formula: '' };
             newVal.thenActions = [];
             newVal.elseActions = [];
+            break;
+          case 'call_fragment':
+            newVal.parameters = { fragmentId: null };
+            newVal.selector = undefined;
             break;
           case 'logic_for':
             newVal.parameters = { expectedCount: 1 };
@@ -644,6 +703,10 @@ watch(
           case 'wait_for_vanish':
             newVal.selector = { index: 0 };
             newVal.parameters = { duration: 5000 };
+            break;
+          case 'exit_atom':
+            newVal.parameters = { formula: '' }; // 初始化参数对象
+            newVal.selector = undefined;         // 明确不需要选择器
             break;
           case 'jump_to_state':
             newVal.parameters = { targetStateLabel: '' };

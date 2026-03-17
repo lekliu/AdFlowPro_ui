@@ -31,6 +31,13 @@
               effect="plain"
             >
               {{ formatPropertyValue(displayProperties.boundsInScreen) }}
+              <el-button
+                  link
+                  type="primary"
+                  :icon="CopyDocument"
+                  style="margin-left: 4px; padding: 0; height: auto;"
+                  @click.stop="handleCopyBounds"
+              />
             </el-tag>
             <el-tag v-for="flag in booleanFlags" :key="flag" class="prop-tag" type="success" size="small" effect="plain">
               {{ flag }}
@@ -57,8 +64,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { CaretRight } from "@element-plus/icons-vue";
+import { CaretRight, CopyDocument } from "@element-plus/icons-vue";
 import type { UiNode } from "@/types/api/device";
+import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps<{
   node: UiNode;
@@ -66,6 +74,14 @@ const props = defineProps<{
   parentArea?: number; // Receive parent area from parent component
   isExpandedOverride: boolean | null;
 }>();
+
+const handleCopyBounds = async () => {
+  const bounds = props.node.boundsInScreen;
+  if (!bounds) return;
+  const className = props.node.className?.split('.').pop() || "View";
+  const textToCopy = `${className} [${bounds.join(', ')}]`;
+  if (await copyToClipboard(textToCopy)) ElMessage.success({ message: '坐标已复制', duration: 1000 });
+};
 
 // --- State ---
 const isExpanded = ref(props.isExpandedOverride ?? props.node.depth < 5);

@@ -42,6 +42,10 @@
           <el-icon><Operation /></el-icon>
           <span>原子操作</span>
         </el-menu-item>
+        <el-menu-item index="/assets/action-fragments">
+          <el-icon><MagicStick /></el-icon>
+          <span>动作片段</span>
+        </el-menu-item>
         <el-menu-item index="/test-packages">
           <el-icon><TakeawayBox /></el-icon>
           <span>测试包</span>

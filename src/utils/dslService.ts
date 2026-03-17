@@ -202,8 +202,17 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
             });
         }
 
-        // C. 特殊动作格式美化
-        if (act.action === 'key_down' || act.action === 'key_up') {
+        // C. 特殊动作格式美化: 语义化 Fragment 调用
+        if (act.action === 'call_fragment') {
+            const fid = act.parameters?.fragmentId || '';
+            const fname = act.parameters?.name || 'Unknown';
+            code += `${indent}fragment.call(id=${fid}, name="${fname}")\n`;
+        }
+        else if (act.action === 'exit_atom') {
+            const f = act.parameters?.formula || '';
+            code += `${indent}action.exit_atom(if="${f}")\n`;
+        }
+        else if (act.action === 'key_down' || act.action === 'key_up') {
             const key = act.parameters?.keyCode || '';
             code += `${indent}action.${act.action}(key="${key}")\n`;
         } else if (act.action === 'jump_back') {
@@ -351,7 +360,7 @@ export const parseCode = (code: string, originalForm: any): any => {
     for (let line of lines) {
         const indent = line.search(/\S/);
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#') || trimmed === 'pass') continue;
+        if (!trimmed || trimmed.startsWith('#') || trimmed === 'pass' || trimmed === 'Actions:') continue;
 
         // 处理缩进回退
         while (stack.length > 1 && indent <= stack[stack.length - 1].indent && !trimmed.startsWith('else')) {
@@ -411,6 +420,14 @@ export const parseCode = (code: string, originalForm: any): any => {
                 currentActions.push(newFor);
                 // 进入 FOR 的循环体作用域
                 stack.push({ indent: indent, actions: newFor.thenActions, parentIf: newFor });
+                break;
+            case 'fragment.call':
+                const callAct: any = {
+                    id: uuidv4(),
+                    action: 'call_fragment',
+                    parameters: { fragmentId: params.id }
+                };
+                currentActions.push(callAct);
                 break;
             case 'state.var':
                 newForm.triggerType = 'state';
@@ -533,6 +550,62 @@ export const parseCode = (code: string, originalForm: any): any => {
         }
     }
     return newForm;
+};
+
+/**
+ * 生成动作片段专用代码
+ */
+export const generateFragmentCode = (form: any, id?: number | string | null): string => {
+    const displayId = id || 'NEW';
+    let code = `# AdFlowPro Fragment DSL id: ${displayId}\n\n`;
+    
+    let configParams = [`name="${form.name}"`];
+    if (form.categoryId) configParams.push(`category_id=${form.categoryId}`);
+    code += `config(${configParams.join(', ')})\n`;
+    if (form.description) code += `description("${form.description}")\n`;
+
+    code += `\n# [Actions]\n`;
+    if (form.actionsJson) {
+        form.actionsJson.forEach((act: any) => {
+            code += generateActionDsl(act, "");
+        });
+    }
+    return code;
+};
+
+/**
+ * 解析动作片段代码
+ */
+export const parseFragmentCode = (code: string, originalForm: any): any => {
+    const newForm = JSON.parse(JSON.stringify(originalForm));
+    newForm.actionsJson = [];
+    
+    const lines = code.split('\n');
+    let currentActions = newForm.actionsJson;
+    const stack = [{ indent: 0, actions: newForm.actionsJson }];
+
+    for (let line of lines) {
+        const indent = line.search(/\S/);
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#') || trimmed === 'pass' || trimmed === 'Actions:') continue;
+
+        const match = trimmed.match(/^([\w\.]+)\((.*)\):?$/);
+        if (!match) continue;
+        
+        const method = match[1];
+        const params = parseParams(match[2]);
+
+        if (method === 'config') {
+            if (params.name) newForm.name = params.name;
+            if (params.category_id !== undefined) newForm.categoryId = params.category_id;
+        } else {
+            // 复用 parseCode 的核心分发逻辑
+            // 此处简化，通过调用一个内部解析子例程实现（生产环境应重构 parseCode 抽离动作解析部分）
+            // 暂时直接手动处理片段中常用的动作方法
+        }
+    }
+    // 为了保持最小修改，我们直接使用扩展后的 parseCode，它已经具备解析 fragments 的能力
+    return parseCode(code, originalForm);
 };
 
 /**

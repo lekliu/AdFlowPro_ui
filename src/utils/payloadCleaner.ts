@@ -50,6 +50,8 @@ export const cleanupActionSequence = (actions: ActionWithOptionalId[]): PerformA
     logic_for: ["expectedCount"],
     system_alarm: ["text"],
     capture_for_ai: ["text"],
+    call_fragment: ["fragmentId"],
+    exit_atom: ["formula"],
   };
 
   actionsCopy.forEach((action: any) => {
