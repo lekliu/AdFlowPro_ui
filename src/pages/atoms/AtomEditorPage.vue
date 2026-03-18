@@ -925,7 +925,7 @@ const createActionProposals = (range: any, monaco: any) => {
 
 const createMatchProposals = (range: any, monaco: any) => {
   return [
-    { label: 'ui', insertText: 'ui(text="${1:text}", mode="fuzzy")', doc: '匹配UI元素。Mode: fuzzy, exact, all_match, not_all_match' },
+    { label: 'ui', insertText: 'ui(text="${1:text}", mode="fuzzy")', doc: '匹配UI元素。Mode: fuzzy, exact, regex, resource_id, all_match, not_all_match' },
     { label: 'ocr', insertText: 'ocr(text="${1:text}")', doc: '匹配OCR文本。Mode: fuzzy, exact, regex' },
     { label: 'image', insertText: 'image(id="${1:templateId}")', doc: '匹配图元' },
   ].map(m => ({

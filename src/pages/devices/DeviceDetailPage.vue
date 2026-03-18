@@ -575,10 +575,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .device-detail-page {
-  padding: 0px;
+  padding: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .header-bar {
@@ -592,13 +593,14 @@ onBeforeUnmount(() => {
 }
 
 .tabs-container {
-  flex-grow: 1;
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
 .device-tabs {
+  flex: 1;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -608,9 +610,18 @@ onBeforeUnmount(() => {
 
 :deep(.el-tabs__content) {
   flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 15px;
   overflow: auto;
   background-color: #f5f7fa;
+}
+
+:deep(.el-tab-pane) {
+  height: 100%;      /* 让具体的 Tab 面板 100% 高 */
+  display: flex;
+  flex-direction: column;
 }
 
 .tab-content-scroll {

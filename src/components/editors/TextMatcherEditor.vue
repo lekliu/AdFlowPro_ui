@@ -69,6 +69,8 @@ const availableMatchModes = computed(() => {
     { label: "模糊匹配", value: "fuzzy" },
     { label: "模糊匹配+坐标", value: "fuzzy_with_coords" },
     { label: "精准匹配 (Exact)", value: "exact" },
+    { label: "正则匹配 (Regex)", value: "regex" },
+
     { label: "全量匹配 (All Match)", value: "all_match" },
     { label: "非全量匹配 (Not All Match)", value: "not_all_match" },
     { label: "不包含 (Must Not Contain)", value: "must_not_contain" },
@@ -78,6 +80,7 @@ const availableMatchModes = computed(() => {
   if (editableMatcher.sceneType === 'ui') {
     // Insert at a specific position for better ordering if needed
     modes.splice(3, 0, { label: "类名+坐标", value: "class_and_bounds" });
+    modes.splice(5, 0, { label: "ID 匹配 (Resource ID)", value: "resource_id" });
   }
   return modes;
 });
@@ -96,13 +99,21 @@ const placeholderText = computed(() => {
   if (editableMatcher.matchMode === 'class_and_bounds') {
     return '例如: ImageView [100, 200, 300, 400]';
   }
+  if (editableMatcher.matchMode === 'resource_id') {
+    return '输入 Resource ID (如: btn_login) 后回车';
+  }
+  if (editableMatcher.matchMode === 'regex') {
+    return '输入正则表达式 (如: 余额:.*) 后回车';
+  }
   return '输入备选文本后按回车';
 });
 
 // Auto-reset matchMode if switching to OCR and current mode is incompatible
 watch(() => editableMatcher.sceneType, (newType) => {
-  if (newType === 'ocr' && editableMatcher.matchMode === 'class_and_bounds') {
-    editableMatcher.matchMode = 'fuzzy';
+  if (newType === 'ocr') {
+    if (editableMatcher.matchMode === 'class_and_bounds' || editableMatcher.matchMode === 'resource_id') {
+      editableMatcher.matchMode = 'fuzzy';
+    }
   }
 });
 

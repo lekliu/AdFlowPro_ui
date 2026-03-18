@@ -1,9 +1,17 @@
 <template>
-  <el-card>
+  <el-card class="ui-structure-card-root">
     <template #header>
       <div class="card-header">
         <span>UI 结构</span>
         <div class="header-filter-group" style="display: flex; align-items: center; gap: 10px; margin-left: 20px; flex: 1;">
+          <!-- [新增] 全文显示切换开关 -->
+          <el-button
+              size="small"
+              :type="showFullText ? 'primary' : ''"
+              :icon="Document"
+              @click="showFullText = !showFullText"
+          >全文</el-button>
+
           <div class="spatial-grid">
             <div
                 v-for="i in 9"
@@ -42,25 +50,50 @@
       </div>
     </template>
 
-    <div v-if="fullText" class="full-text-preview">
-      <strong>Full Text Preview:</strong>
-      <pre>{{ fullText }}</pre>
-    </div>
-    <div class="ui-structure-container" v-loading="isLoading">
-      <!-- 使用过滤后的数据 filteredStructure -->
-      <UiTreeNode v-if="filteredStructure" :node="filteredStructure" :root-package-name="filteredStructure.packageName" :is-expanded-override="isAllExpanded" />
-      <el-empty v-else description="暂无符合筛选条件的UI节点" :image-size="80" />
+    <!-- 核心布局：左右分屏容器 -->
+    <div class="split-container">
+      <!-- 左侧：UI 树 -->
+      <div class="tree-panel custom-scrollbar" v-loading="isLoading">
+        <UiTreeNode v-if="filteredStructure" :node="filteredStructure" :root-package-name="filteredStructure.packageName" :is-expanded-override="isAllExpanded" />
+        <el-empty v-else description="暂无符合筛选条件的UI节点" :image-size="80" />
+      </div>
+
+      <!-- 右侧：全文预览 (受 showFullText 控制显示隐藏) -->
+      <transition name="slide">
+        <div v-if="showFullText" class="full-text-panel">
+          <div class="panel-header">
+            <div class="header-label-group">
+              <strong>预览:</strong>
+              <div class="content-toggle-group">
+                <el-tooltip content="文本 (Text)" placement="top">
+                  <div :class="['toggle-item', { active: contentFilter.text }]" @click="contentFilter.text = !contentFilter.text">T</div>
+                </el-tooltip>
+                <el-tooltip content="描述 (Description)" placement="top">
+                  <div :class="['toggle-item', { active: contentFilter.desc }]" @click="contentFilter.desc = !contentFilter.desc">D</div>
+                </el-tooltip>
+                <el-tooltip content="资源ID (ID)" placement="top">
+                  <div :class="['toggle-item', { active: contentFilter.id }]" @click="contentFilter.id = !contentFilter.id">I</div>
+                </el-tooltip>
+              </div>
+            </div>
+            <el-button link type="primary" :icon="CopyDocument" @click="handleCopyText(fullText)">复制全文</el-button>
+          </div>
+          <pre class="full-text-content custom-scrollbar"><code>{{ fullText }}</code></pre>
+        </div>
+      </transition>
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { Search, CopyDocument } from "@element-plus/icons-vue";
-import { ref, computed } from "vue";
+import { Search, CopyDocument, Document } from "@element-plus/icons-vue";
+import { ref, computed, reactive } from "vue";
 import UiTreeNode from "./UiTreeNode.vue";
 import type { UiNode } from "@/types/api/device";
 import { ElMessage } from "element-plus";
 import { copyToClipboard } from "@/utils/clipboard";
+
+const showFullText = ref(true); // 控制全文预览面板显示
 
 const props = defineProps<{
   structure: UiNode | null;
@@ -77,6 +110,13 @@ const filterHasText = ref(false);
 const isAllExpanded = ref<boolean>(false);
 const isRawMode = ref<boolean>(false);
 
+// 内容过滤状态 (T: Text, D: Desc, I: ID)
+const contentFilter = reactive({
+  text: true,
+  desc: true,
+  id: true
+});
+
 // 3. 过滤算法
 const checkSpatial = (bounds: [number, number, number, number] | undefined) => {
   if (!spatialRegion.value || !bounds) return true;
@@ -89,6 +129,13 @@ const checkSpatial = (bounds: [number, number, number, number] | undefined) => {
   const xIdx = Math.floor((centerX / screenW) * 3);
   const yIdx = Math.floor((centerY / screenH) * 3);
   return (yIdx * 3 + xIdx + 1) === spatialRegion.value;
+};
+
+const handleCopyText = async (text: string) => {
+  if (!text) return;
+  if (await copyToClipboard(text)) {
+    ElMessage.success({ message: "文本已成功复制", duration: 1500 });
+  }
 };
 
 const getFilteredTree = (node: UiNode): UiNode | null => {
@@ -116,8 +163,17 @@ const fullText = computed(() => {
   const lines: string[] = [];
 
   const traverse = (node: UiNode) => {
-    if (node.text) lines.push(node.text);
-    else if (node.contentDescription) lines.push(node.contentDescription);
+    // 1. 文本 (Text)
+    if (contentFilter.text && node.text && node.text.trim()) lines.push(node.text);
+
+    // 2. 描述 (Description)
+    if (contentFilter.desc && node.contentDescription && node.contentDescription.trim()) lines.push(node.contentDescription);
+
+    // 3. ID 短名称
+    if (contentFilter.id && node.viewIdResourceName) {
+      const shortId = node.viewIdResourceName.split("/").pop();
+      if (shortId) lines.push(shortId);
+    }
 
     if (node.children) {
       node.children.forEach(traverse);
@@ -125,7 +181,7 @@ const fullText = computed(() => {
   };
 
   traverse(filteredStructure.value); // 使用过滤后的树进行遍历
-  return lines.join("  ");
+  return lines.join("\n");
 });
 
 const handleCopyStructure = async () => {
@@ -136,6 +192,140 @@ const handleCopyStructure = async () => {
 </script>
 
 <style scoped>
+/* 1. 根容器自适应布局：占满视口高度减去页眉高度 */
+.ui-structure-card-root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid #ebeef5;
+  overflow: hidden !important;
+  margin-bottom: 0 !important;
+}
+
+/* 穿透修改 Element 内部样式，让 body 区域撑开并取消内边距 */
+:deep(.el-card__body) {
+  padding: 0 !important;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden !important;
+}
+
+/* 容器布局 */
+.split-container {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid #ebeef5;
+  overflow: hidden !important;
+}
+
+/* 左侧 UI 树面板 */
+.tree-panel {
+  flex: 1; /* 自动撑满剩余空间 */
+  min-width: 0;
+  padding: 15px;
+  overflow: auto;
+  font-family: "Fira Code", "Courier New", monospace;
+  font-size: 13px;
+  background-color: #ffffff;
+  display: block;
+}
+
+/* 右侧全文预览面板 */
+.full-text-panel {
+  width: 300px;
+  border-left: 1px solid #dcdfe6;
+  background-color: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 8px 12px;
+  background-color: #f0f2f5;
+  border-bottom: 1px solid #dcdfe6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #606266;
+}
+
+.header-label-group {
+  display: flex;
+  align-items: center;
+}
+
+.content-toggle-group {
+  display: flex;
+  gap: 2px;
+  background: #ebeef5;
+  padding: 2px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.toggle-item {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  background: #fff;
+  color: #909399;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.toggle-item:hover {
+  color: #409eff;
+}
+
+.toggle-item.active {
+  background: #409eff;
+  color: #fff;
+}
+
+.full-text-content {
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  flex: 1;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #303133;
+  white-space: pre-wrap; /* 保证换行符生效并自动折行 */
+  word-break: break-all;
+}
+
+.full-text-content code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  color: inherit;
+}
+
+/* 面板滑入滑出动画 */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  width: 0;
+  opacity: 0;
+  border-left-width: 0;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -145,35 +335,37 @@ const handleCopyStructure = async () => {
   display: flex;
   align-items: center;
 }
-.ui-structure-container {
-  background-color: #f8f9fa;
-  color: #303133;
-  padding: 15px;
-  border-radius: 4px;
-  border: 1px solid #e4e7ed;
-  overflow-x: auto;
-  font-family: "Fira Code", "Courier New", monospace;
-  font-size: 13px;
-  position: relative; /* Fix for overflow issue in flex context */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.full-text-preview {
-  margin-bottom: 10px;
-  padding: 15px;
-  background-color: #f0f2f5;
-  border-radius: 14px;
-  font-size: 14px;
-  color: #606266;
-  white-space: normal;
-  word-break: break-all;
+
+/* 商业级滚动条美化 - 加粗版 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;  /* 纵向滚动条宽度从 6px 增加到 10px */
+  height: 10px; /* 横向滚动条高度从 6px 增加到 10px */
 }
 
-.full-text-preview pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 0px;
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #dcdfe6; /* 稍微深一点的颜色，增强可见度 */
+  border-radius: 10px;
+  border: 2px solid transparent; /* 技巧：通过透明边框增加“槽感”，让滚动条看起来精致 */
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc; /* 悬停时加深颜色 */
+}
+
+/* 核心修复：彻底去除图中那种文字碎块的灰色背景 */
+.preview-content code {
+  background-color: transparent !important; /* 去除背景 */
+  padding: 0 !important;                   /* 去除内边距 */
+  border: none !important;                 /* 去除边框 */
+  color: inherit;                          /* 继承父级文字颜色 */
+}
+
+.preview-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #909399;
+  text-transform: uppercase;
 }
 
 /* 九宫格容器布局 */

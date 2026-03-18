@@ -169,7 +169,9 @@ const generateNodeKey = (node: UiNode, index: number): string => {
 <style scoped>
 .ui-tree-node {
   line-height: 1.6;
-  white-space: nowrap;
+  white-space: nowrap; /* 核心：禁止文字和标签换行，强制产生横向长度 */
+  width: max-content;  /* 核心：容器宽度随内容自适应，触发父级滚动条 */
+  min-width: 100%;     /* 保证背景色能铺满整行 */
 }
 
 .node-content {

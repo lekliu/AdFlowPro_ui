@@ -452,7 +452,7 @@ export const parseCode = (code: string, originalForm: any): any => {
                 newForm.sceneSnapshotJson.primaryMatcher.matchMode = params.mode || 'fuzzy';
                 if (params.left !== undefined && params.top !== undefined) {
                     newForm.sceneSnapshotJson.primaryMatcher.coordinates = { left: Number(params.left), top: Number(params.top) };
-                } else if (newForm.sceneSnapshotJson.primaryMatcher.matchMode === 'fuzzy') {
+                } else if (['fuzzy', 'exact', 'regex', 'resource_id'].includes(newForm.sceneSnapshotJson.primaryMatcher.matchMode)) {
                     delete newForm.sceneSnapshotJson.primaryMatcher.coordinates;
                 }
                 break;

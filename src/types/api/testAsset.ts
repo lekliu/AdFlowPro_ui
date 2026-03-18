@@ -68,7 +68,7 @@ export interface Matcher {
   // 2. Text-specific fields
   sceneType?: "ui" | "ocr";
   text?: string | string[];
-  matchMode?: "fuzzy" | "fuzzy_with_coords" | "class_and_bounds" | "must_not_contain" | "exact";
+  matchMode?: "fuzzy" | "fuzzy_with_coords" | "class_and_bounds" | "must_not_contain" | "exact" | "all_match" | "not_all_match" | "regex" | "resource_id";
   coordinates?: MatcherCoordinates;
 
   // 3. Image-specific fields

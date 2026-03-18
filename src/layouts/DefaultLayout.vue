@@ -1,5 +1,5 @@
 <template>
-  <el-container class="main-layout">
+  <el-container class="main-layout" :class="{ 'header-hidden': !isHeaderVisible }">
     <el-aside :width="asideWidth" class="aside-border">
       <Sidebar :is-collapse="isCollapse" />
     </el-aside>
@@ -24,6 +24,13 @@
         <div class="header-actions-right">
           <!-- 快捷工具组 -->
           <div class="tool-group">
+            <!-- [新增] 隐藏顶栏按钮 -->
+            <el-tooltip content="收起顶栏" placement="bottom">
+              <div class="action-item" @click="isHeaderVisible = false">
+                <el-icon><ArrowUp /></el-icon>
+              </div>
+            </el-tooltip>
+
             <el-tooltip :content="wsStatusTooltip" placement="bottom">
               <div class="action-item" @click="handleWsStatusClick">
                 <el-icon :class="['status-icon', webSocketStore.connectionStatus]">
@@ -64,6 +71,11 @@
           </el-dropdown>
         </div>
       </el-header>
+
+      <!-- [新增] 隐藏后的拉手按钮 -->
+      <div v-if="!isHeaderVisible" class="header-pull-down" @click="isHeaderVisible = true">
+        <el-icon><ArrowDown /></el-icon>
+      </div>
 
       <!-- 优化后的 Tabs 区域 -->
       <div class="tabs-view-container">
@@ -141,7 +153,7 @@ import IconPanelToggle from "@/components/icons/IconPanelToggle.vue";
 import Sortable from "sortablejs";
 
 import {
-  Fold, Expand, ArrowDown, Link, Connection, Loading,
+  Fold, Expand, ArrowDown, ArrowUp, Link, Connection, Loading,
   UserFilled, User, Setting, SwitchButton, CircleClose
 } from "@element-plus/icons-vue";
 import apiClient from "@/api/apiClient";
@@ -151,6 +163,9 @@ const router = useRouter();
 const tabStore = useTabStore();
 const webSocketStore = useWebSocketStore();
 const authStore = useAuthStore();
+
+// [新增] 控制 Header 显示的状态
+const isHeaderVisible = ref(true);
 
 // --- 侧边栏折叠逻辑 ---
 const isCollapse = ref(false);
@@ -307,8 +322,10 @@ watch(() => route.fullPath, (newPath) => {
 .main-layout { height: 100vh; background-color: #f5f7fa; }
 .aside-border { border-right: 1px solid #dcdfe6; transition: width 0.3s; }
 
+/* 1. Header 基础样式：增加高度和透明度的过渡动画 */
 .layout-header {
-  background-color: #fff;
+  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+  background-color: #ffffff;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -317,6 +334,41 @@ watch(() => route.fullPath, (newPath) => {
   border-bottom: 1px solid #f0f0f0;
   box-shadow: 0 1px 4px rgba(0,21,41,.08);
   z-index: 11;
+  overflow: hidden;
+}
+
+/* 2. 隐藏状态的类定义 */
+.header-hidden .layout-header {
+  height: 0 !important;
+  padding: 0 !important;
+  border-bottom: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 3. 隐藏后的浮动拉手 */
+.header-pull-down {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 14px;
+  background-color: rgba(64, 158, 255, 0.2);
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 1000;
+  transition: all 0.2s;
+  color: #409eff;
+}
+
+.header-pull-down:hover {
+  background-color: #409eff;
+  color: white;
+  height: 20px;
 }
 
 .header-left { display: flex; align-items: center; }
