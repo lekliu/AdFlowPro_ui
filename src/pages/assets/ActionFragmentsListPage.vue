@@ -6,7 +6,7 @@
           <span class="title">动作片段 (Action Fragments)</span>
           <el-button-group>
             <el-button type="primary" :icon="Plus" @click="handleCreate">新建片段</el-button>
-            <el-button type="danger" plain :icon="Delete" :disabled="!selectedIds.length" @click="handleBatchDelete">删除选中</el-button>
+            <el-button type="danger" plain :icon="Delete" :disabled="!selectedItems.length" @click="handleBatchDelete">删除选中</el-button>
           </el-button-group>
         </div>
       </template>
@@ -18,7 +18,16 @@
         </el-select>
       </div>
 
-      <el-table :data="fragmentStore.fragments" v-loading="fragmentStore.isLoading" border stripe @selection-change="handleSelectionChange">
+      <el-table 
+        :data="fragmentStore.fragments" 
+        v-loading="fragmentStore.isLoading" 
+        border 
+        stripe 
+        ref="tableRef"
+        @selection-change="handleSelectionChange"
+        @row-click="handleRowClick"
+        @row-dblclick="handleRowDblClick"
+      >
         <el-table-column type="selection" width="50" align="center" />
         <el-table-column prop="fragmentId" label="ID" width="80" align="center" />
         <el-table-column prop="name" label="片段名称" min-width="200" show-overflow-tooltip />
@@ -33,7 +42,7 @@
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="更新时间" width="180">
-          <template #default="{ row }">{{ new Date(row.updatedAt).toLocaleString() }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -63,22 +72,29 @@ import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
 import { useActionFragmentStore } from "@/stores/actionFragmentStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessageBox, ElMessage } from "element-plus";
+import { formatDateTime } from "@/utils/formatter";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
+import { confirmBatchDelete } from "@/utils/messageBox";
 
 const router = useRouter();
 const fragmentStore = useActionFragmentStore();
 const categoryStore = useAtomCategoryStore();
 
-const searchQuery = ref("");
+// --- 使用组合式逻辑管理表格状态 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(15);
+const {
+  tableRef,
+  selection: selectedItems,
+  handleSelectionChange,
+  handleRowClick,
+  handleRowDblClick
+} = useTableHelper("fragmentId", "ActionFragmentEditor");
+
 const categoryFilter = ref<number | null>(null);
-const currentPage = ref(1);
-const pageSize = ref(15);
-const selectedIds = ref<number[]>([]);
 
 const fetchData = () => {
   fragmentStore.fetchFragments({
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
+    ...getPaginationParams(),
     categoryId: categoryFilter.value || undefined
   });
 };
@@ -88,25 +104,20 @@ onMounted(() => {
   categoryStore.fetchAllCategories();
 });
 
-const handleSelectionChange = (selection: any[]) => {
-  selectedIds.value = selection.map(item => item.fragmentId);
-};
-
-const handleSearch = () => { currentPage.value = 1; fetchData(); };
+const handleSearch = () => { resetPagination(); fetchData(); };
 const handlePageChange = (page: number) => { currentPage.value = page; fetchData(); };
 const handleCreate = () => router.push({ name: "ActionFragmentEditor" });
 const handleEdit = (id: number) => router.push({ name: "ActionFragmentEditor", params: { fragmentId: id } });
 
 const handleBatchDelete = () => {
-  ElMessageBox.confirm(`确定要批量删除选中的 ${selectedIds.value.length} 个动作片段吗？`, "批量删除确认", {
-    type: "warning",
-    confirmButtonClass: "el-button--danger"
-  }).then(async () => {
-    await fragmentStore.removeBatch(selectedIds.value);
+  const names = selectedItems.value.map(i => i.name);
+  confirmBatchDelete(names, "动作片段").then(async (ok) => {
+    if (!ok) return;
+    const ids = selectedItems.value.map(i => i.fragmentId);
+    await fragmentStore.removeBatch(ids);
     ElMessage.success("批量删除成功");
-    selectedIds.value = [];
     fetchData();
-  }).catch(() => {});
+  });
 };
 
 const handleDelete = (row: any) => {

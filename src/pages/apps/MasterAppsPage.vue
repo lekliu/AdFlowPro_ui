@@ -55,7 +55,7 @@
           style="width: 100%"
           border
           stripe
-          ref="appTableRef"
+          ref="tableRef"
           row-key="appId"
           @selection-change="handleSelectionChange"
           @row-click="handleRowClick"
@@ -280,22 +280,30 @@ import { deviceService } from "@/api/deviceService";
 import { masterAppService } from "@/api/masterAppService";
 import { jobService } from "@/api/jobService";
 import type { MasterAppPublic, DevicePublic, MasterAppCreatePayload, MasterAppUpdatePayload } from "@/types/api";
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type ElTable } from "element-plus";
+import {ElMessage, type ElTable, type FormInstance, type FormRules} from "element-plus";
 import { Plus, Edit, Delete, Search, Download, Upload, Refresh, VideoPlay } from "@element-plus/icons-vue";
 import { useSuiteStore } from "@/stores/suiteStore";
 import { useRouter } from "vue-router";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
+import { confirmBatchDelete } from "@/utils/messageBox";
 
 const appStore = useMasterAppStore();
 const suiteStore = useSuiteStore();
 const router = useRouter();
 
-// --- 分页和搜索状态 ---
-const currentPage = ref(1);
-const pageSize = ref(10);
-const searchQuery = ref("");
 const suiteFilter = ref("");
-const appTableRef = ref<InstanceType<typeof ElTable>>();
-const selectedApps = ref<MasterAppPublic[]>([]);
+
+// --- 使用组合式逻辑管理表格状态 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(10);
+const {
+  tableRef,
+  selection: selectedApps,
+  handleSelectionChange,
+  handleRowClick,
+  handleRowDblClick
+} = useTableHelper("appId", (row) => handleOpenDialog(row));
+
+
 
 // --- 对话框状态 ---
 const dialogVisible = ref(false);
@@ -362,12 +370,9 @@ const contextMenu = reactive({
 // --- 数据获取方法 ---
 const fetchData = () => {
   const params = {
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
+    ...getPaginationParams(),
     suiteSearch: suiteFilter.value || undefined
   };
-
   appStore.fetchApps(params);
 };
 
@@ -388,30 +393,14 @@ onBeforeUnmount(() => {
   window.removeEventListener("click", closeContextMenu);
 });
 
-// --- 表格交互 ---
-const handleSelectionChange = (selection: MasterAppPublic[]) => {
-  selectedApps.value = selection;
-};
-
-const handleRowClick = (row: MasterAppPublic) => {
-  if (appTableRef.value) {
-    // 切换当前行的选中状态
-    appTableRef.value.toggleRowSelection(row, undefined);
-  }
-};
-
-const handleRowDblClick = (row: MasterAppPublic) => {
-  handleOpenDialog(row);
-};
-
 const handleRowContextMenu = (row: MasterAppPublic, column: any, event: MouseEvent) => {
   event.preventDefault();
   // 右键点击时，如果当前行未被选中，则清除其他选中并选中当前行
-  if (appTableRef.value) {
+  if (tableRef.value) {
     const isSelected = selectedApps.value.some(item => item.appId === row.appId);
     if (!isSelected) {
-      appTableRef.value.clearSelection();
-      appTableRef.value.toggleRowSelection(row, true);
+      tableRef.value.clearSelection();
+      tableRef.value.toggleRowSelection(row, true);
     }
   }
 
@@ -427,7 +416,7 @@ const closeContextMenu = () => {
 
 // --- 分页与搜索 ---
 const handleSearch = () => {
-  currentPage.value = 1;
+  resetPagination();
   fetchData();
 };
 
@@ -514,35 +503,22 @@ const handleSubmit = async () => {
 const handleDeleteSelected = async () => {
   if (selectedApps.value.length === 0) return;
 
-  try {
-    const names = selectedApps.value.map(a => a.appName).join(', ');
-    await ElMessageBox.confirm(
-        `确定要删除选中的 ${selectedApps.value.length} 个应用吗？\n涉及: ${names}\n\n注意：这将同时永久删除云端存储的APK文件！`,
-        "确认批量删除",
-        {
-          type: "warning",
-          confirmButtonText: "确定删除",
-          cancelButtonText: "取消",
-        }
-    );
+  const names = selectedApps.value.map(a => a.appName);
+  // 保留商用风险提示：APK 物理删除
+  const warning = "\n注意：这将同时永久删除云端存储的 APK 文件！";
+  
+  if (await confirmBatchDelete(names, "应用" + warning)) {
+    try {
+      const deletePromises = selectedApps.value.map(app => appStore.removeApp(app.appId, true));
+      await Promise.all(deletePromises);
 
-    // 批量删除，强制 deleteFiles=true
-    const deletePromises = selectedApps.value.map(app => appStore.removeApp(app.appId, true));
-    await Promise.all(deletePromises);
+      ElMessage.success("删除成功！");
 
-    ElMessage.success("删除成功！");
-    selectedApps.value = []; // 清空选中
-
-    if (appStore.apps.length === 0 && currentPage.value > 1) {
-      currentPage.value--;
-    }
-    fetchData();
-  } catch (error) {
-    if (error !== "cancel") {
-      // API error handled by interceptor
-    } else {
-      ElMessage.info("已取消删除");
-    }
+      if (appStore.apps.length === 0 && currentPage.value > 1) {
+        currentPage.value--;
+      }
+      fetchData();
+    } catch (e) {}
   }
 };
 

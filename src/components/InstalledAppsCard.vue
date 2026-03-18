@@ -65,7 +65,7 @@
       <!-- 新增：上次运行时间 -->
       <el-table-column label="上次运行" width="100" align="center">
         <template #default="{ row }">
-          <span v-if="row.lastRunAt" class="time-text">{{ formatDate(row.lastRunAt) }}</span>
+          <span v-if="row.lastRunAt" class="time-text">{{ formatDateTime(row.lastRunAt, "MM-DD HH:mm") }}</span>
           <span v-else class="placeholder-text">--</span>
         </template>
       </el-table-column>
@@ -146,11 +146,8 @@
 <script setup lang="ts">
 import { Delete, Plus, VideoPlay, Search } from "@element-plus/icons-vue";
 import type { DeviceInstalledApp } from "@/types/api";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
 import { ref, computed } from "vue";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
 
 const props = defineProps<{
   apps: DeviceInstalledApp[];
@@ -216,11 +213,6 @@ const filteredApps = computed(() => {
 
   return result;
 });
-
-const formatDate = (dateString: string) => {
-  // 明确指定输入为 UTC，并转换为本地时间
-  return dayjs.utc(dateString).local().format("MM-DD HH:mm");
-};
 
 // 格式化秒数为可读字符串
 const formatDuration = (seconds: number) => {

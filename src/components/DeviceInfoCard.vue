@@ -27,29 +27,18 @@
       <el-descriptions-item label="IP Address">{{
           device.ipAddress || "N/A"
         }}</el-descriptions-item>
-      <el-descriptions-item label="Last Seen">{{
-          formatDate(device.lastSeenAt)
-        }}</el-descriptions-item>
-      <el-descriptions-item label="Registered At">{{
-          formatDate(device.registeredAt)
-        }}</el-descriptions-item>
+      <el-descriptions-item label="Last Seen">{{ formatDateTime(device.lastSeenAt) }}</el-descriptions-item>
+      <el-descriptions-item label="Registered At">{{ formatDateTime(device.registeredAt) }}</el-descriptions-item>
     </el-descriptions>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import type { DevicePublic } from "@/types/api";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
 
 defineProps<{
   device: DevicePublic;
 }>();
 
-const formatDate = (dateString: string | Date): string => {
-  if (!dateString) return "N/A";
-  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
-};
 </script>

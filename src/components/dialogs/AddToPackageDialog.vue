@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="快捷归属到测试包" width="520px" append-to-body destroy-on-close>
+  <el-dialog v-model="visible" title="快捷归属到测试包" width="560px" append-to-body destroy-on-close>
     <div v-loading="loading">
       <div class="header-tip">
         <el-icon><InfoFilled /></el-icon>
@@ -35,18 +35,28 @@
         </el-input>
       </div>
 
-      <el-table :data="recommendations" size="small" border stripe max-height="420px">
+      <el-table 
+        :data="recommendations" 
+        size="small" 
+        border 
+        stripe 
+        max-height="420px"
+        :row-class-name="tableRowClassName"
+      >
         <el-table-column prop="name" label="测试包名称" min-width="200" show-overflow-tooltip />
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.isJoined" type="info" size="small">已包含</el-tag>
-            <el-tag v-else type="success" size="small">可选</el-tag>
+            <el-tag v-if="row.isJoined" type="success" size="small" effect="dark">已包含</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain">未包含</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center">
+        <el-table-column label="操作" width="140" align="center">
           <template #default="{ row }">
-            <el-button v-if="!row.isJoined" type="primary" link :icon="Plus" @click="handleAction(row)" :loading="row.submitting">添加</el-button>
-            <el-button v-else type="primary" link @click="jumpToPackage(row.packageId)">查看</el-button>
+            <el-button v-if="!row.isJoined" type="primary" link :icon="Plus" @click="handleAdd(row)" :loading="row.submitting">添加</el-button>
+            <div v-else class="action-btns">
+              <el-button type="danger" link :icon="Remove" @click="handleRemove(row)" :loading="row.submitting">移除</el-button>
+              <el-button type="primary" link @click="jumpToPackage(row.packageId)">查看</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -56,9 +66,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Plus, InfoFilled, Search } from '@element-plus/icons-vue';
+import { Plus, Remove, InfoFilled, Search } from '@element-plus/icons-vue';
 import apiClient from '@/api/apiClient';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import { useAtomCategoryStore } from '@/stores/atomCategoryStore';
 
@@ -78,6 +88,10 @@ const headerTipText = computed(() => {
   }
   return "智能推荐：系统已为您匹配同分类及最近编辑的测试包。";
 });
+
+const tableRowClassName = ({ row }: { row: any }) => {
+  return row.isJoined ? 'joined-row' : '';
+};
 
 const open = async (atomId: number) => {
   currentAtomId.value = atomId;
@@ -102,12 +116,28 @@ const fetchData = async () => {
   }
 };
 
-const handleAction = async (row: any) => {
+const handleAdd = async (row: any) => {
   row.submitting = true;
   try {
     await apiClient.post(`/packages/${row.packageId}/atoms/${currentAtomId.value}`);
-    ElMessage.success(`已加入包: ${row.name}`);
-    visible.value = false;
+    ElMessage.success(`已添加至: ${row.name}`);
+    row.isJoined = true;
+  } finally {
+    row.submitting = false;
+  }
+};
+
+const handleRemove = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定从包 "${row.name}" 中移除此原子操作吗？`, '确认移除', {
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger'
+    });
+    row.submitting = true;
+    await apiClient.delete(`/packages/${row.packageId}/atoms/${currentAtomId.value}`);
+    ElMessage.success('移除成功');
+    row.isJoined = false;
+  } catch (e) {
   } finally {
     row.submitting = false;
   }
@@ -129,5 +159,13 @@ defineExpose({ open });
 }
 .filter-toolbar {
   display: flex; gap: 10px; margin-bottom: 10px;
+}
+.action-btns { display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+:deep(.joined-row) {
+  background-color: #f0f9eb !important;
+}
+:deep(.joined-row:hover > td) {
+  background-color: #e1f3d8 !important;
 }
 </style>

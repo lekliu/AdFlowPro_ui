@@ -1,0 +1,69 @@
+/* 全局滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b1b1b1;
+}
+
+/* 标准页面容器 */
+.af-page-container {
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* 列表页标准头部布局 */
+.af-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.af-list-header .left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.af-list-header .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 分页居右包裹器 */
+.af-pagination-wrap {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 代码/ID 专用字体展示 */
+code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+/* 紧急报警脉冲动画 */
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 10px rgba(204, 0, 0, 0.6); }
+  50% { box-shadow: 0 0 25px rgba(204, 0, 0, 1); border-color: #fff; }
+  100% { box-shadow: 0 0 10px rgba(204, 0, 0, 0.6); }
+}
+
+.critical-alarm-box {
+  animation: pulse-red 1.5s infinite;
+}

@@ -1,10 +1,9 @@
 <template>
-  <div class="suites-list-page" @click="closeContextMenu">
+  <div class="af-page-container" @click="closeContextMenu">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span class="title">测试套件管理</span>
-
+        <div class="af-list-header">
+          <div class="left">
           <!-- 批量操作和新建 -->
           <el-button-group class="header-button-group">
             <el-button :icon="Plus" type="primary" @click="handleCreate">新建套件</el-button>
@@ -14,9 +13,10 @@
             <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedSuites.length !== 1">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedSuites.length === 0">删除</el-button>
           </el-button-group>
+          </div>
 
           <!-- 搜索和筛选器 (推到最右侧) -->
-          <div class="filter-group-auto">
+          <div class="right">
             <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px; margin-right: 10px">
               <el-option
                   v-for="cat in categoryStore.allCategories"
@@ -44,7 +44,7 @@
           @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
           @row-contextmenu="handleRowContextMenu"
-          ref="suiteTableRef"
+          ref="tableRef"
       >
         <el-table-column type="selection" width="40" />
         <el-table-column prop="suiteId" label="ID" width="80" sortable />
@@ -73,13 +73,13 @@
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
         <el-table-column prop="targetAppPackage" label="目标App" min-width="180" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="160" sortable>
-          <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
+          <template #default="scope">{{ formatDateTime(scope.row.createdAt) }}</template>
         </el-table-column>
       </el-table>
 
-      <el-pagination
-          v-if="suiteStore.totalSuites > 0"
-          class="pagination-container"
+      <div class="af-pagination-wrap">
+        <el-pagination
+            v-if="suiteStore.totalSuites > 0"
           :current-page="currentPage"
           :page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
@@ -88,6 +88,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
       />
+      </div>
     </el-card>
 
     <el-dialog v-model="runDialog.visible" title="运行测试套件" width="500px" @close="resetRunDialog">
@@ -188,14 +189,12 @@ import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { jobService } from "@/api/jobService";
 import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type FormRules, type ElTree } from "element-plus";
-import type { ElTable } from "element-plus";
 import { Plus, Edit, Delete, Search, VideoPlay, Document, Upload } from "@element-plus/icons-vue";
 import type { TestSuiteListPublic } from "@/types/api";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
 import { suiteService } from "@/api/suiteService";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
+import { confirmBatchDelete } from "@/utils/messageBox";
 
 const router = useRouter();
 const suiteStore = useSuiteStore();
@@ -203,21 +202,24 @@ const masterAppStore = useMasterAppStore();
 const categoryStore = useAtomCategoryStore();
 const deviceStore = useDeviceStore();
 
-const currentPage = ref(1);
-const pageSize = ref(10);
-const searchQuery = ref("");
+// --- 使用组合式逻辑管理表格状态 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(10);
+const {
+  tableRef,
+  selection: selectedSuites,
+  handleSelectionChange,
+  handleRowClick,
+  handleRowDblClick
+} = useTableHelper("suiteId", "TestSuiteEditor");
+
 const categoryFilter = ref<number | "">("");
 const treeRef = ref<InstanceType<typeof ElTree>>();
-const suiteTableRef = ref<InstanceType<typeof ElTable>>();
-const selectedSuites = ref<TestSuiteListPublic[]>([]);
 
 const fetchData = () => {
   const params = {
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
+    ...getPaginationParams(),
     categoryId: categoryFilter.value || undefined,
-  };
+  }
   suiteStore.fetchSuites(params);
 };
 
@@ -234,19 +236,12 @@ onMounted(() => {
 });
 
 const handleSearch = () => {
-  currentPage.value = 1;
+  resetPagination();
   fetchData();
 };
 
-const handleSizeChange = (val: number) => {
-  pageSize.value = val;
-  fetchData();
-};
-
-const handleCurrentChange = (val: number) => {
-  currentPage.value = val;
-  fetchData();
-};
+const handleSizeChange = (val: number) => { pageSize.value = val; fetchData(); };
+const handleCurrentChange = (val: number) => { currentPage.value = val; fetchData(); };
 
 const handleCreate = () => {
   router.push({ name: "TestSuiteEditor" });
@@ -302,54 +297,24 @@ const handleEdit = (suiteId: number) => {
   router.push({ name: "TestSuiteEditor", params: { suiteId } });
 };
 
-const handleSelectionChange = (selection: TestSuiteListPublic[]) => {
-  selectedSuites.value = selection;
-};
-
-// 点击行时触发选中/取消选中
-const handleRowClick = (row: TestSuiteListPublic) => {
-  if (suiteTableRef.value) {
-    const isSelected = selectedSuites.value.some(item => item.suiteId === row.suiteId);
-    suiteTableRef.value.toggleRowSelection(row, !isSelected);
-  }
-};
-
-// 双击行进入编辑页面
-const handleRowDblClick = (row: TestSuiteListPublic) => {
-  if (row && row.suiteId) {
-    handleEdit(row.suiteId);
-  }
-};
-
 const handleEditSelected = () => {
   if (selectedSuites.value.length === 1) {
     handleEdit(selectedSuites.value[0].suiteId);
   } else {
-    ElMessage.warning("请选择且只选择一个测试套件进行编辑。");
+    ElMessage.warning("请选择一个测试套件进行编辑");
   }
 };
 
 const handleDeleteSelected = async () => {
   if (selectedSuites.value.length === 0) return;
-  const names = selectedSuites.value.map(a => a.name).join(', ');
-  try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedSuites.value.length} 个测试套件吗？\n涉及: ${names}`, "确认批量删除", {
-      type: "warning",
-      dangerouslyUseHTMLString: true,
-    });
-
+  const names = selectedSuites.value.map(s => s.name);
+  if (await confirmBatchDelete(names, "测试套件")) {
     const deletePromises = selectedSuites.value.map(s => suiteStore.deleteSuite(s.suiteId));
-
     await Promise.all(deletePromises);
-
     ElMessage.success(`成功删除 ${selectedSuites.value.length} 个测试套件！`);
-    fetchData(); // 重新加载数据以更新列表
-  } catch (error) {
-    if (error === 'cancel') ElMessage.info("已取消删除");
-    // 其他错误（如依赖冲突）由 API 拦截器处理
+    fetchData();
   }
 };
-
 
 const handleDelete = async (suiteId: number, name: string) => {
   try {
@@ -521,11 +486,6 @@ const handleCopyPackage = async () => {
   }
 };
 
-const formatDate = (dateString: string | Date): string => {
-  if (!dateString) return "N/A";
-  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
-};
-
 // --- 右键菜单状态 ---
 const contextMenu = reactive({
   visible: false,
@@ -540,9 +500,9 @@ const handleRowContextMenu = (row: TestSuiteListPublic, column: any, event: Mous
   event.preventDefault();
 
   // 2. 选中当前行 (可选，看交互习惯，通常右键点击也意味着关注该行)
-  if (suiteTableRef.value) {
-    suiteTableRef.value.clearSelection();
-    suiteTableRef.value.toggleRowSelection(row, true);
+  if (tableRef.value) {
+    tableRef.value.clearSelection();
+    tableRef.value.toggleRowSelection(row, true);
     selectedSuites.value = [row];
   }
 

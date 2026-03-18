@@ -6,6 +6,7 @@ import { ElNotification } from "element-plus";
 import { wsService } from "@/services/wsService";
 import { useDeviceStore } from "@/stores/deviceStore";
 import {useAuthStore} from "./authStore";
+import { formatTimeOnly } from "@/utils/formatter";
 
 // Define a type for our log entries for better structure
 export interface LogEntry {
@@ -49,7 +50,7 @@ export const useWebSocketStore = defineStore("uiWebSocket", () => {
   let reconnectTimer: number | null = null;
 
   function addLog(message: string, type: LogEntry["type"], payload?: any) {
-    const timestamp = new Date().toLocaleTimeString("en-GB");
+    const timestamp = formatTimeOnly(new Date());
     logs.value.unshift({ id: logCounter++, timestamp, message, type, payload });
     if (logs.value.length > 200) {
       logs.value.pop();

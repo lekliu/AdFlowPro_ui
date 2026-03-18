@@ -34,11 +34,11 @@
         <el-form-item label="范围">
           <el-date-picker
             v-model="filters.dateRange"
-            type="datetimerange"
+            type="daterange"
             range-separator="至"
-            start-placeholder="开始"
-            end-placeholder="结束"
-            size="small"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
             style="width: 330px"
             @change="handleFilterChange"
           />
@@ -96,9 +96,7 @@
       >
         <el-table-column type="selection" width="55" />
         <el-table-column label="上报时间" width="160">
-          <template #default="{ row }">
-            {{ formatDate(row.createdAt) }}
-          </template>
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="来源应用" min-width="180">
           <template #default="{ row }">
@@ -143,10 +141,7 @@ import { useMasterAppStore } from '@/stores/masterAppStore';
 import { Refresh } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-
-dayjs.extend(utc);
+import { formatDateTime, formatDateOnly, strToDay_start, strToDay_end, today } from "@/utils/formatter";
 
 const deviceStore = useDeviceStore();
 const appStore = useMasterAppStore();
@@ -173,12 +168,6 @@ interface ReportItem {
   appName: string;
 }
 
-// 核心修改后的逻辑（带时区转换）：
-const formatDate = (val: string | null) => {
-  if (!val) return '--';
-  return dayjs.utc(val).local().format('MM-DD HH:mm:ss');
-};
-
 const labels = ref<string[]>([]);
 const reports = ref<ReportItem[]>([]);
 const selectedIds = ref<number[]>([]);
@@ -197,16 +186,16 @@ const pagination = reactive({
   total: 0
 });
 
-// 初始化：默认范围为最近一个月
-const defaultEnd = dayjs();
-const defaultStart = dayjs().subtract(1, 'month');
+// 初始化：使用工具类获取默认范围 (最近一个月)
+const defaultEnd = today(0, 0);
+const defaultStart = today(-1, 0);
 
 const filters = reactive({
   label: '',
   deviceId: '',
   packageName: '',
   interval: 'day',
-  dateRange: [defaultStart.toDate(), defaultEnd.toDate()] as [Date, Date]
+  dateRange: [defaultStart, defaultEnd] as [string, string]
 });
 
 const fetchData = async (isRefresh: boolean = false) => {
@@ -222,9 +211,10 @@ const fetchData = async (isRefresh: boolean = false) => {
 
   console.log(">>> [LOG 1 - UI Request Params]:", JSON.stringify(params));
 
-  if (filters.dateRange && filters.dateRange.length === 2) {
-    params.start = filters.dateRange[0].toISOString();
-    params.end = filters.dateRange[1].toISOString();
+  if (filters.dateRange && filters.dateRange[0] && filters.dateRange[1]) {
+    // 核心修复：自动补全当天的起止时间点
+    params.start = strToDay_start(filters.dateRange[0]);
+    params.end = strToDay_end(filters.dateRange[1]);
   }
 
   const res = await dataReportService.getReports(params);
@@ -247,9 +237,9 @@ const fetchStats = async () => {
     packageName: filters.packageName || undefined
   };
 
-  if (filters.dateRange && filters.dateRange.length === 2) {
-    params.start = filters.dateRange[0].toISOString();
-    params.end = filters.dateRange[1].toISOString();
+  if (filters.dateRange && filters.dateRange[0] && filters.dateRange[1]) {
+    params.start = strToDay_start(filters.dateRange[0]);
+    params.end = strToDay_end(filters.dateRange[1]);
   }
 
   // 并发请求趋势数据和排名数据
@@ -272,13 +262,8 @@ const formatNumber = (val: number) => {
 const updateChart = (data: any[]) => {
   if (!myChart) myChart = echarts.init(chartRef.value);
 
-  // 核心修改：在渲染 X 轴之前，将每个时间桶字符串转换成本地时间
   const xAxisData = data.map(d => {
-    // 1. 后端返回的是类似 "2026-02-12 05:00" 的 UTC 字符串
-    // 2. 使用 dayjs.utc(d.time_bucket) 解析它
-    // 3. 使用 .local() 转换为本地时区
-    // 4. 使用 .format() 重新格式化为显示字符串
-    return dayjs.utc(d.time_bucket).local().format('YYYY-MM-DD HH:mm');
+    return formatDateOnly(d.time_bucket);
   });
 
   const option = {

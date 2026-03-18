@@ -24,7 +24,7 @@
       <el-table :data="alarms" v-loading="loading" border stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="50" />
         <el-table-column label="上报时间" width="180">
-          <template #default="{row}">{{ formatDate(row.createdAt || row.created_at) }}</template>
+          <template #default="{row}">{{ formatDateTime(row.createdAt || row.created_at) }}</template>
         </el-table-column>
         <el-table-column label="来源设备" width="200">
           <template #default="{row}"><code>{{ row.deviceId || row.device_id }}</code></template>
@@ -68,11 +68,8 @@ import { ref, reactive, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { dataReportService } from '@/api/dataReportService';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
 import apiClient from "@/api/apiClient";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
 
 // --- 1. 定义接口 (解决 TS7006 的关键) ---
 interface SystemAlarm {
@@ -121,7 +118,6 @@ const handleBatchDelete = () => {
   });
 };
 
-const formatDate = (d: string) => d ? dayjs.utc(d).local().format('YYYY-MM-DD HH:mm:ss') : '--';
 const getTagType = (t?: string) => {
   const type = (t || '').toUpperCase();
   if (type.includes('ERROR') || type.includes('ALARM')) return 'danger';

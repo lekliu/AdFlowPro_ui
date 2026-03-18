@@ -11,7 +11,7 @@
       <!-- Filters -->
       <el-form :inline="true" :model="filterParams" class="filter-form">
         <el-form-item label="搜索">
-          <el-input v-model="filterParams.searchQuery" placeholder="按ID或名称搜索" clearable />
+          <el-input v-model="searchQuery" placeholder="按ID或名称搜索" clearable />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="filterParams.status" placeholder="所有状态" clearable style="width: 150px">
@@ -32,9 +32,10 @@
           border
           stripe
           :row-key="(row) => row.deviceId"
-          @row-contextmenu="handleRowContextMenu"
+          ref="tableRef"
+          @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
-          ref="deviceTableRef"
+          @row-contextmenu="handleRowContextMenu"
       >
         <el-table-column type="index" width="50" label="序号" />
         <el-table-column prop="deviceId" label="设备ID" min-width="200" sortable show-overflow-tooltip />
@@ -61,7 +62,7 @@
               />
             </el-tooltip>
             <div v-if="scope.row.validUntil" style="font-size: 10px; color: #909399">
-              到期: {{ formatDateShort(scope.row.validUntil) }}
+              到期: {{ formatDateTimeShort(scope.row.validUntil) }}
             </div>
           </template>
         </el-table-column>
@@ -78,7 +79,7 @@
         </el-table-column>
         <el-table-column prop="lastSeenAt" label="最后在线时间" width="180" sortable>
           <template #default="scope">
-            {{ formatDate(scope.row.lastSeenAt) }}
+            {{ formatDateTime(scope.row.lastSeenAt) }}
           </template>
         </el-table-column>
       </el-table>
@@ -140,28 +141,28 @@ import { useRouter } from "vue-router";
 import { useDeviceStore } from "@/stores/deviceStore";
 import { deviceService } from "@/api/deviceService";
 import type { DevicePublic, DeviceUpdatePayload } from "@/types/api";
-import { Plus, Search, Refresh, View, SuccessFilled, CircleCloseFilled, Edit, Delete } from "@element-plus/icons-vue";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
 import { ElMessage } from "element-plus";
 // 【修复点1】: 移除 type ElTable 的导入
 // import { ElMessage, type ElTable } from "element-plus";
-
-dayjs.extend(utc);
+import { Plus, Search, Refresh, View, SuccessFilled, CircleCloseFilled, Edit, Delete } from "@element-plus/icons-vue";
+import { formatDateTime, formatDateTimeShort } from "@/utils/formatter";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
 
 const deviceStore = useDeviceStore();
 const router = useRouter();
 
-// 【修复点2】: 将 ref 类型改为 any，避免运行时查找不存在的 ElTable 对象
-const deviceTableRef = ref<any>(null);
+// --- 使用组合式逻辑管理表格交互 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(10);
+const {
+  tableRef,
+  handleRowClick,
+  handleRowDblClick
+}= useTableHelper("deviceId", "DeviceDetail");
 
 const filterParams = reactive({
-  searchQuery: "",
+  // searchQuery: "",
   status: "",
 });
-
-const currentPage = ref(1);
-const pageSize = ref(10);
 
 const editModalVisible = ref(false);
 const editingDevice = ref<DevicePublic | null>(null);
@@ -178,10 +179,8 @@ const contextMenu = reactive({
 
 const fetchData = () => {
   const params = {
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
+    ...getPaginationParams(),
     status: filterParams.status || undefined,
-    search: filterParams.searchQuery || undefined,
   };
   deviceStore.fetchDevices(params);
 };
@@ -198,8 +197,6 @@ const handleToggleSlot = async (row: DevicePublic) => {
   }
 };
 
-const formatDateShort = (d: string) => dayjs.utc(d).local().format("MM-DD HH:mm");
-
 onMounted(() => {
   fetchData();
   window.addEventListener('scroll', closeContextMenu, true);
@@ -210,12 +207,12 @@ onBeforeUnmount(() => {
 });
 
 const handleSearch = () => {
-  currentPage.value = 1;
+  resetPagination();
   fetchData();
 };
 
 const resetFilters = () => {
-  filterParams.searchQuery = "";
+  searchQuery.value = "";
   filterParams.status = "";
   currentPage.value = 1;
   fetchData();
@@ -232,17 +229,12 @@ const handleCurrentChange = (val: number) => {
   fetchData();
 };
 
-// 双击行处理
-const handleRowDblClick = (row: DevicePublic) => {
-  viewDetails(row.deviceId);
-};
-
 // 右键菜单处理
 const handleRowContextMenu = (row: DevicePublic, column: any, event: MouseEvent) => {
   event.preventDefault();
   // 使用 ?. 安全访问，防止 undefined 报错
-  if (deviceTableRef.value?.setCurrentRow) {
-    deviceTableRef.value.setCurrentRow(row);
+  if (tableRef.value?.setCurrentRow) {
+    tableRef.value.setCurrentRow(row);
   }
   contextMenu.row = row;
   contextMenu.x = event.clientX;
@@ -329,11 +321,6 @@ const handleUpdateDeviceName = async () => {
 
 const handleAddDevice = () => {
   ElMessage.info("手动添加设备功能尚未实现。");
-};
-
-const formatDate = (dateString: string | Date): string => {
-  if (!dateString) return "N/A";
-  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
 };
 </script>
 

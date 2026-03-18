@@ -1,19 +1,19 @@
 <template>
-  <div class="cases-list-page">
+  <div class="af-page-container">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span class="title">测试用例管理</span>
-
+        <div class="af-list-header">
+          <div class="left">
           <!-- 批量操作和新建 -->
           <el-button-group class="header-button-group">
             <el-button :icon="Plus" type="primary" @click="handleCreate">新建用例</el-button>
             <el-button :icon="Edit" type="primary" @click="handleEditSelected" :disabled="selectedCases.length !== 1">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="handleDeleteSelected" :disabled="selectedCases.length === 0">删除</el-button>
           </el-button-group>
+          </div>
 
           <!-- 搜索和筛选器 (推到最右侧) -->
-          <div class="filter-group-auto">
+          <div class="right">
             <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px; margin-right: 10px">
               <el-option
                   v-for="cat in categoryStore.allCategories"
@@ -39,7 +39,7 @@
           @selection-change="handleSelectionChange"
           @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
-          ref="caseTableRef">
+          ref="tableRef">
         <el-table-column type="selection" width="40" />
         <el-table-column prop="caseId" label="ID" width="80" sortable />
         <el-table-column prop="name" label="名称" width="200" sortable>
@@ -61,14 +61,14 @@
 
         <el-table-column prop="description" label="描述" min-width="250" show-overflow-tooltip />
         <el-table-column label="创建时间" prop="createdAt" width="180" sortable>
-          <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
+          <template #default="scope">{{ formatDateTime(scope.row.createdAt) }}</template>
         </el-table-column>
 
       </el-table>
 
-      <el-pagination
-          v-if="caseStore.totalCases > 0"
-          class="pagination-container"
+      <div class="af-pagination-wrap">
+        <el-pagination
+            v-if="caseStore.totalCases > 0"
           :current-page="currentPage"
           :page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
@@ -77,6 +77,7 @@
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
       />
+      </div>
     </el-card>
   </div>
 </template>
@@ -86,34 +87,34 @@ defineOptions({
   name: "TestCasesList",
 });
 import { ref, onMounted, onActivated } from "vue";
-import type { ElTable } from "element-plus";
 import { useRouter } from "vue-router";
 import { useCaseStore } from "@/stores/caseStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
-import type { TestCaseListPublic } from "@/types/api";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
+import { confirmBatchDelete } from "@/utils/messageBox";
 
 const router = useRouter();
 const caseStore = useCaseStore();
 const categoryStore = useAtomCategoryStore();
-const caseTableRef = ref<InstanceType<typeof ElTable>>();
-const selectedCases = ref<TestCaseListPublic[]>([]);
 
-const currentPage = ref(1);
-const pageSize = ref(10);
-const searchQuery = ref("");
+// --- 使用组合式逻辑管理表格状态 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(10);
+const {
+  tableRef,
+  selection: selectedCases,
+  handleSelectionChange,
+  handleRowClick,
+  handleRowDblClick
+} = useTableHelper("caseId", "TestCaseEditor");
+
 const categoryFilter = ref<number | "">("");
 
 const fetchData = () => {
   const params = {
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
+    ...getPaginationParams(),
     categoryId: categoryFilter.value || undefined,
   };
   caseStore.fetchCases(params);
@@ -132,77 +133,41 @@ onMounted(() => {
 });
 
 const handleSearch = () => {
-  currentPage.value = 1;
+  resetPagination();
   fetchData();
 };
 
-const handleSizeChange = (val: number) => {
-  pageSize.value = val;
-  fetchData();
-};
-
-const handleCurrentChange = (val: number) => {
-  currentPage.value = val;
-  fetchData();
-};
+const handleSizeChange = (val: number) => { pageSize.value = val; fetchData(); };
+const handleCurrentChange = (val: number) => { currentPage.value = val; fetchData(); };
 
 const handleCreate = () => {
   router.push({ name: "TestCaseEditor" });
-};
-
-const handleSelectionChange = (selection: TestCaseListPublic[]) => {
-  selectedCases.value = selection;
-};
-
-// 点击行时触发选中/取消选中
-const handleRowClick = (row: TestCaseListPublic) => {
-  if (caseTableRef.value) {
-    const isSelected = selectedCases.value.some(item => item.caseId === row.caseId);
-    caseTableRef.value.toggleRowSelection(row, !isSelected);
-  }
-};
-
-// 双击行进入编辑页面
-const handleRowDblClick = (row: TestCaseListPublic) => {
-  if (row && row.caseId) {
-    handleEdit(row.caseId);
-  }
 };
 
 const handleEditSelected = () => {
   if (selectedCases.value.length === 1) {
     handleEdit(selectedCases.value[0].caseId);
   } else {
-    ElMessage.warning("请选择且只选择一个测试用例进行编辑。");
+    ElMessage.warning("请选择一个测试用例进行编辑");
   }
 };
 
 const handleDeleteSelected = async () => {
   if (selectedCases.value.length === 0) return;
-  const names = selectedCases.value.map(a => a.name).join(', ');
-  try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedCases.value.length} 个测试用例吗？\n涉及: ${names}`, "确认批量删除", {
-      type: "warning",
-      dangerouslyUseHTMLString: true,
-    });
-
+  const names = selectedCases.value.map(c => c.name);
+  if (await confirmBatchDelete(names, "测试用例")) {
     const deletePromises = selectedCases.value.map(c => caseStore.deleteCase(c.caseId));
 
     // 注意：如果有依赖冲突的错误，这里会捕获到第一个错误并终止，然后抛出。
     await Promise.all(deletePromises);
-
     ElMessage.success(`成功删除 ${selectedCases.value.length} 个测试用例！`);
-    fetchData(); // 重新加载数据以更新列表
-  } catch (error) {
-    if (error === 'cancel') ElMessage.info("已取消删除");
-    // 其他错误（如依赖冲突）由 API 拦截器处理
+    fetchData();
   }
 };
 
 const handleEdit = (caseId: number) => {
   router.push({ name: "TestCaseEditor", params: { caseId } });
 };
-
 const handleDelete = async (caseId: number, name: string) => {
   try {
     await ElMessageBox.confirm(`确定要删除测试用例 "${name}" 吗？`, "确认删除", {
@@ -222,10 +187,6 @@ const handleDelete = async (caseId: number, name: string) => {
   }
 };
 
-const formatDate = (dateString: string | Date): string => {
-  if (!dateString) return "N/A";
-  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm:ss");
-};
 </script>
 
 <style scoped>

@@ -1,10 +1,9 @@
 <template>
-  <div class="atoms-list-page">
+  <div class="af-page-container">
     <el-card class="table-card" shadow="never">
       <template #header>
-        <div class="list-header-toolbar">
-          <div class="left-tools">
-            <h3 class="page-title">原子操作列表</h3>
+        <div class="af-list-header">
+          <div class="left">
             <el-button type="primary" :icon="Plus" @click="handleCreate">新建操作</el-button>
 
             <el-tooltip content="将所有原子的扫描和命中次数清零，重新开始健康度统计" placement="top">
@@ -20,7 +19,7 @@
             </el-button-group>
           </div>
 
-          <div class="right-filters">
+          <div class="right">
             <el-select v-model="categoryFilter" placeholder="按分类筛选" clearable @change="handleSearch" style="width: 150px">
               <el-option
                   v-for="category in categoryStore.allCategories"
@@ -48,7 +47,7 @@
           @selection-change="handleSelectionChange"
           @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
-          ref="atomTableRef"
+          ref="tableRef"
       >
         <el-table-column type="selection" width="45" align="center" />
 
@@ -104,7 +103,7 @@
 
         <el-table-column label="创建时间" prop="createdAt" width="160" sortable>
           <template #default="scope">
-            <span class="time-text">{{ formatDate(scope.row.createdAt) }}</span>
+            <span class="time-text">{{ formatDateTime(scope.row.createdAt) }}</span>
           </template>
         </el-table-column>
 
@@ -117,7 +116,7 @@
         </el-table-column>
       </el-table>
 
-      <div class="pagination-wrapper">
+      <div class="af-pagination-wrap">
         <el-pagination
             v-if="atomStore.totalAtoms > 0"
             v-model:current-page="currentPage"
@@ -136,34 +135,36 @@
 <script setup lang="ts">
 defineOptions({ name: "AtomsList" });
 
-import { ref, onMounted, onActivated } from "vue";
+import { ref, onMounted, onActivated, computed } from "vue";
 import { useAtomStore } from "@/stores/atomStore";
 import { useRouter } from "vue-router";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
-import { ElMessage, ElMessageBox, ElTable } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Edit, Delete, Search, CopyDocument, RefreshLeft } from "@element-plus/icons-vue";
 import type { AtomicOperationCreatePayload } from "@/types/api";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-
-dayjs.extend(utc);
+import { formatDateTime } from "@/utils/formatter";
+import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
+import { confirmBatchDelete } from "@/utils/messageBox";
 
 const router = useRouter();
-const atomTableRef = ref<InstanceType<typeof ElTable>>();
-const selectedAtoms = ref<any[]>([]);
 const atomStore = useAtomStore();
 const categoryStore = useAtomCategoryStore();
 
-const currentPage = ref(1);
-const pageSize = ref(10);
-const searchQuery = ref("");
+// --- 使用组合式逻辑管理表格状态 ---
+const { currentPage, pageSize, searchQuery, getPaginationParams, resetPagination } = useTablePagination(10);
+const {
+  tableRef,
+  selection: selectedAtoms,
+  handleSelectionChange,
+  handleRowClick,
+  handleRowDblClick
+} = useTableHelper("atomId", "AtomEditor");
+
 const categoryFilter = ref<number | "">("");
 
 const fetchData = () => {
   const params = {
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value,
-    search: searchQuery.value || undefined,
+    ...getPaginationParams(),
     categoryId: categoryFilter.value || undefined,
   };
   atomStore.fetchAtoms(params);
@@ -191,33 +192,12 @@ const getAtomHealthDesc = (row: any) => {
   return `命中率：${((row.hitRate || 0) * 100).toFixed(2)}%`;
 };
 
-const formatDate = (dateString: string | Date): string => {
-  if (!dateString) return "N/A";
-  return dayjs.utc(dateString).local().format("YYYY-MM-DD HH:mm");
-};
-
 // 基础交互逻辑
-const handleSearch = () => { currentPage.value = 1; fetchData(); };
+const handleSearch = () => { resetPagination(); fetchData(); };
 const handleSizeChange = (val: number) => { pageSize.value = val; fetchData(); };
 const handleCurrentChange = (val: number) => { currentPage.value = val; fetchData(); };
 const handleCreate = () => { router.push({ name: "AtomEditor" }); };
 const handleEdit = (atomId: number) => { router.push({ name: "AtomEditor", params: { atomId } }); };
-const handleSelectionChange = (selection: any[]) => { selectedAtoms.value = selection; };
-
-/**
- * 易用性增强：单击行切换选中
- */
-const handleRowClick = (row: any) => {
-  if (atomTableRef.value) {
-    const isSelected = selectedAtoms.value.some(item => item.atomId === row.atomId);
-    atomTableRef.value.toggleRowSelection(row, !isSelected);
-  }
-};
-
-/**
- * 易用性增强：双击编辑
- */
-const handleRowDblClick = (row: any) => { if (row && row.atomId) handleEdit(row.atomId); };
 
 const handleEditSelected = () => {
   if (selectedAtoms.value.length === 1) handleEdit(selectedAtoms.value[0].atomId);
@@ -229,19 +209,12 @@ const handleEditSelected = () => {
  */
 const handleDeleteSelected = async () => {
   if (selectedAtoms.value.length === 0) return;
-  const names = selectedAtoms.value.map(a => a.name).join(', ');
-  try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedAtoms.value.length} 个操作吗？\n涉及: ${names}`, "批量删除确认", {
-      type: "warning",
-      confirmButtonClass: 'el-button--danger',
-      dangerouslyUseHTMLString: true,
-    });
+  const names = selectedAtoms.value.map(a => a.name);
+  if (await confirmBatchDelete(names, "原子操作")) {
     const deletePromises = selectedAtoms.value.map(atom => atomStore.deleteAtom(atom.atomId));
     await Promise.all(deletePromises);
     ElMessage.success(`成功删除 ${selectedAtoms.value.length} 个原子操作！`);
     fetchData();
-  } catch (error) {
-    if (error === 'cancel') ElMessage.info("已取消删除");
   }
 };
 

@@ -203,20 +203,17 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
         }
 
         // C. 特殊动作格式美化: 语义化 Fragment 调用
-        if (act.action === 'call_fragment') {
-            const fid = act.parameters?.fragmentId || '';
-            const fname = act.parameters?.name || 'Unknown';
-            code += `${indent}fragment.call(id=${fid}, name="${fname}")\n`;
-        }
-        else if (act.action === 'exit_atom') {
-            const f = act.parameters?.formula || '';
-            code += `${indent}action.exit_atom(if="${f}")\n`;
-        }
-        else if (act.action === 'key_down' || act.action === 'key_up') {
+        if (act.action === 'key_down' || act.action === 'key_up') {
             const key = act.parameters?.keyCode || '';
             code += `${indent}action.${act.action}(key="${key}")\n`;
         } else if (act.action === 'jump_back') {
             code += `${indent}action.jump_back()\n`;
+        } else if (act.action === 'call_fragment') {
+            const fid = act.parameters?.fragmentId || '';
+            code += `${indent}fragment.call(id=${fid})\n`;
+        } else if (act.action === 'exit_atom') {
+            const f = act.parameters?.formula || '';
+            code += `${indent}action.exit_atom(if="${f}")\n`;
         } else {
             // 标准格式: action.click(text="确认")
             code += `${indent}action.${act.action}(${paramList.join(', ')})\n`;
@@ -276,7 +273,6 @@ export const generateCode = (form: any, id?: number | string | null): string => 
                 code += `match.pixel(x=${pt.x}, y=${pt.y}, color="${pt.color}", tol=${pt.tolerance})\n`;
             });
         } else if (pm.matchTargetType === 'ai_detect') {
-            // 增加兜底保护
             const mId = pm.modelId || 'undefined';
             const label = pm.targetLabel || 'none';
             const conf = pm.minConfidence || 0.5;

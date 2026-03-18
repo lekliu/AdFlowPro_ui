@@ -164,10 +164,10 @@ const filteredVariables = computed(() => {
 });
 
 const copyValue = async (value: string) => {
-  try {
-    await navigator.clipboard.writeText(value);
+  const success = await copyToClipboard(value); // 使用标准工具类
+  if (success) {
     ElMessage.success('变量值已复制');
-  } catch (e) {
+  } else {
     ElMessage.error('复制失败');
   }
 };
