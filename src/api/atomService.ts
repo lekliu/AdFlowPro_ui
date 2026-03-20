@@ -2,7 +2,10 @@ import apiClient from "./apiClient";
 import type { AtomicOperationPublic, AtomicOperationCreatePayload, AtomicOperationUpdatePayload, PaginatedResponse, AtomUsageReport } from "@/types/api";
 
 export const atomService = {
-  async getAtoms(params?: { skip?: number; limit?: number; search?: string; categoryId?: number }): Promise<PaginatedResponse<AtomicOperationPublic>> {
+  async getAtoms(params?: { 
+    skip?: number; limit?: number; search?: string; categoryId?: number; 
+    sortBy?: string; sortOrder?: string;
+  }): Promise<PaginatedResponse<AtomicOperationPublic>> {
     return apiClient.get("/atoms", { params });
   },
 

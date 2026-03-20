@@ -2,18 +2,23 @@
 <template>
   <div class="selector-input-container">
     <el-row :gutter="10" align="middle">
-      <el-col :span="9">
+      <el-col :span="8">
         <el-select v-model="selectorType" placeholder="类型" @change="onTypeChange">
-          <el-option v-for="opt in filteredOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-option v-for="opt in allOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </el-col>
-      <el-col :span="15">
-        <el-input v-model="selectorValue" :placeholder="`输入 ${selectorType} 值`" @input="onValueChange" clearable />
+      <el-col :span="16">
+        <!-- 核心修改：物理替换为 MultiTextInput，实现与匹配侧 100% 一致 -->
+        <MultiTextInput
+            v-model="selectorTextArray"
+            :placeholder="placeholderText"
+            @update:modelValue="emitUpdate"
+        />
       </el-col>
     </el-row>
 
-    <!-- [新业务逻辑] 仅在 PC 动作或文本模式下显示精确匹配切换 -->
-    <el-row style="margin-top: 8px" v-if="selectorType === 'text' || selectorType === 'resourceId'">
+    <!-- 匹配模式切换 (仅对 Text 类型显示) -->
+    <el-row style="margin-top: 8px" v-if="selectorType === 'text'">
       <el-radio-group v-model="matchMode" size="small" @change="onModeChange">
         <el-radio-button value="fuzzy">模糊</el-radio-button>
         <el-radio-button value="exact">精确</el-radio-button>
@@ -23,6 +28,7 @@
       </span>
     </el-row>
 
+    <!-- 状态检查属性 (Checked, Enabled, Selected) 严格保留原逻辑 -->
     <el-row class="property-checks" :gutter="10">
       <el-checkbox
           :model-value="checkedState === true"
@@ -53,6 +59,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import type { Selector } from "@/types/api/common";
+import MultiTextInput from "@/components/MultiTextInput.vue"; // 确保导入复用组件
 
 const props = defineProps<{
   modelValue: Selector;
@@ -61,126 +68,121 @@ const props = defineProps<{
 
 const emit = defineEmits(["update:modelValue"]);
 
-// 1. 配置常量
+// 1. 类型常量定义
 const allOptions = [
-  { label: "Text", value: "text" },
-  { label: "ID", value: "resourceId" },
-  { label: "Desc", value: "contentDesc" },
+  { label: "Text (文本)", value: "text" },
+  { label: "ID (资源ID)", value: "resourceId" },
+  { label: "Desc (描述)", value: "contentDesc" },
   { label: "Class + Bounds", value: "class_and_bounds" },
 ];
 
 // 2. 内部响应式状态
 const selectorType = ref<"text" | "resourceId" | "contentDesc" | "class_and_bounds">("text");
-const selectorValue = ref("");
+const selectorTextArray = ref<string[]>([]);
 const matchMode = ref("fuzzy");
 
 const checkedState = ref<boolean | undefined>(undefined);
 const enabledState = ref<boolean | undefined>(undefined);
 const selectedState = ref<boolean | undefined>(undefined);
 
-// 3. 核心：统一的数据提交函数
+// 3. 计算占位符文本，实现引导
+const placeholderText = computed(() => {
+  switch (selectorType.value) {
+    case 'class_and_bounds': return '输入 Class [L, T, R, B] 后回车';
+    case 'resourceId': return '输入 Resource ID (如: btn_login) 后回车';
+    default: return '输入备选文本后按回车';
+  }
+});
+
+// 4. 数据提交：统一存入 text 数组并设置 matchMode
 const emitUpdate = () => {
   const newSelector: Selector = {
+    text: [...selectorTextArray.value],
     matchMode: matchMode.value
   };
 
-  // 聚合配置属性
+  // 映射 matchMode
+  if (selectorType.value === 'resourceId') {
+    newSelector.matchMode = "resource_id";
+  } else if (selectorType.value === 'class_and_bounds') {
+    newSelector.matchMode = "class_and_bounds";
+  }
+
+  // 保留三态属性
   if (checkedState.value !== undefined) newSelector.checked = checkedState.value;
   if (enabledState.value !== undefined) newSelector.enabled = enabledState.value;
   if (selectedState.value !== undefined) newSelector.selected = selectedState.value;
 
-  // 聚合定位属性
-  if (selectorType.value === 'class_and_bounds') {
-    const match = selectorValue.value.match(/^([\w\.]+)\s*(\[.+\])$/);
-    if (match) {
-      newSelector.className = match[1];
-      newSelector.bounds = match[2];
-    } else {
-      newSelector.className = selectorValue.value;
-      newSelector.bounds = "";
-    }
-  } else {
-    // 仅设置当前激活的 key (text, resourceId, 或 contentDesc)
-    (newSelector as any)[selectorType.value] = selectorValue.value;
+  // 补充 contentDesc（虽然 App 侧现在也通过 text 匹配，但保留字段以作区分）
+  if (selectorType.value === 'contentDesc' && selectorTextArray.value.length > 0) {
+    newSelector.contentDesc = selectorTextArray.value[0];
   }
 
   emit("update:modelValue", newSelector);
 };
 
-// 4. 界面交互处理
-const filteredOptions = computed(() => {
-  const pcActions = ['hover', 'right_click', 'double_click'];
-  if (props.action && pcActions.includes(props.action)) {
-    return allOptions.filter(opt => opt.value === 'text');
-  }
-  return allOptions;
-});
-
-const onValueChange = (val: string) => { selectorValue.value = val; emitUpdate(); };
-const onTypeChange = (newType: any) => { selectorType.value = newType; selectorValue.value = ""; emitUpdate(); };
-const onModeChange = (val: any) => { matchMode.value = val; emitUpdate(); };
-/**
- * 核心修改：三态切换逻辑
- * 状态循环：undefined (-) -> true (勾选) -> false (空框) -> 重置为 undefined (-)
- */
-const toggleTriState = (prop: 'checked' | 'enabled' | 'selected') => {
-  let targetRef;
-  if (prop === 'checked') targetRef = checkedState;
-  else if (prop === 'enabled') targetRef = enabledState;
-  else targetRef = selectedState;
-
-  if (targetRef.value === undefined) {
-    targetRef.value = true;
-  } else if (targetRef.value === true) {
-    targetRef.value = false;
-  } else {
-    targetRef.value = undefined;
-  }
+const onTypeChange = (newType: any) => {
+  selectorType.value = newType;
+  // 切换类型时自动调整默认模式
+  if (newType === 'resourceId') matchMode.value = 'resource_id';
+  else if (newType === 'class_and_bounds') matchMode.value = 'class_and_bounds';
+  else matchMode.value = 'fuzzy';
 
   emitUpdate();
 };
 
-// 5. 核心修复：数据回显逻辑 (Model -> UI)
+const onModeChange = (val: any) => {
+  matchMode.value = val;
+  emitUpdate();
+};
+
+// 状态切换逻辑 (保持 100% 原始逻辑)
+const toggleTriState = (prop: 'checked' | 'enabled' | 'selected') => {
+  let targetRef = prop === 'checked' ? checkedState : prop === 'enabled' ? enabledState : selectedState;
+  if (targetRef.value === undefined) targetRef.value = true;
+  else if (targetRef.value === true) targetRef.value = false;
+  else targetRef.value = undefined;
+  emitUpdate();
+};
+
+// 5. 核心数据回显 (Model -> UI)
 watch(
     () => props.modelValue,
     (newVal) => {
-      if (!newVal) {
-        checkedState.value = undefined;
-        enabledState.value = undefined;
-        selectedState.value = undefined;
-        return;
+      if (!newVal) return;
+
+      // [Fixed] 鲁棒性回显：兼容字符串、|分隔符或标准数组
+      if (typeof newVal.text === 'string') {
+        // 强制转换类型以调用 split，并显式指定 filter 参数类型
+        const rawText = newVal.text as unknown as string;
+        selectorTextArray.value = rawText.split('|').filter((s: string) => s);
+      } else if (Array.isArray(newVal.text)) {
+        selectorTextArray.value = [...newVal.text];
+      } else {
+        selectorTextArray.value = [];
       }
 
-      // A. 恢复配置字段
       matchMode.value = newVal.matchMode || "fuzzy";
 
-      /**
-       * 核心修复逻辑：
-       * 由于 el-checkbox 的 indeterminate 状态强依赖于 undefined。
-       * 如果 newVal.checked 是 null，(null === undefined) 为 false，会导致显示为空框。
-       * 这里通过严格判定，将 null 或任何非布尔值强制转回 undefined。
-       */
-      const normalizeBoolean = (val: any) => (val === true || val === false) ? val : undefined;
-
-      checkedState.value = normalizeBoolean(newVal.checked);
-      enabledState.value = normalizeBoolean(newVal.enabled);
-      selectedState.value = normalizeBoolean(newVal.selected);
-
-      // B. 明确优先级判定类型和值
-      if (newVal.bounds !== undefined && newVal.bounds !== null) {
-        selectorType.value = "class_and_bounds";
-        selectorValue.value = `${newVal.className || ""} ${newVal.bounds || ""}`.trim();
-      } else if (newVal.resourceId !== undefined && newVal.resourceId !== null) {
-        selectorType.value = "resourceId";
-        selectorValue.value = newVal.resourceId;
-      } else if (newVal.contentDesc !== undefined && newVal.contentDesc !== null) {
-        selectorType.value = "contentDesc";
-        selectorValue.value = newVal.contentDesc;
+      // C. 类型判断逻辑 (向 Matcher 风格对齐)
+      // 2. 根据 matchMode 精准回显 UI 类型下拉框
+      if (newVal.matchMode === 'class_and_bounds') {
+        selectorType.value = 'class_and_bounds';
+      } else if (newVal.matchMode === 'resource_id') {
+        selectorType.value = 'resourceId';
+      } else if (newVal.contentDesc) {
+        selectorType.value = 'contentDesc';
+        // 兼容性：如果只有 contentDesc 没 text 数组，为了 UI 显示，反填给数组
+        if (selectorTextArray.value.length === 0) selectorTextArray.value = [newVal.contentDesc];
       } else {
-        // 默认为 Text
-        selectorType.value = "text";
-        selectorValue.value = newVal.text || "";
+        selectorType.value = 'text';
       }
+
+      // D. 三态属性回显 (保留原始逻辑)
+      const normalizeBool = (val: any) => (val === true || val === false) ? val : undefined;
+      checkedState.value = normalizeBool(newVal.checked);
+      enabledState.value = normalizeBool(newVal.enabled);
+      selectedState.value = normalizeBool(newVal.selected);
     },
     { immediate: true, deep: true }
 );
@@ -188,26 +190,14 @@ watch(
 
 <style scoped>
 .selector-input-container { display: flex; flex-direction: column; gap: 8px; }
-/* 修改后的 property-checks 容器样式 */
 .property-checks {
   margin-top: 4px;
   display: flex;
-  flex-wrap: nowrap;      /* 【核心】强制不换行 */
-  gap: 8px;               /* 调整各项之间的间距为 8px */
+  flex-wrap: nowrap;
+  gap: 8px;
   align-items: center;
 }
-
-/* 移除复选框组件自带的 30px 右边距 */
-.property-checks :deep(.el-checkbox) {
-  margin-right: 0;
-  height: 24px;           /* 稍微压缩高度 */
-}
-
-/* 缩小图标与文字之间的距离 */
-.property-checks :deep(.el-checkbox__label) {
-  padding-left: 4px;      /* 原默认 8px，缩小到 4px */
-  font-size: 12px;        /* 稍微缩小字号 */
-  white-space: nowrap;    /* 防止文字内部换行 */
-}
+.property-checks :deep(.el-checkbox) { margin-right: 0; height: 24px; }
+.property-checks :deep(.el-checkbox__label) { padding-left: 4px; font-size: 12px; white-space: nowrap; }
 .mode-desc { font-size: 12px; color: #909399; margin-left: 10px; line-height: 24px; }
 </style>

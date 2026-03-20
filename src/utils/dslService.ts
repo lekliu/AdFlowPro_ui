@@ -89,15 +89,22 @@ const REVERSE_SELECTOR_MAP: Record<string, string> = {
  */
 const parseParams = (paramStr: string): Record<string, any> => {
     const result: Record<string, any> = {};
-    const regex = /(\w+)=(?:"([^"]*)"|([^\s,]+))/g;
+    // 增强正则：增加对 [ ] 数组内容的捕获组
+    const regex = /(\w+)=(?:"([^"]*)"|\[(.*?)\]|([^\s,]+))/g;
     let match;
     while ((match = regex.exec(paramStr)) !== null) {
         const key = match[1];
         const strVal = match[2];
-        const otherVal = match[3];
+        const arrayVal = match[3]; // 新增：匹配中括号内的内容
+        const otherVal = match[4];
+
         if (strVal !== undefined) {
             result[key] = strVal;
+        } else if (arrayVal !== undefined) {
+            // 处理数组：将 "A, B" 拆分为 ["A", "B"] 并去除引号
+            result[key] = arrayVal.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
         } else if (otherVal !== undefined) {
+            // 原有的布尔和数字处理逻辑
             if (otherVal === 'true' || otherVal === 'True') result[key] = true;
             else if (otherVal === 'false' || otherVal === 'False') result[key] = false;
             else if (!isNaN(Number(otherVal))) result[key] = Number(otherVal);
@@ -166,8 +173,14 @@ const generateActionDsl = (act: any, indent: string = ""): string => {
                 const dslKey = REVERSE_SELECTOR_MAP[key];
                 if (!dslKey) return;
 
-                if (typeof value === 'string') paramList.push(`${dslKey}="${value}"`);
-                else paramList.push(`${dslKey}=${value}`);
+                // [Fixed] 统一数组表达：将数组转为 A|B 格式字符串
+                if (Array.isArray(value)) {
+                    paramList.push(`${dslKey}="${value.join('|')}"`);
+                } else if (typeof value === 'string') {
+                    paramList.push(`${dslKey}="${value}"`);
+                } else {
+                    paramList.push(`${dslKey}=${value}`);
+                }
             });
         }
 
@@ -530,7 +543,13 @@ export const parseCode = (code: string, originalForm: any): any => {
                         // 1. Selector 映射
                         if (SELECTOR_PARAM_MAP[k]) {
                             const selectorKey = SELECTOR_PARAM_MAP[k];
-                            newAction.selector[selectorKey] = v;
+                            // [Fixed] 统一解析：无论 DSL 怎么写，入库必为数组，且支持 | 分隔
+                            if (selectorKey === 'text') {
+                                const rawStr = Array.isArray(v) ? v.join('|') : String(v);
+                                newAction.selector[selectorKey] = rawStr.split('|').filter(s => s);
+                            } else {
+                                newAction.selector[selectorKey] = v;
+                            }
                         }
                         // 2. Parameters 映射
                         else {

@@ -47,6 +47,7 @@
           @selection-change="handleSelectionChange"
           @row-click="handleRowClick"
           @row-dblclick="handleRowDblClick"
+          @sort-change="handleSortChange"
           ref="tableRef"
       >
         <el-table-column type="selection" width="45" align="center" />
@@ -97,13 +98,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="priority" label="优先级" width="90" sortable align="center" />
+        <el-table-column prop="priority" label="优先级" width="90" sortable="custom" align="center" />
 
         <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
 
-        <el-table-column label="创建时间" prop="createdAt" width="160" sortable>
+        <el-table-column label="最后更新" prop="updatedAt" width="170" sortable="custom">
           <template #default="scope">
-            <span class="time-text">{{ formatDateTime(scope.row.createdAt) }}</span>
+            <span class="time-text">{{ formatDateTime(scope.row.updatedAt) }}</span>
           </template>
         </el-table-column>
 
@@ -135,7 +136,7 @@
 <script setup lang="ts">
 defineOptions({ name: "AtomsList" });
 
-import { ref, onMounted, onActivated, computed } from "vue";
+import { ref, onMounted, onActivated, computed, reactive } from "vue";
 import { useAtomStore } from "@/stores/atomStore";
 import { useRouter } from "vue-router";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
@@ -162,12 +163,27 @@ const {
 
 const categoryFilter = ref<number | "">("");
 
+// 排序状态
+const sortState = reactive({
+  prop: 'updatedAt',
+  order: 'descending'
+});
+
 const fetchData = () => {
   const params = {
     ...getPaginationParams(),
     categoryId: categoryFilter.value || undefined,
+    sortBy: sortState.prop,
+    sortOrder: sortState.order === 'ascending' ? 'asc' : 'desc'
   };
   atomStore.fetchAtoms(params);
+};
+
+const handleSortChange = ({ prop, order }: { prop: string, order: string }) => {
+  sortState.prop = prop;
+  sortState.order = order;
+  resetPagination();
+  fetchData();
 };
 
 /**

@@ -7,16 +7,20 @@
  */
 export interface Selector {
   resourceId?: string;
-  text?: string;
+  text?: string[]; // 核心：升级为数组
   contentDesc?: string;
-  className?: string;
   xpath?: string;
-  bounds?: string; // Format: "[left, top, right, bottom]"
   index?: number;
   matchMode?: string;
   checked?: boolean;
   enabled?: boolean;
   selected?: boolean;
+
+  // --- 以下为兼容性字段：仅用于旧数据迁移，不建议在新功能中使用 ---
+  /** @deprecated 已并入 text 数组解析 */
+  className?: string;
+  /** @deprecated 已并入 text 数组解析 */
+  bounds?: string;
 }
 
 /**
