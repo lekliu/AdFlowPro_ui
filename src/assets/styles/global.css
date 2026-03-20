@@ -17,10 +17,9 @@
 
 /* 标准页面容器 */
 .af-page-container {
-  padding: 20px;
+  padding: 0px;
   box-sizing: border-box;
 }
-
 /* 列表页标准头部布局 */
 .af-list-header {
   display: flex;

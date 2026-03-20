@@ -1,6 +1,7 @@
 <template>
-  <div class="af-page-container">
+  <div class="af-page-container" ref="pageContainerRef">
     <el-card class="table-card" shadow="never">
+      <!-- 顶部操作栏 -->
       <template #header>
         <div class="af-list-header">
           <div class="left">
@@ -37,6 +38,7 @@
         </div>
       </template>
 
+      <!-- 数据表格 -->
       <el-table
           :data="atomStore.atoms"
           v-loading="atomStore.isLoading || categoryStore.isLoading"
@@ -59,17 +61,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="name" label="操作名称" min-width="220" show-overflow-tooltip />
-
-        <el-table-column prop="categoryName" label="分类" width="110">
-          <template #default="scope">
-            <el-tag v-if="scope.row.categoryName" type="info" size="small" effect="light">{{ scope.row.categoryName }}</el-tag>
-            <span v-else class="empty-text">--</span>
+        <el-table-column prop="name" label="原子操作名称" min-width="200">
+          <template #default="{row}">
+            <div class="name-cell">
+              <span class="main-name">{{ row.name }}</span>
+              <el-tag v-if="row.categoryName" size="small" type="info" effect="light" class="ml-2">
+                {{ row.categoryName }}
+              </el-tag>
+            </div>
           </template>
         </el-table-column>
 
         <!-- 统计列：合并扫描与命中，增加视觉对比 -->
-        <el-table-column label="扫描 / 命中" width="130" align="center">
+        <el-table-column label="扫描 / 命中" width="120" align="center">
           <template #default="scope">
             <div class="stat-cell">
               <span class="scan-count">{{ scope.row.totalScans || 0 }}</span>
@@ -79,19 +83,19 @@
           </template>
         </el-table-column>
 
-        <!-- 健康度：可视化进度条 + 精确逻辑判定 -->
-        <el-table-column label="健康度" width="150" align="center" sortable prop="hitRate">
-          <template #default="{ row }">
+        <!-- 健康度列 (基于你原本的 getAtomHealthStatus 逻辑可视化) -->
+        <el-table-column label="健康度" width="140">
+          <template #default="{row}">
             <el-tooltip :content="getAtomHealthDesc(row)" placement="top">
-              <div class="health-progress-wrapper">
+              <div class="health-indicator">
                 <el-progress
-                    :percentage="Math.min(100, Math.round((row.hitRate || 0) * 100))"
-                    :status="getAtomHealthStatus(row)"
-                    :stroke-width="8"
+                    :percentage="Math.min((row.hitRate || 0) * 100 * 10, 100)"
+                    :status="getAtomHealthStatus(row) === 'exception' ? 'exception' : getAtomHealthStatus(row)"
+                    :stroke-width="6"
                     :show-text="false"
                 />
-                <span :class="['health-text', getAtomHealthColor(row)]">
-                  {{ row.hitRate ? (row.hitRate * 100).toFixed(2) + '%' : '0%' }}
+                <span :class="['health-label', getAtomHealthColor(row)]">
+                  {{ (row.hitRate * 100).toFixed(1) }}%
                 </span>
               </div>
             </el-tooltip>
@@ -99,22 +103,46 @@
         </el-table-column>
 
         <el-table-column prop="priority" label="优先级" width="90" sortable="custom" align="center" />
+        <el-table-column v-if="showDescriptionCol" prop="description" label="描述" min-width="150" show-overflow-tooltip />
 
-        <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
-
-        <el-table-column label="最后更新" prop="updatedAt" width="170" sortable="custom">
+        <!-- 最后更新：核心 Gmail 悬浮效果列 -->
+        <el-table-column
+            label="最后更新"
+            prop="updatedAt"
+            width="180"
+            sortable="custom"
+            align="right"
+            header-align="left"
+        >
           <template #default="scope">
-            <span class="time-text">{{ formatDateTime(scope.row.updatedAt) }}</span>
+            <div class="action-swap-container">
+              <!-- 默认显示的状态：时间文本 -->
+              <span class="time-text-display">{{ formatDateTime(scope.row.updatedAt) }}</span>
+
+              <!-- 悬浮触发的状态：操作按钮组 (带有渐变背景遮罩) -->
+              <div class="row-floating-actions">
+                <div class="action-mask-gradient"></div>
+                <div class="action-buttons-inner">
+                  <el-tooltip content="编辑" placement="top" :show-after="500" :enterable="false">
+                    <el-button :icon="Edit" circle class="btn-action btn-edit" @click.stop="handleEdit(scope.row.atomId)" />
+                  </el-tooltip>
+                  <el-tooltip content="克隆" placement="top" :show-after="500" :enterable="false">
+                    <el-button :icon="CopyDocument" circle class="btn-action btn-edit" @click.stop="handleQuickCopy(scope.row)" />
+                  </el-tooltip>
+                  <el-dropdown trigger="click" @command="(cmd) => handleActionCommand(cmd, scope.row)">
+                    <el-button :icon="MoreFilled" circle class="btn-action btn-edit" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="delete" :icon="Delete" class="danger-text">删除原子</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+            </div>
           </template>
         </el-table-column>
 
-        <!-- 行内操作栏 -->
-        <el-table-column label="操作" width="100" fixed="right" align="center">
-          <template #default="scope">
-            <el-button :icon="Edit" link type="primary" @click.stop="handleEdit(scope.row.atomId)" title="编辑"></el-button>
-            <el-button :icon="Delete" link type="danger" @click.stop="handleDelete(scope.row.atomId, scope.row.name)" title="删除"></el-button>
-          </template>
-        </el-table-column>
       </el-table>
 
       <div class="af-pagination-wrap">
@@ -134,14 +162,15 @@
 </template>
 
 <script setup lang="ts">
+/* === 你的原生逻辑 100% 保持不变 === */
 defineOptions({ name: "AtomsList" });
 
-import { ref, onMounted, onActivated, computed, reactive } from "vue";
+import { ref, onMounted, onActivated, computed, reactive, onUnmounted } from "vue";
 import { useAtomStore } from "@/stores/atomStore";
 import { useRouter } from "vue-router";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, Edit, Delete, Search, CopyDocument, RefreshLeft } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Search, CopyDocument, RefreshLeft, MoreFilled } from "@element-plus/icons-vue";
 import type { AtomicOperationCreatePayload } from "@/types/api";
 import { formatDateTime } from "@/utils/formatter";
 import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
@@ -234,6 +263,19 @@ const handleDeleteSelected = async () => {
   }
 };
 
+// 处理下拉菜单命令
+const handleActionCommand = (command: string, row: any) => {
+  if (command === 'delete') {
+    handleDelete(row.atomId, row.name);
+  }
+};
+
+// 快速克隆逻辑
+const handleQuickCopy = async (row: any) => {
+  selectedAtoms.value = [row];
+  await handleCopySelected();
+};
+
 const handleDelete = async (atomId: number, name: string) => {
   try {
     await ElMessageBox.confirm(`确定要删除原子操作 "${name}" 吗？`, "确认删除", { type: "warning" });
@@ -295,35 +337,193 @@ const handleResetAllStats = () => {
   }).catch(() => {});
 };
 
+const pageContainerRef = ref<HTMLElement | null>(null);
+const showDescriptionCol = ref(true);
+let resizeObserver: ResizeObserver | null = null;
 
-onMounted(() => { fetchData(); categoryStore.fetchAllCategories(); });
+onMounted(() => {
+  fetchData();
+  categoryStore.fetchAllCategories();
+
+  // 监听表格外层容器的实际宽度变化
+  if (pageContainerRef.value) {
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // entry.contentRect.width 就是容器当前的真实可用宽度
+        // 假设侧边栏通常是 200px 左右，这里阈值可以设为 1100 或 1200
+        showDescriptionCol.value = entry.contentRect.width >= 1100;
+      }
+    });
+    resizeObserver.observe(pageContainerRef.value);
+  }
+});
+
+onUnmounted(() => {
+  // 组件销毁时断开监听，防止内存泄漏
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+});
+
+
 onActivated(() => { if (atomStore.needsRefresh) { fetchData(); atomStore.setNeedsRefresh(false); } });
 </script>
 
 <style scoped>
-.atoms-list-page { padding: 0; }
-.table-card { border: none; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important; }
-.list-header-toolbar { display: flex; justify-content: space-between; align-items: center; }
-.left-tools { display: flex; align-items: center; gap: 12px; }
-.page-title { margin: 0; font-size: 16px; color: #303133; font-weight: 700; margin-right: 8px; }
-.right-filters { display: flex; gap: 10px; }
+/* 表格整体风格 */
+.table-card {
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+}
 .ml-4 { margin-left: 16px; }
+.ml-2 { margin-left: 8px; }
 
-/* 字体优化 */
-.id-text { color: #909399; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 13px; }
-.stat-cell { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
-.stat-divider { margin: 0 4px; color: #dcdfe6; }
-.match-count { color: #67c23a; font-weight: bold; }
-.time-text { color: #606266; font-size: 13px; }
+/* 名字单元格布局 */
+.name-cell {
+  display: flex;
+  align-items: center;
+}
 
-/* 健康度展示 */
-.health-progress-wrapper { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 0 4px; }
-.health-text { font-size: 11px; font-weight: 600; }
-.health-text.success { color: #67c23a; }
-.health-text.warning { color: #e6a23c; }
-.health-text.danger { color: #f56c6c; }
-.health-text.info { color: #909399; }
+/* ID 文本与统计数字使用等宽字体，更整齐 */
+.id-text, .stat-cell {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 13px;
+  color: #909399;
+}
 
-.empty-text { color: #c0c4cc; font-size: 12px; }
-.pagination-wrapper { margin-top: 20px; display: flex; justify-content: flex-end; }
+.stat-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.match-count { color: var(--el-color-success); font-weight: 600; }
+.stat-divider { color: #dcdfe6; }
+
+/* 健康度指示器 - 配合你的业务逻辑 */
+.health-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 10px;
+}
+.health-label {
+  font-size: 11px;
+  font-weight: bold;
+}
+.health-label.success { color: var(--el-color-success); }
+.health-label.warning { color: var(--el-color-warning); }
+.health-label.danger { color: var(--el-color-danger); }
+.health-label.info { color: var(--el-color-info); }
+
+/* --- 核心 Gmail 悬浮效果 CSS --- */
+.action-swap-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: 32px;
+}
+
+.time-text-display {
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #606266;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.row-floating-actions {
+  position: absolute;
+  top: 0;
+  right: -10px; /* 稍微向右偏移对齐边框 */
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+/* 渐变遮罩：解决当内容过长时，按钮左侧硬切断的问题 */
+.action-mask-gradient {
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), var(--el-table-row-hover-bg-color) 80%);
+}
+
+.action-buttons-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 4px;
+  padding-right: 12px;
+  /* 确保背景色与 Element Plus 表格悬浮行颜色一致，解决斑马纹冲突 */
+  background-color: var(--el-table-row-hover-bg-color);
+}
+
+/* --- 1. 基础按钮尺寸与交互 --- */
+.action-buttons-inner :deep(.btn-action) {
+  border: none;
+  background: transparent;
+  width: 34px;  /* 整体按钮变大 (原先小按钮约 24px) */
+  height: 34px;
+  transition: all 0.2s;
+}
+
+/* --- 2. 调大中心图标的尺寸 --- */
+.action-buttons-inner :deep(.btn-action .el-icon) {
+  font-size: 20px !important; /* 图标放大，你可以改为 18px 会更大 */
+}
+
+/* --- 3. 恢复彩色及悬浮背景色 --- */
+
+/* 编辑按钮：蓝色主题 */
+.action-buttons-inner :deep(.btn-edit) {
+  color: var(--el-color-primary); /* 原本的 Element 蓝色 */
+}
+.action-buttons-inner :deep(.btn-edit:hover) {
+  background-color: var(--el-color-primary-light-9); /* 极浅的蓝色背景 */
+  transform: translateY(-1px);
+}
+
+/* 复制/克隆按钮：绿色主题 (如果你喜欢别的颜色，可以改成 warning 或 info) */
+.action-buttons-inner :deep(.btn-copy) {
+  color: var(--el-color-success); /* 原本的 Element 绿色 */
+}
+.action-buttons-inner :deep(.btn-copy:hover) {
+  background-color: var(--el-color-success-light-9); /* 极浅的绿色背景 */
+  transform: translateY(-1px);
+}
+
+/* 更多按钮：常规灰色主题 */
+.action-buttons-inner :deep(.btn-more) {
+  color: var(--el-text-color-regular);
+}
+.action-buttons-inner :deep(.btn-more:hover) {
+  background-color: var(--el-fill-color);
+  transform: translateY(-1px);
+}
+
+/* 当行悬浮时切换状态 */
+:deep(.el-table__row:hover) .time-text-display {
+  opacity: 0;
+}
+
+:deep(.el-table__row:hover) .row-floating-actions {
+  opacity: 1;
+  pointer-events: auto;
+  right: 0;
+}
+
+/* 针对 Element Plus 斑马纹处理：强制悬浮层背景色同步 */
+:deep(.el-table__row:hover > td.el-table__cell) {
+  background-color: var(--el-table-row-hover-bg-color) !important;
+}
+
+/* 危险操作颜色 */
+.danger-text { color: var(--el-color-danger) !important; }
 </style>
