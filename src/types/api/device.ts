@@ -16,7 +16,7 @@ export interface DevicePublic {
   isConnectedWs?: boolean;
   isActiveSlot: boolean;
   validUntil?: string;
-  isControlled: boolean;
+  isDebugging: boolean;
 }
 
 /**

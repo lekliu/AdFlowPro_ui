@@ -2,12 +2,12 @@
   <el-card class="card-margin">
     <template #header>
       <div class="card-header">
-        <span>调试辅助 (仅对当前在线的受控设备生效)</span>
+        <span>调试辅助 (仅对当前在线的调试设备生效)</span>
       </div>
     </template>
 
     <!-- Flex 布局保持单行结构 -->
-    <div v-loading="isLoading" class="compact-controls" v-if="isControlled">
+    <div v-loading="isLoading" class="compact-controls" v-if="isDebugging">
       <div class="control-group flex-expand">
         <span class="label">视觉增强开关:</span>
         <el-select
@@ -16,7 +16,7 @@
             filterable
             placeholder="请勾选需要开启的视觉反馈"
             class="tag-select"
-            :disabled="!isControlled"
+            :disabled="!isDebugging"
         >
           <!-- 核心修改：手动定义新的功能性标签 -->
           <el-option label="显示手势路径 (曲线)" value="VISUAL_PATH" />
@@ -28,7 +28,7 @@
       </div>
     </div>
     <div v-else class="empty-tip">
-      请在右上角开启“受控模式”以启用调试辅助功能。
+      请在右上角开启“调试模式”以启用调试辅助功能。
     </div>
   </el-card>
 </template>
@@ -41,7 +41,7 @@ import { ElMessage } from "element-plus";
 
 const props = defineProps<{
   deviceId: string;
-  isControlled: boolean;
+  isDebugging: boolean;
 }>();
 
 const isLoading = ref(true);
@@ -70,7 +70,7 @@ onMounted(async () => {
 });
 
 watch(selectedTags, async (newTags) => {
-  if (isInitialLoad || !props.deviceId || !props.isControlled) return;
+  if (isInitialLoad || !props.deviceId || !props.isDebugging) return;
 
   try {
     await deviceService.setDebugConfig(props.deviceId, {

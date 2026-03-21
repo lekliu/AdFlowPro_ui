@@ -4,11 +4,11 @@
     <el-page-header @back="goBack" :content="``" class="header-bar">
       <template #extra>
         <div class="header-actions">
-          <!-- [核心新增] 受控模式切换 -->
+          <!-- [核心新增] 调试模式切换 -->
           <div class="mode-switch-wrapper" style="margin-right: 20px; display: inline-flex; align-items: center; gap: 8px;">
-            <span style="font-size: 14px; color: var(--el-text-color-regular)">受控/调试模式</span>
-            <el-tooltip :content="device.isControlled ? '已开启受控模式：全量应用清单已落库，支持离线查看。' : '当前为标准模式：应用清单仅在内存比对，不占用数据库空间。'" placement="bottom">
-              <el-switch v-model="device.isControlled" @change="handleToggleControlledMode" :loading="isTogglingMode" />
+            <span style="font-size: 14px; color: var(--el-text-color-regular)">调试模式</span>
+            <el-tooltip :content="device.isDebugging ? '已开启调试模式：全量应用清单已落库，支持离线查看。' : '当前为标准模式：应用清单仅在内存比对，不占用数据库空间。'" placement="bottom">
+              <el-switch v-model="device.isDebugging" @change="handleToggleControlledMode" :loading="isTogglingMode" />
             </el-tooltip>
           </div>
           <el-button-group style="margin-right: 15px">
@@ -31,7 +31,7 @@
             <DeviceInfoCard :device="device" style="margin-bottom: 20px;" />
             <DebugControlCard
                 :device-id="props.deviceId || ''"
-                :is-controlled="device.isControlled"
+                :is-debugging="device.isDebugging"
             />
           </div>
         </el-tab-pane>
@@ -236,23 +236,23 @@ const fetchDetails = async () => {
   }
 };
 
-// [核心新增] 切换受控模式的 API 调用
+// [核心新增] 切换调试模式的 API 调用
 const handleToggleControlledMode = async (val: string | number | boolean) => {
   // 显式转为 boolean 以匹配业务逻辑
   const isEnabled = !!val;
   isTogglingMode.value = true;
   try {
     await deviceService.toggleControlledMode(props.deviceId, isEnabled);
-    ElMessage.success(`受控模式已${isEnabled ? '开启' : '关闭'}`);
+    ElMessage.success(`调试模式已${isEnabled ? '开启' : '关闭'}`);
 
-    device.value!.isControlled = isEnabled;
+    device.value!.isDebugging = isEnabled;
 
-    // 如果开启了受控模式，主动触发一次应用刷新，以便让后端执行 Mark-and-Sweep 入库
+    // 如果开启了调试模式，主动触发一次应用刷新，以便让后端执行 Mark-and-Sweep 入库
     if (isEnabled) {
       fetchInstalledApps(true);
     }
   } catch (error) {
-    device.value!.isControlled = !isEnabled; // 失败则回滚 UI
+    device.value!.isDebugging = !isEnabled; // 失败则回滚 UI
   } finally {
     isTogglingMode.value = false;
   }
