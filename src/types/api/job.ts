@@ -20,7 +20,7 @@ export interface JobPublic {
   suite: TestSuitePublic;
   targetAppPackageName: string;
   device: DevicePublic;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "paused";
   createdAt: string;
   startedAt?: string;
   completedAt?: string;

@@ -65,6 +65,20 @@ export const useJobStore = defineStore("job", {
       }
     },
 
+    async pauseJob(jobId: number) {
+      await jobService.pauseJob(jobId);
+      if (this.currentJobDetails?.jobDetails.jobId === jobId) {
+        this.currentJobDetails.jobDetails.status = 'paused';
+      }
+    },
+
+    async resumeJob(jobId: number) {
+      await jobService.resumeJob(jobId);
+      if (this.currentJobDetails?.jobDetails.jobId === jobId) {
+        this.currentJobDetails.jobDetails.status = 'running';
+      }
+    },
+
     async cancelJob(jobId: number) {
       this.isCancelling = true;
       try {

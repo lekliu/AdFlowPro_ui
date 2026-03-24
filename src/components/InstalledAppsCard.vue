@@ -5,23 +5,22 @@
       <template #header>
         <div class="af-list-header">
           <div class="left">
-            <!-- 保持原版 loading 和 disabled 逻辑 -->
-            <el-dropdown split-button type="primary" @click="$emit('refresh', true)" :loading="isLoading" :disabled="!isConnected">
-              <el-icon class="mr-1"><Refresh /></el-icon> 从设备更新
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="$emit('refresh', false)">从服务器缓存刷新</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <span class="count-info ml-4">
+            <!-- 唯一的重型更新按钮：触发手机实时上报 -->
+            <el-button type="primary" @click="$emit('refresh', true)" :loading="isLoading" :disabled="!isConnected">
+              <el-icon class="mr-1"><Refresh /></el-icon> 从设备更新应用状态
+            </el-button>
+            <span class="count-info ml-6">
               已安装应用 ({{ filteredApps.length }}/{{ apps.length }})
             </span>
           </div>
 
-          <div class="right filter-group">
-            <el-input v-model="searchQuery" placeholder="搜索应用/包名" clearable style="width: 180px" :prefix-icon="Search" />
+          <el-select v-model="sortBy" placeholder="排序" style="width: 120px">
+            <el-option label="名称 (A-Z)" value="name" />
+            <el-option label="时间 (最新)" value="lastRunTime" />
+            <el-option label="时间 (最早)" value="lastRunTimeAsc" />
+          </el-select>
 
+          <div class="right filter-group">
             <el-select v-model="filterStatus" placeholder="状态筛选" clearable style="width: 110px">
               <el-option label="全部" value="" />
               <el-option label="已纳管" value="inMaster" />
@@ -34,11 +33,19 @@
               <el-option v-for="suite in uniqueSuites" :key="suite" :label="suite" :value="suite" />
             </el-select>
 
-            <el-select v-model="sortBy" placeholder="排序" style="width: 120px">
-              <el-option label="名称 (A-Z)" value="name" />
-              <el-option label="时间 (最新)" value="lastRunTime" />
-              <el-option label="时间 (最早)" value="lastRunTimeAsc" />
-            </el-select>
+            <!-- 调整为原子列表风格的搜索框 -->
+            <el-input
+                v-model="searchQuery"
+                placeholder="搜索应用或包名..."
+                clearable
+                style="width: 200px"
+            >
+              <template #append>
+                <el-button :icon="Search"
+                           @click="$emit('refresh', false)"
+                           title="从后台服务器刷新清单" />
+              </template>
+            </el-input>
           </div>
         </div>
       </template>
@@ -90,30 +97,29 @@
         </el-table-column>
 
         <!-- 4. 运行结果：还原 Tooltip 和耗时逻辑 -->
-        <el-table-column label="结果" width="160">
+        <el-table-column label="结果" min-width="150" >
           <template #default="{ row }">
             <div class="result-cell" v-if="row.lastStatus">
-              <el-tooltip v-if="row.lastStatus === 'failed' && row.lastFailReason" :content="row.lastFailReason" placement="top" :show-after="500">
-                <el-tag :type="getStatusType(row.lastStatus)" size="small" class="status-tag clickable-help">
+              <div class="status-main-row">
+                <el-tag :type="getStatusType(row.lastStatus)" size="small" class="status-tag">
                   {{ row.lastStatus }}
                 </el-tag>
-              </el-tooltip>
-              <el-tag v-else :type="getStatusType(row.lastStatus)" size="small" class="status-tag">
-                {{ row.lastStatus }}
-              </el-tag>
 
-              <span v-if="row.lastDurationS != null" class="duration-text ml-2">
-                {{ formatDurationExact(row.lastDurationS) }}
-              </span>
+                <span v-if="row.lastDurationS != null" class="duration-text ml-2">
+                  {{ formatDurationExact(row.lastDurationS) }}
+                </span>
+              </div>
+              
+              <!-- 核心修复：直接展示失败或状态消息 -->
+              <div 
+                v-if="row.lastStatusMessage" 
+                class="status-msg-row" 
+                :title="row.lastStatusMessage"
+              >
+                {{ row.lastStatusMessage }}
+            </div>
             </div>
             <span v-else class="placeholder-text">--</span>
-          </template>
-        </el-table-column>
-
-        <!-- 5. 最后描述 (动态隐藏) -->
-        <el-table-column v-if="showDesc" label="最后描述" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="message-text">{{ row.lastStatusMessage || '--' }}</span>
           </template>
         </el-table-column>
 
@@ -124,7 +130,7 @@
         <el-table-column
             label="上次运行"
             prop="lastRunAt"
-            width="180"
+            width="150"
             align="right"
             header-align="left"
         >
@@ -323,6 +329,16 @@ onUnmounted(() => resizeObserver?.disconnect());
 .status-tag { font-weight: bold; }
 .clickable-help { cursor: help; }
 .duration-text { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #909399; }
+
+.status-msg-row {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #f56c6c; /* 默认使用错误红 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .placeholder-text { color: #dcdfe6; font-size: 12px; }
 
 /* Gmail 悬浮效果 */

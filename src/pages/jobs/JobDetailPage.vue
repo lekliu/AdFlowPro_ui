@@ -19,6 +19,22 @@
             <el-tag v-if="['running', 'queued', 'pending'].includes(jobDetails.status)" type="success" effect="dark" class="polling-tag">
               <el-icon class="is-loading"><Refresh /></el-icon> 实时监控中
             </el-tag>
+            <el-tag v-else-if="jobDetails.status === 'paused'" type="warning" effect="dark" class="polling-tag">
+              <el-icon><VideoPause /></el-icon> 任务已挂起
+            </el-tag>
+
+            <!-- 控制按钮组 -->
+            <el-button-group v-if="['running', 'debugging', 'paused'].includes(jobDetails.status)">
+              <el-button
+                  v-if="['running', 'debugging'].includes(jobDetails.status)"
+                  type="warning" size="small" :icon="VideoPause"
+                  @click="jobStore.pauseJob(jobDetails.jobId)">暂停</el-button>
+              <el-button
+                  v-else
+                  type="success" size="small" :icon="VideoPlay"
+                  @click="jobStore.resumeJob(jobDetails.jobId)">继续</el-button>
+            </el-button-group>
+
             <el-button :icon="CopyDocument" type="primary" link @click="handleCopyForAI">AI分析</el-button>
             <el-button
                 v-if="['running', 'queued', 'pending', 'debugging'].includes(jobDetails.status)"
@@ -107,7 +123,9 @@
 
           <el-table-column label="耗时" width="80" align="right">
             <template #default="scope">
-              <span v-if="scope.row.durationMs != null">{{ scope.row.durationMs }}ms</span>
+              <span :style="getDurationStyle(scope.row.durationMs)">
+                {{ formatDurationMs(scope.row.durationMs) }}
+              </span>
             </template>
           </el-table-column>
 
@@ -148,7 +166,7 @@ defineOptions({
 import { computed, onMounted, onUnmounted, ref, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useJobStore } from "@/stores/jobStore";
-import { Check, Close, VideoPause, Download, Refresh, CopyDocument } from "@element-plus/icons-vue";
+import {Check, Close, VideoPause, Download, Refresh, CopyDocument, VideoPlay} from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage } from "element-plus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -268,6 +286,28 @@ const tableRowClassName = ({ row }: { row: any }) => {
 };
 
 const formatTimeOnly = (dateString?: string) => (dateString ? dayjs.utc(dateString).local().format("HH:mm:ss") : "--");
+
+// [核心新增] 耗时格式化工具
+const formatDurationMs = (ms: number | null | undefined) => {
+  if (!ms || ms <= 0) return ""; // 隐藏 0ms 或空值
+
+  if (ms < 1000) {
+    return `${ms}ms`;
+  } else if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  } else {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.round((ms % 60000) / 1000);
+    return `${minutes}m${seconds}s`;
+  }
+};
+
+// [核心新增] 根据耗时返回颜色样式
+const getDurationStyle = (ms: number | null | undefined) => {
+  if (!ms || ms < 1000) return { color: '#909399' }; // 默认灰色
+  if (ms < 5000) return { color: '#E6A23C', fontWeight: 'bold' }; // 1-5s 橙色
+  return { color: '#F56C6C', fontWeight: 'bold' }; // >5s 红色
+};
 
 // 判断是否显示时间 (如果与上一行相同则隐藏)
 const shouldShowTime = (index: number) => {
@@ -435,6 +475,7 @@ const statusTagType = (status: string) => {
     case "running": return "primary";
     case "failed": return "danger";
     case "debugging": return "warning";
+    case "paused": return "warning";
     case "pending":
     case "queued": return "warning";
     case "cancelled": return "info";

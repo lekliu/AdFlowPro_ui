@@ -66,6 +66,7 @@
 import { ref, computed } from 'vue';
 import { Refresh, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import {copyToClipboard} from "@/utils/clipboard";
 
 // 定义明确的接口
 interface VariablesData {

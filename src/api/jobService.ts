@@ -41,6 +41,15 @@ export const jobService = {
   async cancelJob(jobId: number): Promise<JobPublic> {
     return apiClient.post(`/jobs/${jobId}/cancel`);
   },
+
+  async pauseJob(jobId: number): Promise<void> {
+    return apiClient.post(`/jobs/${jobId}/pause`);
+  },
+
+  async resumeJob(jobId: number): Promise<void> {
+    return apiClient.post(`/jobs/${jobId}/resume`);
+  },
+
   /**
    * 下载指定任务的HTML报告
    */
