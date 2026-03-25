@@ -130,6 +130,10 @@ const handleSave = async () => {
       await fragmentStore.create(payload);
       ElMessage.success("创建成功");
     }
+
+    // --- 核心修复：通知列表页需要刷新 ---
+    fragmentStore.setNeedsRefresh(true);
+
     goBack();
   } finally {
     isSaving.value = false;

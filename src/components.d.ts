@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ActionFragmentLineageDrawer: typeof import('./components/ActionFragmentLineageDrawer.vue')['default']
     ActionRow: typeof import('./components/ActionRow.vue')['default']
     ActionSequenceEditor: typeof import('./components/ActionSequenceEditor.vue')['default']
     AddToPackageDialog: typeof import('./components/dialogs/AddToPackageDialog.vue')['default']

@@ -95,6 +95,15 @@
                     <el-button :icon="Edit" circle class="btn-action btn-edit" @click.stop="handleEdit(scope.row.fragmentId)" />
                   </el-tooltip>
 
+                  <el-tooltip content="血缘分析" placement="top" :show-after="500">
+                    <el-button
+                        :icon="Compass"
+                        circle
+                        class="btn-action btn-lineage"
+                        @click.stop="lineageDrawer.open(scope.row.fragmentId)"
+                    />
+                  </el-tooltip>
+
                   <el-tooltip content="删除片段" placement="top" :show-after="500" :enterable="false">
                     <el-button :icon="Delete" circle class="btn-action btn-delete" @click.stop="handleDelete(scope.row)" />
                   </el-tooltip>
@@ -119,6 +128,8 @@
             @current-change="handleCurrentChange"
         />
       </div>
+      <!-- 2. 导入组件 -->
+      <ActionFragmentLineageDrawer ref="lineageDrawer" />
     </el-card>
   </div>
 </template>
@@ -128,13 +139,16 @@ defineOptions({ name: "ActionFragmentsList" });
 
 import { ref, onMounted, onActivated, onUnmounted, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue"; // 移除了 CopyDocument
+import { Plus, Edit, Delete, Search, Compass } from "@element-plus/icons-vue"; // 移除了 CopyDocument
 import { useActionFragmentStore } from "@/stores/actionFragmentStore";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import { ElMessageBox, ElMessage } from "element-plus";
 import { formatDateTime } from "@/utils/formatter";
 import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
 import { confirmBatchDelete } from "@/utils/messageBox";
+import ActionFragmentLineageDrawer from "@/components/ActionFragmentLineageDrawer.vue";
+
+const lineageDrawer = ref();
 
 const router = useRouter();
 const fragmentStore = useActionFragmentStore();
@@ -176,6 +190,14 @@ onMounted(() => {
   }
 });
 
+// --- 核心修复：当从编辑器切回列表页时自动刷新 ---
+onActivated(() => {
+  if (fragmentStore.needsRefresh) {
+    console.log("[ActionFragment] 检测到数据变更，正在自动刷新列表...");
+    fetchData(); // 重新调用查询接口
+  }
+});
+
 const parseActionCount = (actionsData: any) => {
   if (!actionsData) return 0;
   if (Array.isArray(actionsData)) return actionsData.length;
@@ -214,12 +236,20 @@ const handleBatchDelete = () => {
 };
 
 const handleDelete = (row: any) => {
-  ElMessageBox.confirm(`确定要删除动作片段 "${row.name}" 吗？`, "删除确认", { type: "warning" })
-      .then(async () => {
-        await fragmentStore.remove(row.fragmentId);
-        ElMessage.success("删除成功");
-        fetchData();
-      }).catch(() => {});
+  ElMessageBox.confirm(
+      `确定要删除动作片段 "${row.name}" 吗？<br/><span style="color:#909399; font-size:12px;">系统将自动检测引用，若已被其他原子引用将无法删除。</span>`,
+      "删除确认",
+      {
+        type: "warning",
+        dangerouslyUseHTMLString: true,
+        confirmButtonClass: "el-button--danger"
+      }
+  ).then(async () => {
+    // 这里的删除操作如果被后端拦截，apiClient 会自动显示后端返回的 detail 错误信息
+    await fragmentStore.remove(row.fragmentId);
+    ElMessage.success("删除成功");
+    fetchData();
+  }).catch(() => {});
 };
 
 // 响应式布局

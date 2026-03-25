@@ -62,9 +62,10 @@ import { ref, onMounted, reactive } from "vue";
 import { useAtomCategoryStore } from "@/stores/atomCategoryStore";
 import type { AtomCategoryPublic } from "@/types/api";
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
-import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue"; // This is correct
+import { Plus, Edit, Delete, Search } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import apiClient from "@/api/apiClient";
 
 dayjs.extend(utc);
 
@@ -144,25 +145,53 @@ const handleSubmit = async () => {
   });
 };
 
-const handleDelete = async (category: AtomCategoryPublic & { atomCount: number; packageCount: number }) => {
-  if (category.atomCount > 0 || category.packageCount > 0) {
-    ElMessage.error(`无法删除，该分类下有 ${category.atomCount} 个原子操作和 ${category.packageCount} 个测试包。`);
-    return;
-  }
+const handleDelete = async (category: any) => {
+  const loading = ElLoading.service({ text: '正在进行风险评估...' });
 
   try {
-    await ElMessageBox.confirm(`确定要删除分类 "${category.name}" 吗？`, "确认删除", {
-      type: "warning",
-    });
-    await categoryStore.removeCategory(category.categoryId);
-    ElMessage.success("删除成功！");
-    fetchData(); // Reload data
-  } catch (error) {
-    if (error !== "cancel") {
-      // API interceptor will handle this
-    } else {
-      ElMessage.info("已取消删除");
+    // 1. 调用评估接口
+    const impact: any = await apiClient.get(`/atom-categories/${category.categoryId}/lineage`);
+    loading.close();
+
+    if (impact.totalImpact > 0) {
+      // 2. 如果存在关联资产，弹出结构化报告
+      const detailsHtml = impact.details.map((d: any) =>
+          `<div style="margin-bottom:12px">
+          <b style="color:#303133">● ${d.type} (${d.count}个):</b><br/>
+          <div style="color:#909399; font-size:12px; padding-left:12px; margin-top:4px; line-height:1.6">
+            ${d.items.join('、')}
+          </div>
+        </div>`
+      ).join('');
+
+      ElMessageBox.alert(
+          `<div style="max-height: 400px; overflow-y: auto; padding-right:8px">
+          <p style="color:#f56c6c; font-weight:bold; font-size:15px; margin-bottom:15px">
+            无法删除分类！该分类下仍有 ${impact.totalImpact} 项资产。
+          </p>
+          ${detailsHtml}
+          <p style="margin-top:15px; color:#E6A23C; font-size:12px">提示：请先将上述资产迁移至其他分类或删除。</p>
+        </div>`,
+          '分类删除拦截报告',
+          { dangerouslyUseHTMLString: true, confirmButtonText: '我知道了', type: 'error' }
+      );
+      return;
     }
+
+    // 3. 只有 totalImpact 为 0 时，才走原来的删除逻辑
+    await ElMessageBox.confirm(`确定要删除分类 "${category.name}" 吗？`, "二次确认", {
+      type: "warning",
+      confirmButtonClass: "el-button--danger"
+    });
+
+    await categoryStore.removeCategory(category.categoryId);
+    ElMessage.success("分类已成功删除");
+    fetchData();
+
+  } catch (error) {
+    if (error !== 'cancel') console.error(error);
+  } finally {
+    loading.close();
   }
 };
 

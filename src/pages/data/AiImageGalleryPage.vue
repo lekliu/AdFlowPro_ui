@@ -386,6 +386,13 @@ const handleActionResult = (event: Event) => {
 };
 
 onMounted(loadImages);
+
+// --- 新增刷新逻辑 ---
+onActivated(() => {
+  // 建议进入页面时自动刷新一次，确保看到最新的采集素材
+  loadImages();
+});
+
 onMounted(() => {
   window.addEventListener('live_test_result', handleActionResult);
 });

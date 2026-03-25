@@ -114,7 +114,7 @@ const handleBatchDelete = () => {
   ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条记录吗？`).then(async () => {
     await apiClient.post('/data-reports/alarms/batch-delete', { ids: selectedIds.value });
     ElMessage.success('已删除');
-    fetchAlarms();
+    await fetchAlarms();
   });
 };
 
@@ -126,6 +126,12 @@ const getTagType = (t?: string) => {
 };
 
 onMounted(fetchAlarms);
+
+// --- 新增刷新逻辑 ---
+onActivated(() => {
+  fetchAlarms();
+});
+
 </script>
 
 <style scoped>

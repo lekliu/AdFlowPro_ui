@@ -16,6 +16,12 @@
           </el-descriptions>
 
           <div class="hud-actions">
+            <el-switch
+                v-model="isAutoscrollEnabled"
+                active-text="自动滚动"
+                inline-prompt
+                style="margin-right: 15px"
+            />
             <el-tag v-if="['running', 'queued', 'pending'].includes(jobDetails.status)" type="success" effect="dark" class="polling-tag">
               <el-icon class="is-loading"><Refresh /></el-icon> 实时监控中
             </el-tag>
@@ -152,6 +158,16 @@
             </template>
           </el-table-column>
         </el-table>
+        <!-- 悬浮按钮：当自动滚动关闭且有新消息时显示 -->
+        <transition name="el-fade-in">
+          <div
+              v-if="!isAutoscrollEnabled && hasNewLogs"
+              class="new-logs-indicator"
+              @click="enableAutoscroll"
+          >
+            <el-icon><Bottom /></el-icon> 底部有新日志 (点击跳转)
+          </div>
+        </transition>
       </div>
 
       <el-empty v-if="!jobDetails && !jobStore.isLoading" description="无法加载任务详情" />
@@ -163,7 +179,8 @@
 defineOptions({
   name: "JobDetail",
 });
-import { computed, onMounted, onUnmounted, ref, nextTick } from "vue";
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from "vue";
+import { Bottom } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
 import { useJobStore } from "@/stores/jobStore";
 import {Check, Close, VideoPause, Download, Refresh, CopyDocument, VideoPlay} from "@element-plus/icons-vue";
@@ -177,7 +194,13 @@ dayjs.extend(utc);
 const props = defineProps<{ jobId: string }>();
 const router = useRouter();
 const jobStore = useJobStore();
+
+// --- 滚动控制状态 ---
+const isAutoscrollEnabled = ref(true);
+const hasNewLogs = ref(false);
 const logTableWrapper = ref<HTMLElement | null>(null);
+
+
 
 // 这个计算属性用于获取任务的元数据，用于顶部的概览卡片
 const jobDetails = computed(() => jobStore.currentJobDetails?.jobDetails);
@@ -191,9 +214,10 @@ const results = computed({
   }
 });
 
+// 修改原有的 scrollToBottom 函数
 const scrollToBottom = async () => {
   await nextTick();
-  if (logTableWrapper.value) {
+  if (logTableWrapper.value && isAutoscrollEnabled.value) {
     logTableWrapper.value.scrollTo({
       top: logTableWrapper.value.scrollHeight,
       behavior: 'smooth'
@@ -202,6 +226,31 @@ const scrollToBottom = async () => {
 };
 const goToAtom = (atomId: number) => {
   router.push({ name: "AtomEditor", params: { atomId } });
+};
+
+// 核心逻辑：开启自动滚动时，立即执行一次滚动并重置新日志标记
+const enableAutoscroll = () => {
+  isAutoscrollEnabled.value = true;
+  hasNewLogs.value = false;
+  scrollToBottom();
+};
+
+// 监控手动滚动
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement;
+  // 计算是否距离底部超过 50px
+  const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
+
+  // 如果用户往上滚，且当前是开启自动滚动的，则自动关闭它（智能感应）
+  if (!isAtBottom && isAutoscrollEnabled.value) {
+    isAutoscrollEnabled.value = false;
+  }
+
+  // 如果用户滚回底部，重新激活自动滚动
+  if (isAtBottom && !isAutoscrollEnabled.value) {
+    isAutoscrollEnabled.value = true;
+    hasNewLogs.value = false;
+  }
 };
 
 // WebSocket 事件处理器
@@ -214,7 +263,13 @@ const handleJobStepUpdate = (event: Event) => {
     if (!exists) {
       if (jobStore.currentJobDetails) {
         jobStore.currentJobDetails.results.push(newStep);
-        scrollToBottom(); // 确保收到新步骤时触发滚动
+        // --- 核心改动 ---
+        if (isAutoscrollEnabled.value) {
+          scrollToBottom();
+        } else {
+          // 提示有新数据
+          hasNewLogs.value = true;
+        }
       }
     }
   }
@@ -344,6 +399,14 @@ const handleCopyForAI = async () => {
   prompt += `## 2. 执行步骤概览\n`;
   prompt += `| 执行时间 | 步骤名称 | 类型 | 状态 | 耗时(ms) | 详情/日志 |\n`;
   prompt += `|---|---|---|---|---|---|\n`;
+
+  // 监听开关切换
+  watch(isAutoscrollEnabled, (newVal) => {
+    if (newVal) {
+      hasNewLogs.value = false;
+      scrollToBottom();
+    }
+  });
 
   steps.forEach((step) => {
     let detailText = "";
@@ -491,6 +554,7 @@ const calculateDuration = (start?: string, end?: string) => {
   const duration = endTime.diff(dayjs.utc(start), "second");
   return duration >= 0 ? `${duration} 秒` : "N/A";
 };
+
 </script>
 
 <style scoped>
@@ -571,5 +635,41 @@ const calculateDuration = (start?: string, end?: string) => {
 }
 .step-name-link:hover {
   color: var(--el-color-primary-dark-2);
+}
+
+.log-table-wrapper {
+  position: relative; /* 必须为 relative 以支撑内部绝对定位 */
+  flex: 1;
+  overflow-y: auto;
+}
+
+.new-logs-indicator {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background-color: var(--el-color-primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s;
+}
+
+.new-logs-indicator:hover {
+  background-color: var(--el-color-primary-dark-2);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* 优化表格内文字换行，方便故障定位查看 */
+.detail-cell {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

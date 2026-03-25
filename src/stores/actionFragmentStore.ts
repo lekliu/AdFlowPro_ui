@@ -9,12 +9,18 @@ export const useActionFragmentStore = defineStore("actionFragment", () => {
   const total = ref(0);
   const isLoading = ref(false);
 
+  const needsRefresh = ref(false);
+  function setNeedsRefresh(status: boolean) {
+    needsRefresh.value = status;
+  }
+
   async function fetchFragments(params: any) {
     isLoading.value = true;
     try {
       const res = await actionFragmentService.getFragments(params);
       fragments.value = res.items;
       total.value = res.total;
+      needsRefresh.value = false; // 取数成功后重置标记
     } finally {
       isLoading.value = false;
     }
@@ -62,6 +68,8 @@ export const useActionFragmentStore = defineStore("actionFragment", () => {
     allFragments,
     total,
     isLoading,
+    needsRefresh,
+    setNeedsRefresh,
     fetchFragments,
     fetchAllForSelect,
     fetchById,
