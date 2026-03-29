@@ -208,6 +208,7 @@ import { suiteService } from "@/api/suiteService";
 import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type ElTree } from "element-plus";
 import { Plus, Edit, Delete, Search, VideoPlay, Document, Upload, MoreFilled } from "@element-plus/icons-vue";
 import { formatDateTime } from "@/utils/formatter";
+import { copyToClipboard } from "@/utils/clipboard";
 import { useTablePagination, useTableHelper } from "@/composables/useTableManager";
 import { confirmBatchDelete } from "@/utils/messageBox";
 
@@ -399,8 +400,8 @@ const jsonToTree = (obj: any, labelPrefix = ""): any[] => {
 };
 
 const handleCopyPackage = async () => {
-  await navigator.clipboard.writeText(JSON.stringify(packageDialog.content, null, 2));
-  ElMessage.success("剧本JSON内容已成功复制到剪贴板！");
+  const success = await copyToClipboard(JSON.stringify(packageDialog.content, null, 2));
+  if (success) ElMessage.success("剧本JSON内容已成功复制到剪贴板！");
 };
 
 const resetRunDialog = () => runFormRef.value?.resetFields();

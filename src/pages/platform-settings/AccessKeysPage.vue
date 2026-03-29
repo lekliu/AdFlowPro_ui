@@ -103,7 +103,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { Plus, CopyDocument, Download, Refresh } from '@element-plus/icons-vue';
 import apiClient from '@/api/apiClient';
 import { ElMessage } from 'element-plus';
-// 引入时间处理库
+import { copyToClipboard } from "@/utils/clipboard";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 
@@ -186,12 +186,13 @@ const handleGenerate = async () => {
   } finally { generating.value = false; }
 };
 
-const handleCopy = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
+const handleCopy = async (text) => {
+  const success = await copyToClipboard(text);
+  if (success) {
     ElMessage.success('已复制到剪贴板');
-  }).catch(() => {
+  } else {
     ElMessage.error('复制失败，请手动选择复制');
-  });
+  }
 };
 
 const stats = reactive({ total: 0, used: 0, unused: 0, expiringSoon: 0 });

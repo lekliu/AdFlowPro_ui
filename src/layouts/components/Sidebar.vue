@@ -114,6 +114,11 @@
           <span>租户管理</span>
         </el-menu-item>
 
+        <el-menu-item v-if="userRole === 'super_admin'" index="/platform-settings/system-settings">
+          <el-icon><Tools /></el-icon>
+          <span>系统全局配置</span>
+        </el-menu-item>
+
         <el-menu-item index="/global-variables">
           <el-icon><PriceTag /></el-icon>
           <span>全局变量</span>
@@ -163,7 +168,7 @@ import {
   Management,
   Cpu,
   Share,
-  CollectionTag, 
+  CollectionTag, Tools,
   UploadFilled,
   User, Key,
   OfficeBuilding

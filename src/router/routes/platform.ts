@@ -9,6 +9,12 @@ const platformRoutes: Array<RouteRecordRaw> = [
     meta: { title: "全局变量", icon: "PriceTag" },
   },
   {
+    path: "platform-settings/system-settings",
+    name: "SystemSettings",
+    component: () => import("@/pages/platform-settings/SystemSettingsPage.vue"),
+    meta: { title: "系统全局配置", icon: "Tools" },
+  },
+  {
     path: "scheduled-tasks",
     name: "ScheduledTasks",
     component: () => import("@/pages/scheduled-tasks/ScheduledTasksPage.vue"),

@@ -287,8 +287,8 @@ const handleMouseUp = (event: MouseEvent) => {
       const rx = (mousePosition.imageX / imageInfo.naturalWidth).toFixed(4);
       const ry = (mousePosition.imageY / imageInfo.naturalHeight).toFixed(4);
       const copyText = `${rx}, ${ry}, ${currentHexColor.value}`;
-      navigator.clipboard.writeText(copyText).then(() => {
-        ElMessage.success(`采样成功: ${copyText}`);
+      copyToClipboard(copyText).then((success) => {
+        if (success) ElMessage.success(`采样成功: ${copyText}`);
       });
     }
     clearPressTimer();

@@ -45,6 +45,7 @@
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor';
 import { DocumentCopy } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
+import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
   modelValue: Boolean,
@@ -76,8 +77,9 @@ const handleEditorMount = (editor: any, monaco: any) => {
 const handleCopy = async () => {
   if (!props.code) return;
   try {
-    await navigator.clipboard.writeText(props.code);
-    ElMessage.success("代码已成功复制到剪贴板");
+    const success = await copyToClipboard(props.code);
+    if (success) ElMessage.success("代码已成功复制到剪贴板");
+    else throw new Error();
   } catch (err) {
     ElMessage.error("复制失败，请手动选择文字复制");
   }

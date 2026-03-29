@@ -188,6 +188,7 @@ import { ElMessageBox, ElMessage } from "element-plus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { ResultPublic } from "@/types/api";
+import { copyToClipboard } from "@/utils/clipboard";
 
 dayjs.extend(utc);
 
@@ -476,8 +477,9 @@ const handleCopyForAI = async () => {
 
   // 4. 写入剪切板
   try {
-    await navigator.clipboard.writeText(prompt);
-    ElMessage.success("已复制 AI 分析提示词到剪切板！");
+    const success = await copyToClipboard(prompt);
+    if (success) ElMessage.success("已复制 AI 分析提示词到剪切板！");
+    else throw new Error();
   } catch (err) {
     console.error("Copy failed", err);
     ElMessage.error("复制失败，请检查浏览器权限。");
